@@ -214,21 +214,19 @@ def create_one_sdf(sdfcommand, res, expand_rate, sdf_file, obj_file, indx, g=0.0
 
 
 def create_sdf_obj(sdfcommand, marching_cube_command, cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, obj,
-                   res, iso_val, expand_rate, indx, ish5, normalize, num_sample, bandwidth,
+                   res, iso_val, expand_rate, indx, normalize, num_sample, bandwidth,
                    max_verts, cat_id, g, version, skip_all_exist):
     obj=obj.rstrip('\r\n')
     sdf_sub_dir = os.path.join(cat_sdf_dir, obj)
     norm_mesh_sub_dir = os.path.join(cat_norm_mesh_dir, obj)
     if not os.path.exists(sdf_sub_dir): os.makedirs(sdf_sub_dir)
     if not os.path.exists(norm_mesh_sub_dir): os.makedirs(norm_mesh_sub_dir)
-    sdf_file = os.path.join(sdf_sub_dir, "isosurf.sdf")
-    flag_file = os.path.join(sdf_sub_dir, "isinsideout.txt")
-    cube_obj_file = os.path.join(norm_mesh_sub_dir, "isosurf.obj")
+    # sdf_file = os.path.join(sdf_sub_dir, "isosurf.sdf")
+    # flag_file = os.path.join(sdf_sub_dir, "isinsideout.txt")
+    # cube_obj_file = os.path.join(norm_mesh_sub_dir, "isosurf.obj")
     h5_file = os.path.join(sdf_sub_dir, "ori_sample.h5")
-    if ish5 and os.path.exists(h5_file) and (skip_all_exist or not os.path.exists(flag_file)):
+    if  os.path.exists(h5_file) and (skip_all_exist or not os.path.exists(flag_file)):
         print("skip existed: ", h5_file)
-    elif not ish5 and os.path.exists(sdf_file):
-        print("skip existed: ", sdf_file)
     else:
         if version == 1:
             model_file = os.path.join(cat_mesh_dir, obj, "model.obj")
@@ -281,7 +279,6 @@ def create_ivt(num_sample, res, expand_rate, cats, raw_dirs, lst_dir, ish5= True
         expand_rate_lst=[expand_rate for i in range(repeat)]
         normalize_lst=[normalize for i in range(repeat)]
         iso_val_lst=[iso_val for i in range(repeat)]
-        ish5_lst=[ish5 for i in range(repeat)]
         num_sample_lst=[num_sample for i in range(repeat)]
         bandwidth_lst=[bandwidth for i in range(repeat)]
         max_verts_lst=[max_verts for i in range(repeat)]
@@ -292,9 +289,9 @@ def create_ivt(num_sample, res, expand_rate, cats, raw_dirs, lst_dir, ish5= True
         with Parallel(n_jobs=FLAGS.thread_num) as parallel:
             parallel(delayed(create_sdf_obj)
             (sdfcommand, marching_cube_command, cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, obj, res,
-             iso_val, expand_rate, indx, ish5, norm, num_sample, bandwidth, max_verts,cat_id,g,version, skip_all_exist)
+             iso_val, expand_rate, indx, norm, num_sample, bandwidth, max_verts,cat_id,g,version, skip_all_exist)
             for sdfcommand, marching_cube_command, cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, obj,
-                res, iso_val, expand_rate, indx, ish5, norm, num_sample, bandwidth, max_verts,cat_id,g
+                res, iso_val, expand_rate, indx, norm, num_sample, bandwidth, max_verts,cat_id,g
                      ,version, skip_all_exist in
                 zip(sdfcommand_lst,
                 marching_cube_command_lst,
@@ -304,7 +301,7 @@ def create_ivt(num_sample, res, expand_rate, cats, raw_dirs, lst_dir, ish5= True
                 list_obj,
                 res_lst, iso_val_lst,
                 expand_rate_lst,
-                indx_lst, ish5_lst, normalize_lst,num_sample_lst,
+                indx_lst, normalize_lst,num_sample_lst,
                 bandwidth_lst, max_verts_lst,cat_id_lst, g_lst, version_lst,skip_all_exist_lst))
         start+=repeat
     print("finish all")
