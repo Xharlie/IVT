@@ -3,6 +3,7 @@ import h5py
 import os
 import numpy as np
 import pymesh
+import random
 from joblib import Parallel, delayed
 import trimesh
 from scipy.interpolate import RegularGridInterpolator
@@ -25,14 +26,17 @@ def get_unigrid(ivt_res, uni_num):
     x = np.linspace(-1, 1, num=grids).astype(np.float32)
     y = np.linspace(-1, 1, num=grids).astype(np.float32)
     z = np.linspace(-1, 1, num=grids).astype(np.float32)
-    choicex = np.random.randint(len(ind), size=uni_num)
-    choicey = np.random.randint(len(ind), size=uni_num)
-    choicez = np.random.randint(len(ind), size=uni_num)
+    choicex = np.array(random.sample(range(0, grids), uni_num))
+    choicey = np.array(random.sample(range(0, grids), uni_num))
+    choicez = np.array(random.sample(range(0, grids), uni_num))
     x_vals = x[choicex]
-    y_vals = x[choicey]
-    z_vals = x[choicez]
-    s = np.random.normal(mu, sigma, 1000)
+    y_vals = y[choicey]
+    z_vals = z[choicez]
+    return np.stack([x_vals, y_vals, z_vals], axis=0)
 
+def add_jitters(uni_grid, uni_num, std=0.02):
+    jitterx = np.random.normal(0, 0.02, 3 * uni_num).reshape([uni_num,3])
+    return uni_grid + jitterx
 
 def sample_ivt_uni(cat_id, num_sample, ivt_res):
     start = time.time()
@@ -95,8 +99,7 @@ def check_insideout(cat_id, sdf_val, sdf_res, x, y, z):
     else:
         return False
 
-def create_h5_ivt_pt(cat_id, h5_file, verts, faces, points_uni
-         centroid, m, ivt_res, num_sample, normalize):
+def create_h5_ivt_pt(cat_id, h5_file, verts, faces, points_uni, centroid, m, ivt_res, num_sample, normalize):
     print(verts.shape,faces.shape)
     index = faces.reshape(-1)
     tries = verts[index].reshape([-1,3,3])
@@ -108,7 +111,6 @@ def create_h5_ivt_pt(cat_id, h5_file, verts, faces, points_uni
     f1 = h5py.File(h5_file, 'w')
     f1.create_dataset('pc_ivt_sample', data=sampleivt.astype(np.float32), compression='gzip', compression_opts=4)
     f1.create_dataset('norm_params', data=norm_params, compression='gzip', compression_opts=4)
-    f1.create_dataset('sdf_params', data=sdf_dict["param"], compression='gzip', compression_opts=4)
     f1.close()
 
 
@@ -148,7 +150,7 @@ def get_normalize_mesh(model_file, norm_mesh_sub_dir):
 
 
 def create_ivt_obj(cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, obj,
-                   res, indx, normalize, num_sample, cat_id, version, skip_all_exist):
+                   res, indx, normalize, num_sample, cat_id, version, ungrid, skip_all_exist):
     obj=obj.rstrip('\r\n')
     ivt_sub_dir = os.path.join(cat_sdf_dir, obj)
     norm_mesh_sub_dir = os.path.join(cat_norm_mesh_dir, obj)
@@ -158,7 +160,7 @@ def create_ivt_obj(cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, obj,
     # flag_file = os.path.join(sdf_sub_dir, "isinsideout.txt")
     # cube_obj_file = os.path.join(norm_mesh_sub_dir, "isosurf.obj")
     h5_file = os.path.join(ivt_sub_dir, "ivt_sample.h5")
-    if  os.path.exists(h5_file) and (skip_all_exist or not os.path.exists(flag_file)):
+    if  os.path.exists(h5_file) and skip_all_exist:
         print("skip existed: ", h5_file)
     else:
         if version == 1:
@@ -168,7 +170,7 @@ def create_ivt_obj(cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, obj,
         # try:
         if normalize:
             verts, faces, centroid, m, points_uni = get_normalize_mesh(model_file, norm_mesh_sub_dir)
-        create_h5_ivt_pt(cat_id, h5_file, verts, faces, points_uni
+        create_h5_ivt_pt(cat_id, h5_file, verts, faces, points_uni, 
             centroid, m, res, num_sample, normalize)
         # except:
         #     print("%%%%%%%%%%%%%%%%%%%%%%%% fail to process ", model_file)
@@ -200,21 +202,22 @@ def create_ivt(num_sample, res, cats, raw_dirs, lst_dir, normalize=True, version
         num_sample_lst=[num_sample for i in range(repeat)]
         cat_id_lst=[cat_id for i in range(repeat)]
         version_lst=[version for i in range(repeat)]
+        unigrid_lst=[unigrid for i in range(repeat)]
         skip_all_exist_lst=[skip_all_exist for i in range(repeat)]
         # with Parallel(n_jobs=FLAGS.thread_num) as parallel:
         #     parallel(delayed(create_ivt_obj)
         #     (cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, obj, res,
-        #      indx, norm, num_sample, cat_id,version, skip_all_exist)
+        #      indx, norm, num_sample, cat_id,version, unigrid, skip_all_exist)
         #     for cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, obj,
-        #         res, indx, norm, num_sample, cat_id,version, skip_all_exist in
+        #         res, indx, norm, num_sample, cat_id,version, unigrid, skip_all_exist in
         #         zip(cat_mesh_dir_lst,
         #         cat_norm_mesh_dir_lst,
         #         cat_sdf_dir_lst,
         #         list_obj,
         #         res_lst, indx_lst, normalize_lst, num_sample_lst,
-        #         cat_id_lst, version_lst,skip_all_exist_lst))
+        #         cat_id_lst, version_lst, unigrid_lst, skip_all_exist_lst))
         create_ivt_obj(cat_mesh_dir_lst[0], cat_norm_mesh_dir_lst[0], cat_sdf_dir_lst[0], list_obj[0],
-            res_lst[0], indx_lst[0], normalize_lst[0], num_sample_lst[0], cat_id_lst[0], version_lst[0], skip_all_exist_lst[0])
+            res_lst[0], indx_lst[0], normalize_lst[0], num_sample_lst[0], cat_id_lst[0], version_lst[0], unigrid_lst[0], skip_all_exist_lst[0])
         start+=repeat
     print("finish all")
 
