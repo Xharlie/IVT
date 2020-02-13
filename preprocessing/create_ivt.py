@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../
 import utils.pointTriangleDistance as ptd
 import argparse
 
+
 CUR_PATH = os.path.dirname(os.path.realpath(__file__))
 
 parser = argparse.ArgumentParser()
@@ -22,58 +23,54 @@ parser.add_argument('--category', type=str, default="all", help='Which single cl
 FLAGS = parser.parse_args()
 
 def get_unigrid(ivt_res, uni_num):
-    grids = 1 / ivt_res 
+    grids = int(1 / ivt_res) 
     x = np.linspace(-1, 1, num=grids).astype(np.float32)
     y = np.linspace(-1, 1, num=grids).astype(np.float32)
     z = np.linspace(-1, 1, num=grids).astype(np.float32)
-    choicex = np.array(random.sample(range(0, grids), uni_num))
-    choicey = np.array(random.sample(range(0, grids), uni_num))
-    choicez = np.array(random.sample(range(0, grids), uni_num))
+    choicex = np.random.randint(grids, size = uni_num)
+    choicey = np.random.randint(grids, size = uni_num)
+    choicez = np.random.randint(grids, size = uni_num)
     x_vals = x[choicex]
     y_vals = y[choicey]
     z_vals = z[choicez]
-    return np.stack([x_vals, y_vals, z_vals], axis=0)
+    return np.stack([x_vals, y_vals, z_vals], axis=1)
 
-def add_jitters(uni_grid, uni_num, std=0.02):
-    jitterx = np.random.normal(0, 0.02, 3 * uni_num).reshape([uni_num,3])
+def add_jitters(uni_grid, std=0.05):
+    jitterx = np.random.normal(0, std, 3 * uni_grid.shape[0]).reshape([uni_grid.shape[0],3])
+    print(uni_grid.shape, jitterx.shape)
     return uni_grid + jitterx
 
-def sample_ivt_uni(cat_id, num_sample, ivt_res):
+def calculate_ivt(points, tries):
     start = time.time()
-    params = sdf_dict["param"]
-    sdf_values = sdf_dict["value"].flatten()
-    # print("np.min(sdf_values), np.mean(sdf_values), np.max(sdf_values)",
-    #       np.min(sdf_values), np.mean(sdf_values), np.max(sdf_values))
-    x = np.linspace(params[0], params[3], num=ivt_res + 1).astype(np.float32)
-    y = np.linspace(params[1], params[4], num=ivt_res + 1).astype(np.float32)
-    z = np.linspace(params[2], params[5], num=ivt_res + 1).astype(np.float32)
-    dis = sdf_values - iso_val
-    sdf_pt_val = np.zeros((0,4), dtype=np.float32)
-    for i in range(len(percentages)):
-        ind = np.argwhere((dis >= percentages[i][0]) & (dis < percentages[i][1]))
-        if len(ind) < percentages[i][2]:
-            if i < len(percentages)-1:
-                percentages[i+1][2] += percentages[i][2] - len(ind)
-            percentages[i][2] = len(ind)
-        if len(ind) == 0:
-            print("len(ind) ==0 for cate i")
-            continue
-        choice = np.random.randint(len(ind), size=percentages[i][2])
-        choosen_ind = ind[choice]
-        x_ind = choosen_ind % (ivt_res + 1)
-        y_ind = (choosen_ind // (ivt_res + 1)) % (ivt_res + 1)
-        z_ind = choosen_ind // (ivt_res + 1) ** 2
-        x_vals = x[x_ind]
-        y_vals = y[y_ind]
-        z_vals = z[z_ind]
-        vals = sdf_values[choosen_ind]
-        sdf_pt_val_bin = np.concatenate((x_vals, y_vals, z_vals, vals), axis = -1)
-        # print("np.min(vals), np.mean(vals), np.max(vals)", np.min(vals), np.mean(vals), np.max(vals))
-        print("sdf_pt_val_bin.shape", sdf_pt_val_bin.shape)
-        sdf_pt_val = np.concatenate((sdf_pt_val, sdf_pt_val_bin), axis = 0)
-    print("percentages", percentages)
-    print("sample_sdf: {} s".format(time.time()-start))
-    return sdf_pt_val, check_insideout(cat_id, sdf_values, sdf_res, x,y,z)
+    vcts = np.zeros_like(points)
+
+    with Parallel(n_jobs=100) as parallel:
+        parallel(delayed(create_ivt_obj)
+        (cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, obj, res,
+         indx, norm, num_sample, cat_id,version, unigrid, uni_ratio, skip_all_exist)
+        for cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, obj,
+            res, indx, norm, num_sample, cat_id,version, unigrid, uni_ratio, skip_all_exist in
+            zip(cat_mesh_dir_lst,
+            cat_norm_mesh_dir_lst,
+            cat_sdf_dir_lst,
+            list_obj,
+            res_lst, indx_lst, normalize_lst, num_sample_lst,
+            cat_id_lst, version_lst, unigrid_lst, skip_all_exist_lst))
+
+
+    for i in range(points.shape[0]):
+        point = points[i]
+        minimum = 3
+        for tri in tries:
+            dist, vct = ptd.pointTriangleDistance(tri, point) 
+            if dist < minimum:
+                vcts[i] = vct
+                minimum = dist
+        print("start, points {} in {}".format(i, points.shape[0]))
+    print("time diff:", time.time() - start)
+    return vcts
+
+def calculate_ivt
 
 def check_insideout(cat_id, sdf_val, sdf_res, x, y, z):
     # "chair": "03001627",
@@ -99,19 +96,26 @@ def check_insideout(cat_id, sdf_val, sdf_res, x, y, z):
     else:
         return False
 
-def create_h5_ivt_pt(cat_id, h5_file, verts, faces, points_uni, centroid, m, ivt_res, num_sample, normalize):
-    print(verts.shape,faces.shape)
+
+def create_h5_ivt_pt(cat_id, h5_file, verts, faces, surfpoints, ungrid, centroid, m, ivt_res, num_sample, uni_ratio):
     index = faces.reshape(-1)
     tries = verts[index].reshape([-1,3,3])
     # print(tries[0], faces[0], verts[:3,:])
-    sampleivt = sample_ivt_uni(cat_id, num_sample, ivt_res)  # (N*8)x4 (x,y,z)
+    ungrid = add_jitters(ungrid, std=0.05)
+    surfpoints = add_jitters(surfpoints, std=0.1)
+    uni_ivts = calculate_ivt(ungrid, tries)  # (N*8)x4 (x,y,z)
+    surf_ivts = calculate_ivt(surfpoints, tries)  # (N*8)x4 (x,y,z)
     print("sampleivt", sampleivt.shape)
     print("start to write", h5_file)
     norm_params = np.concatenate((centroid, np.asarray([m]).astype(np.float32)))
     f1 = h5py.File(h5_file, 'w')
-    f1.create_dataset('pc_ivt_sample', data=sampleivt.astype(np.float32), compression='gzip', compression_opts=4)
+    f1.create_dataset('uni_pnts', data=ungrid.astype(np.float32), compression='gzip', compression_opts=4)
+    f1.create_dataset('surf_pnts', data=surfpoints.astype(np.float32), compression='gzip', compression_opts=4)
+    f1.create_dataset('uni_ivts', data=uni_ivts.astype(np.float32), compression='gzip', compression_opts=4)
+    f1.create_dataset('surf_ivts', data=surf_ivts.astype(np.float32), compression='gzip', compression_opts=4)
     f1.create_dataset('norm_params', data=norm_params, compression='gzip', compression_opts=4)
     f1.close()
+    exit()
 
 
 
@@ -143,22 +147,19 @@ def get_normalize_mesh(model_file, norm_mesh_sub_dir):
     ori_mesh = pymesh.load_mesh(model_file)
     print("centroid, m", centroid, m)
     verts = (ori_mesh.vertices - centroid) / float(m)
-    points_uni = (points_all - centroid) / float(m)
+    surfpoints = (points_all - centroid) / float(m)
     pymesh.save_mesh_raw(obj_file, verts, ori_mesh.faces);
     print("export_mesh", obj_file)
-    return verts, ori_mesh.faces, centroid, m, points_uni
+    return verts, ori_mesh.faces, centroid, m, surfpoints
 
 
 def create_ivt_obj(cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, obj,
-                   res, indx, normalize, num_sample, cat_id, version, ungrid, skip_all_exist):
+                   res, indx, normalize, num_sample, cat_id, version, ungrid, uni_ratio, skip_all_exist):
     obj=obj.rstrip('\r\n')
     ivt_sub_dir = os.path.join(cat_sdf_dir, obj)
     norm_mesh_sub_dir = os.path.join(cat_norm_mesh_dir, obj)
     if not os.path.exists(ivt_sub_dir): os.makedirs(ivt_sub_dir)
     if not os.path.exists(norm_mesh_sub_dir): os.makedirs(norm_mesh_sub_dir)
-    # sdf_file = os.path.join(sdf_sub_dir, "isosurf.sdf")
-    # flag_file = os.path.join(sdf_sub_dir, "isinsideout.txt")
-    # cube_obj_file = os.path.join(norm_mesh_sub_dir, "isosurf.obj")
     h5_file = os.path.join(ivt_sub_dir, "ivt_sample.h5")
     if  os.path.exists(h5_file) and skip_all_exist:
         print("skip existed: ", h5_file)
@@ -167,20 +168,17 @@ def create_ivt_obj(cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, obj,
             model_file = os.path.join(cat_mesh_dir, obj, "model.obj")
         else:
             model_file = os.path.join(cat_mesh_dir, obj, "models", "model_normalized.obj")
-        # try:
         if normalize:
-            verts, faces, centroid, m, points_uni = get_normalize_mesh(model_file, norm_mesh_sub_dir)
-        create_h5_ivt_pt(cat_id, h5_file, verts, faces, points_uni, 
-            centroid, m, res, num_sample, normalize)
-        # except:
-        #     print("%%%%%%%%%%%%%%%%%%%%%%%% fail to process ", model_file)
+            verts, faces, centroid, m, surfpoints = get_normalize_mesh(model_file, norm_mesh_sub_dir)
+        surfpoints = surfpoints[np.random.randint(surfpoints.shape[0], size = num_sample - int(uni_ratio*num_sample)),:] 
+        create_h5_ivt_pt(cat_id, h5_file, verts, faces, surfpoints, ungrid, centroid, m, res, num_sample, uni_ratio)
 
-def create_ivt(num_sample, res, cats, raw_dirs, lst_dir, normalize=True, version=1, skip_all_exist=False):
+def create_ivt(num_sample, res, cats, raw_dirs, lst_dir, uni_ratio=0.4, normalize=True, version=1, skip_all_exist=False):
 
     sdf_dir=raw_dirs["ivt_dir"]
     if not os.path.exists(sdf_dir): os.makedirs(sdf_dir)
     start=0
-    unigrid = get_unigrid(res)
+    unigrid = get_unigrid(res, int(uni_ratio*num_sample))
     for catnm in cats.keys():
         cat_id = cats[catnm]
         cat_sdf_dir = os.path.join(sdf_dir, cat_id)
@@ -203,13 +201,14 @@ def create_ivt(num_sample, res, cats, raw_dirs, lst_dir, normalize=True, version
         cat_id_lst=[cat_id for i in range(repeat)]
         version_lst=[version for i in range(repeat)]
         unigrid_lst=[unigrid for i in range(repeat)]
+        uni_ratio_lst=[uni_ratio for i in range(repeat)]
         skip_all_exist_lst=[skip_all_exist for i in range(repeat)]
         # with Parallel(n_jobs=FLAGS.thread_num) as parallel:
         #     parallel(delayed(create_ivt_obj)
         #     (cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, obj, res,
-        #      indx, norm, num_sample, cat_id,version, unigrid, skip_all_exist)
+        #      indx, norm, num_sample, cat_id,version, unigrid, uni_ratio, skip_all_exist)
         #     for cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, obj,
-        #         res, indx, norm, num_sample, cat_id,version, unigrid, skip_all_exist in
+        #         res, indx, norm, num_sample, cat_id,version, unigrid, uni_ratio, skip_all_exist in
         #         zip(cat_mesh_dir_lst,
         #         cat_norm_mesh_dir_lst,
         #         cat_sdf_dir_lst,
@@ -217,7 +216,7 @@ def create_ivt(num_sample, res, cats, raw_dirs, lst_dir, normalize=True, version
         #         res_lst, indx_lst, normalize_lst, num_sample_lst,
         #         cat_id_lst, version_lst, unigrid_lst, skip_all_exist_lst))
         create_ivt_obj(cat_mesh_dir_lst[0], cat_norm_mesh_dir_lst[0], cat_sdf_dir_lst[0], list_obj[0],
-            res_lst[0], indx_lst[0], normalize_lst[0], num_sample_lst[0], cat_id_lst[0], version_lst[0], unigrid_lst[0], skip_all_exist_lst[0])
+            res_lst[0], indx_lst[0], normalize_lst[0], num_sample_lst[0], cat_id_lst[0], version_lst[0], unigrid_lst[0], uni_ratio_lst[0], skip_all_exist_lst[0])
         start+=repeat
     print("finish all")
 
@@ -233,5 +232,5 @@ if __name__ == "__main__":
             FLAGS.category:cats[FLAGS.category]
         }
 
-    create_ivt(32768, 256, cats, raw_dirs,
+    create_ivt(32768, 0.005, cats, raw_dirs,
                lst_dir, normalize=True, version=1, skip_all_exist=True)

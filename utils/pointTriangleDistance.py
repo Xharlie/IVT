@@ -252,7 +252,7 @@ def pointTriangleDistance(TRI, P):
 
     dist = sqrt(sqrdistance)
 
-    PP0 = B + s * E0 + t * E1
+    PP0 = B + s * E0 + t * E1 - P
 
     return dist, PP0
 
