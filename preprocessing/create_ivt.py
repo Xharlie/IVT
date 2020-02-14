@@ -40,37 +40,63 @@ def add_jitters(uni_grid, std=0.05):
     print(uni_grid.shape, jitterx.shape)
     return uni_grid + jitterx
 
+def thresh_edge_tries(tries, edge_thresh=0.02):
+    triesAB = np.linalg.norm(tries[:,1,:] - tries[:,0,:], axis = 1)
+    triesAC = np.linalg.norm(tries[:,2,:] - tries[:,0,:], axis = 1)
+    triesBC = np.linalg.norm(tries[:,2,:] - tries[:,1,:], axis = 1)
+    edgetries = triesAB + triesAC + triesBC
+    print("1")
+    if np.amax(edgetries) <= edge_thresh:
+        print("np.amax(edgetries) <= edge_thresh")
+        return None 
+    print("2")
+    largetries = tries[edgetries>edge_thresh]
+    print("3")  
+    return largetries
+
+def rank_dist_tries(points, tries, rank_thresh=100):
+    avg_point = np.mean(tries, axis=1)
+    points_tries = np.tile(np.expand_dims(points, axis=1),(1,avg_point.shape[0],1))
+    dist = np.linalg.norm(points_tries - np.expand_dims(avg_point, axis=0), axis=2)
+    print("3")
+    ind_close = np.argsort(dist)
+    if ind_close.shape[1] > rank_thresh:
+        ind_close = ind_close[:,:rank_thresh]
+    close_tries = tries[ind_close]
+    return close_tries
+
 def calculate_ivt(points, tries):
     start = time.time()
-    vcts = np.zeros_like(points)
-
-    with Parallel(n_jobs=100) as parallel:
-        parallel(delayed(create_ivt_obj)
-        (cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, obj, res,
-         indx, norm, num_sample, cat_id,version, unigrid, uni_ratio, skip_all_exist)
-        for cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, obj,
-            res, indx, norm, num_sample, cat_id,version, unigrid, uni_ratio, skip_all_exist in
-            zip(cat_mesh_dir_lst,
-            cat_norm_mesh_dir_lst,
-            cat_sdf_dir_lst,
-            list_obj,
-            res_lst, indx_lst, normalize_lst, num_sample_lst,
-            cat_id_lst, version_lst, unigrid_lst, skip_all_exist_lst))
-
-
-    for i in range(points.shape[0]):
-        point = points[i]
-        minimum = 3
-        for tri in tries:
-            dist, vct = ptd.pointTriangleDistance(tri, point) 
-            if dist < minimum:
-                vcts[i] = vct
-                minimum = dist
-        print("start, points {} in {}".format(i, points.shape[0]))
-    print("time diff:", time.time() - start)
+    large_tries = np.tile(thresh_edge_tries(tries, edge_thresh=0.02), (points.shape[0],1,1,1))
+    close_tries = rank_dist_tries(points, tries, rank_thresh=100)
+    if large_tries is not None:
+        print("shape", large_tries.shape, close_tries.shape)
+        candid_tries = np.concatenate([large_tries, close_tries], axis=1)
+    else:
+        candid_tries = close_tries
+    point_lst = [points[i] for i in range(points.shape[0])]
+    tries_lst = [candid_tries[i] for i in range(points.shape[0])]
+    # with Parallel(n_jobs=18) as parallel:
+    #     vcts = parallel(delayed(calculate_ivt_single)
+    #         (point, tries) for point, tries in zip(point_lst, tries_lst))
+    # print("time diff:", time.time() - start)
+    # vcts = np.stack(vcts, axis=0)
+    # print(vcts.shape)
     return vcts
 
-def calculate_ivt
+
+
+def calculate_ivt_single(point, tries):
+    minimum = 3
+    vct_shortest = np.zeros([3])
+    for tri in tries:
+        dist, vct = ptd.pointTriangleDistance(tri, point) 
+        if dist < minimum:
+            vct_shortest = vct
+            minimum = dist
+    # print("start, points {} in {}".format(i, points.shape[0]))
+    return vct_shortest
+
 
 def check_insideout(cat_id, sdf_val, sdf_res, x, y, z):
     # "chair": "03001627",
@@ -100,12 +126,11 @@ def check_insideout(cat_id, sdf_val, sdf_res, x, y, z):
 def create_h5_ivt_pt(cat_id, h5_file, verts, faces, surfpoints, ungrid, centroid, m, ivt_res, num_sample, uni_ratio):
     index = faces.reshape(-1)
     tries = verts[index].reshape([-1,3,3])
-    # print(tries[0], faces[0], verts[:3,:])
+    print("tries.shape", tries.shape, faces.shape)
     ungrid = add_jitters(ungrid, std=0.05)
     surfpoints = add_jitters(surfpoints, std=0.1)
     uni_ivts = calculate_ivt(ungrid, tries)  # (N*8)x4 (x,y,z)
     surf_ivts = calculate_ivt(surfpoints, tries)  # (N*8)x4 (x,y,z)
-    print("sampleivt", sampleivt.shape)
     print("start to write", h5_file)
     norm_params = np.concatenate((centroid, np.asarray([m]).astype(np.float32)))
     f1 = h5py.File(h5_file, 'w')
@@ -120,7 +145,7 @@ def create_h5_ivt_pt(cat_id, h5_file, verts, faces, surfpoints, ungrid, centroid
 
 
 def get_normalize_mesh(model_file, norm_mesh_sub_dir):
-    total = 16384
+    total = 16384 * 5
     print("trimesh_load:", model_file)
     mesh_list = trimesh.load_mesh(model_file, process=False)
     if not isinstance(mesh_list, list):
