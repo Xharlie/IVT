@@ -176,7 +176,6 @@ def gen_obj_img_h5(source_dir, cat_target_dir, sdf_dir, vals, obj):
                 except:
                     print("{} exist! but file error".format(h5_file))
             camR, _ = get_img_cam(param_lst[i])
-            obj_rot_mat = np.dot(rot90y, camR)
             img_file = os.path.join(img_dir, file_lst[i])
             img_arr = cv2.imread(img_file, cv2.IMREAD_UNCHANGED).astype(np.uint8)
             az, el, distance_ratio = param_lst[i][0], param_lst[i][1], param_lst[i][3]
@@ -193,8 +192,6 @@ def gen_obj_img_h5(source_dir, cat_target_dir, sdf_dir, vals, obj):
                 f1.create_dataset('K', data=K, compression='gzip',
                                   dtype='float32', compression_opts=4)
                 f1.create_dataset('RT', data=RT, compression='gzip',
-                                  dtype='float32', compression_opts=4)
-                f1.create_dataset('obj_rot_mat', data=obj_rot_mat, compression='gzip',
                                   dtype='float32', compression_opts=4)
                 f1.create_dataset('regress_mat', data=regress_mat, compression='gzip',
                                   dtype='float32', compression_opts=4)
