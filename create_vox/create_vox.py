@@ -67,7 +67,14 @@ def get_normalize_mesh(model_file, norm_mesh_sub_dir):
         mesh_list = [mesh_list]
     area_sum = 0
     area_lst = []
-    for idx, mesh in enumerate(mesh_list):
+    meshes = []
+    if isinstance(mesh_list[0], trimesh.Scene):
+        for idx, mesh in enumerate(mesh_list):
+            meshes += [trimesh.Trimesh(vertices=g.vertices, faces=g.faces)
+                    for g in mesh.geometry.values()]
+    else:
+        meshes = mesh_list
+    for idx, mesh in enumerate(meshes):
         area = np.sum(mesh.area_faces)
         area_lst.append(area)
         area_sum += area
@@ -75,7 +82,7 @@ def get_normalize_mesh(model_file, norm_mesh_sub_dir):
     amount_lst = (area_lst * total / area_sum).astype(np.int32)
     points_all = np.zeros((0, 3), dtype=np.float32)
     for i in range(amount_lst.shape[0]):
-        mesh = mesh_list[i]
+        mesh = meshes[i]
         # print("start sample surface of ", mesh.faces.shape[0])
         points, index = trimesh.sample.sample_surface(mesh, amount_lst[i])
         # print("end sample surface")

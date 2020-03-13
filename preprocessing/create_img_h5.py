@@ -103,27 +103,26 @@ def get_rotate_matrix(rotation_angle1):
     return np.linalg.multi_dot([neg, rotation_matrix_z, rotation_matrix_z, scale_y_neg, rotation_matrix_x])
 
 
-def get_norm_matrix(sdf_h5_file):
-    with h5py.File(sdf_h5_file, 'r') as h5_f:
-        norm_params = h5_f['norm_params'][:]
-        center, m, = norm_params[:3], norm_params[3]
-        x,y,z = center[0], center[1], center[2]
-        M_inv = np.asarray(
-            [[m, 0., 0., 0.],
-             [0., m, 0., 0.],
-             [0., 0., m, 0.],
-             [0., 0., 0., 1.]]
-        )
-        T_inv = np.asarray(
-            [[1.0 , 0., 0., x],
-             [0., 1.0 , 0., y],
-             [0., 0., 1.0 , z],
-             [0., 0., 0., 1.]]
-        )
+def get_norm_matrix(txtfile):
+    norm_params = np.loadtxt(txtfile)
+    center, m, = norm_params[:3], norm_params[3]
+    x,y,z = center[0], center[1], center[2]
+    M_inv = np.asarray(
+        [[m, 0., 0., 0.],
+         [0., m, 0., 0.],
+         [0., 0., m, 0.],
+         [0., 0., 0., 1.]]
+    )
+    T_inv = np.asarray(
+        [[1.0 , 0., 0., x],
+         [0., 1.0 , 0., y],
+         [0., 0., 1.0 , z],
+         [0., 0., 0., 1.]]
+    )
     return np.matmul(T_inv, M_inv)
 
 
-def convert_img2h5(source_dir, target_dir, file_lst_dir, cats, sdf_dir):
+def convert_img2h5(source_dir, target_dir, file_lst_dir, cats, norm_mesh_dir):
     os.makedirs(target_dir, exist_ok=True)
     for keys, vals in cats.items():
         fs = []
@@ -143,59 +142,59 @@ def convert_img2h5(source_dir, target_dir, file_lst_dir, cats, sdf_dir):
         repeat = len(fs)
         source_dir_lst = [source_dir for i in range(repeat)]
         cat_target_dir_lst = [cat_target_dir for i in range(repeat)]
-        sdf_dir_lst = [sdf_dir for i in range(repeat)]
+        norm_mesh_dir_lst = [norm_mesh_dir for i in range(repeat)]
         vals_lst = [vals for i in range(repeat)]
 
-        with Parallel(n_jobs=10) as parallel:
+        with Parallel(n_jobs=15) as parallel:
             parallel(delayed(gen_obj_img_h5)
-            (source_dir, cat_target_dir, sdf_dir,vals, obj)
-            for source_dir, cat_target_dir, sdf_dir, vals, obj in
-                zip(source_dir_lst, cat_target_dir_lst, sdf_dir_lst, vals_lst, fs))
+            (source_dir, cat_target_dir, norm_mesh_dir, vals, obj)
+            for source_dir, cat_target_dir, norm_mesh_dir, vals, obj in
+                zip(source_dir_lst, cat_target_dir_lst, norm_mesh_dir_lst, vals_lst, fs))
 
 
-def gen_obj_img_h5(source_dir, cat_target_dir, sdf_dir, vals, obj):
-    img_dir = os.path.join(source_dir, vals, obj, "rendering")
-    tar_obj_dir = os.path.join(cat_target_dir, obj)
-    os.makedirs(tar_obj_dir, exist_ok=True)
-    sdf_fl = os.path.join(sdf_dir, vals, obj, "ori_sample.h5")
-    norm_mat = get_norm_matrix(sdf_fl)
-    rot_mat = get_rotate_matrix(-np.pi / 2)
-    with open(img_dir + "/renderings.txt", 'r') as f:
-        lines = f.read().splitlines()
-        file_lst = [line.strip() for line in lines]
-        params = np.loadtxt(img_dir + "/rendering_metadata.txt")
-        param_lst = [params[num, ...].astype(np.float32) for num in range(len(file_lst))]
-        for i in range(len(file_lst)):
-            h5_file = os.path.join(tar_obj_dir, file_lst[i][:2] + ".h5")
-            if os.path.exists(h5_file):
-                try:
-                    with h5py.File(h5_file, 'r') as h5_f:
-                        trans_mat_shape = h5_f["trans_mat"][:].shape[0]
-                        print("{} exist! trans first shape is {}".format(h5_file, str(trans_mat_shape)))
-                        continue
-                except:
-                    print("{} exist! but file error".format(h5_file))
-            camR, _ = get_img_cam(param_lst[i])
-            img_file = os.path.join(img_dir, file_lst[i])
-            img_arr = cv2.imread(img_file, cv2.IMREAD_UNCHANGED).astype(np.uint8)
-            az, el, distance_ratio = param_lst[i][0], param_lst[i][1], param_lst[i][3]
-            K, RT = getBlenderProj(az, el, distance_ratio, img_w=137, img_h=137)
-            trans_mat = np.linalg.multi_dot([K, RT, rot_mat, norm_mat])
-            trans_mat_right = np.transpose(trans_mat)
-            regress_mat = np.transpose(np.linalg.multi_dot([RT, rot_mat, norm_mat]))
+# def gen_obj_img_h5(source_dir, cat_target_dir, ivt_dir, vals, obj):
+#     img_dir = os.path.join(source_dir, vals, obj, "rendering")
+#     tar_obj_dir = os.path.join(cat_target_dir, obj)
+#     os.makedirs(tar_obj_dir, exist_ok=True)
+#     sdf_fl = os.path.join(sdf_dir, vals, obj, "ori_sample.h5")
+#     norm_mat = get_norm_matrix(sdf_fl)
+#     rot_mat = get_rotate_matrix(-np.pi / 2)
+#     with open(img_dir + "/renderings.txt", 'r') as f:
+#         lines = f.read().splitlines()
+#         file_lst = [line.strip() for line in lines]
+#         params = np.loadtxt(img_dir + "/rendering_metadata.txt")
+#         param_lst = [params[num, ...].astype(np.float32) for num in range(len(file_lst))]
+#         for i in range(len(file_lst)):
+#             h5_file = os.path.join(tar_obj_dir, file_lst[i][:2] + ".h5")
+#             if os.path.exists(h5_file):
+#                 try:
+#                     with h5py.File(h5_file, 'r') as h5_f:
+#                         trans_mat_shape = h5_f["trans_mat"][:].shape[0]
+#                         print("{} exist! trans first shape is {}".format(h5_file, str(trans_mat_shape)))
+#                         continue
+#                 except:
+#                     print("{} exist! but file error".format(h5_file))
+#             camR, _ = get_img_cam(param_lst[i])
+#             img_file = os.path.join(img_dir, file_lst[i])
+#             img_arr = cv2.imread(img_file, cv2.IMREAD_UNCHANGED).astype(np.uint8)
+#             az, el, distance_ratio = param_lst[i][0], param_lst[i][1], param_lst[i][3]
+#             K, RT = getBlenderProj(az, el, distance_ratio, img_w=137, img_h=137)
+#             trans_mat = np.linalg.multi_dot([K, RT, rot_mat, norm_mat])
+#             trans_mat_right = np.transpose(trans_mat)
+#             regress_mat = np.transpose(np.linalg.multi_dot([RT, rot_mat, norm_mat]))
 
-            with h5py.File(h5_file, 'w') as f1:
-                f1.create_dataset('img_arr', data=img_arr, compression='gzip',
-                                  dtype='uint8', compression_opts=4)
-                f1.create_dataset('trans_mat', data=trans_mat_right, compression='gzip',
-                                  dtype='float32', compression_opts=4)
-                f1.create_dataset('K', data=K, compression='gzip',
-                                  dtype='float32', compression_opts=4)
-                f1.create_dataset('RT', data=RT, compression='gzip',
-                                  dtype='float32', compression_opts=4)
-                f1.create_dataset('regress_mat', data=regress_mat, compression='gzip',
-                                  dtype='float32', compression_opts=4)
-                print("write:", h5_file)
+#             with h5py.File(h5_file, 'w') as f1:
+#                 f1.create_dataset('img_arr', data=img_arr, compression='gzip',
+#                                   dtype='uint8', compression_opts=4)
+#                 f1.create_dataset('trans_mat', data=trans_mat_right, compression='gzip',
+#                                   dtype='float32', compression_opts=4)
+#                 f1.create_dataset('K', data=K, compression='gzip',
+#                                   dtype='float32', compression_opts=4)
+#                 f1.create_dataset('RT', data=RT, compression='gzip',
+#                                   dtype='float32', compression_opts=4)
+#                 f1.create_dataset('regress_mat', data=regress_mat, compression='gzip',
+#                                   dtype='float32', compression_opts=4)
+#                 print("write:", h5_file)
 
 
 def get_W2O_mat(shift):
@@ -207,12 +206,12 @@ def get_W2O_mat(shift):
     )
     return T_inv
 
-def gen_obj_img_h5_new(source_dir, cat_target_dir, sdf_dir, vals, obj):
+def gen_obj_img_h5(source_dir, cat_target_dir, norm_mesh_dir, vals, obj):
     img_dir = os.path.join(source_dir, vals, obj, "rendering")
     tar_obj_dir = os.path.join(cat_target_dir, obj)
     os.makedirs(tar_obj_dir, exist_ok=True)
-    sdf_fl = os.path.join(sdf_dir, vals, obj, "ori_sample.h5")
-    norm_mat = get_norm_matrix(sdf_fl)
+    ivt_fl = os.path.join(norm_mesh_dir, vals, obj, "pc_norm.txt")
+    norm_mat = get_norm_matrix(ivt_fl)
     rot_mat = get_rotate_matrix(-np.pi / 2)
     with open(img_dir + "/renderings.txt", 'r') as f:
         lines = f.read().splitlines()
@@ -367,13 +366,13 @@ if __name__ == "__main__":
 
     # nohup python -u create_img_h5.py &> create_imgh5.log &
 
-    lst_dir, cats, all_cats, raw_dirs = create_file_lst.get_all_info()
-    print("start")
-    # original rendering 2d dataset
-    convert_img2h5(raw_dirs["rendered_dir"],
-                   raw_dirs["renderedh5_dir"],
-                   lst_dir, cats, 
-                   raw_dirs["sdf_dir"])
+    # lst_dir, cats, all_cats, raw_dirs = create_file_lst.get_all_info()
+    # print("start")
+    # # original rendering 2d dataset
+    # convert_img2h5(raw_dirs["rendered_dir"],
+    #                raw_dirs["renderedh5_dir"],
+    #                lst_dir, cats, 
+    #                raw_dirs["norm_mesh_dir"])
 
 
     # test_img_h5("/ssd1/datasets/ShapeNet/ShapeNetRenderingh5_v1/03001627/184b4797cea77beb5ca1c42bb8ac17a/05.h5", 5,

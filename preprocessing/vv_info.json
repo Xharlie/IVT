@@ -1,7 +1,6 @@
 {
-    "lst_dir": "/ssd1/datasets/ShapeNet/filelists_raw",
+    "lst_dir": "/media/ssd/xharlie/ShapeNet/filelists_raw",
     "cats": {
-        "chair": "03001627",
         "airplane": "02691156",
         "watercraft": "04530566",
         "rifle": "04090263",
@@ -16,7 +15,6 @@
         "phone": "04401088"
     },
     "all_cats": [
-        "chair",
         "airplane",
         "bench",
         "cabinet",
@@ -31,11 +29,11 @@
         "watercraft"
     ],
     "raw_dirs_v1": {
-        "mesh_dir": "/ssd1/datasets/ShapeNet/ShapeNetCore.v1/",
-        "norm_mesh_dir":"/ssd1/datasets/ShapeNet/ShapeNetCore_v1_norm/",
-        "ivt_dir": "/ssd1/datasets/ShapeNet/IVT_v1/",
-        "rendered_dir": "/ssd1/datasets/ShapeNet/ShapeNetRendering/",
-        "renderedh5_dir": "/ssd1/datasets/ShapeNet/ShapeNetRenderingh5_v1_all/",
-        "renderedh5_dir_est": "/ssd1/datasets/ShapeNet/ShapeNetRenderingh5_v1_all_pred_3d/"
+        "mesh_dir": "/media/ssd/xharlie/ShapeNet/ShapeNetCore.v1/",
+        "norm_mesh_dir":"/media/ssd/xharlie/ShapeNet/ShapeNetCore_v1_norm/",
+        "ivt_dir": "/media/ssd/xharlie/ShapeNet/IVT_v1/",
+        "rendered_dir": "/media/ssd/xharlie/ShapeNet/ShapeNetRendering/",
+        "renderedh5_dir": "/media/ssd/xharlie/ShapeNet/ShapeNetRenderingh5_v1_all/",
+        "renderedh5_dir_est": "/media/ssd/xharlie/ShapeNet/ShapeNetRenderingh5_v1_all_pred_3d/"
     }
 }

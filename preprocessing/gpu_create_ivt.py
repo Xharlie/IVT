@@ -18,6 +18,7 @@ CUR_PATH = os.path.dirname(os.path.realpath(__file__))
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--thread_num', type=int, default='4', help='how many objs are creating at the same time')
+parser.add_argument('--shuffle', action='store_true')
 parser.add_argument('--category', type=str, default="all", help='Which single class to generate on [default: all, can '
                                                                 'be chair or plane, etc.]')
 FLAGS = parser.parse_args()
@@ -90,7 +91,7 @@ def rank_dist_tries(points, tries, rank_thresh=100):
 def gpu_calculate_ivt(points, tries, gpu):
     start = time.time()
     num_tries = tries.shape[0]
-    times = points.shape[0] * num_tries // (25000 * 6553 * 4) + 1
+    times = points.shape[0] * num_tries // (25000 * 6553 * 1) + 1
     span = points.shape[0] // times + 1
     vcts = []
     for i in range(times):
@@ -100,7 +101,7 @@ def gpu_calculate_ivt(points, tries, gpu):
         ivt, dist = ptdcuda.pnts_tries_ivts(pnts, tries, gpu=gpu)
         vcts_part = ptdcuda.closet(ivt, dist)
         vcts.append(vcts_part)
-    ivt_closest = vct[0] if len(vcts) == 0 else np.concatenate(vcts, axis=0)
+    ivt_closest = vcts[0] if len(vcts) == 0 else np.concatenate(vcts, axis=0)
     print("times", times, "ivt_closest.shape",ivt_closest.shape, "time diff:", time.time() - start)
     return ivt_closest
 
@@ -293,7 +294,8 @@ def create_ivt(num_sample, res, cats, raw_dirs, lst_dir, uni_ratio=0.2, normaliz
         # print(list_obj)
         span = len(list_obj) // thread_num
         index = np.arange(len(list_obj))
-        np.random.shuffle(index)
+        if FLAGS.shuffle: 
+            np.random.shuffle(index)
         list_objs = [[list_obj[j] for j in index[i*span:min((i+1)*span,len(list_obj))].tolist()] for i in range(thread_num)]
         cat_mesh_dir_lst = [cat_mesh_dir for i in range(thread_num)]
         gpu_lst = [i % 4 for i in range(thread_num)]
@@ -308,9 +310,12 @@ def create_ivt(num_sample, res, cats, raw_dirs, lst_dir, uni_ratio=0.2, normaliz
         uni_ratio_lst = [uni_ratio for i in range(thread_num)]
         res_lst = [res for i in range(thread_num)]
         skip_all_exist_lst = [skip_all_exist for i in range(thread_num)]
-        with Parallel(n_jobs=thread_num) as parallel:
-            vcts_part = parallel(delayed(create_ivt_distribute)
-                (gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, list_obj, res, normalize, num_sample, cat_id, version, unigrid, uni_ratio, skip_all_exist) for gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, list_obj, res, normalize, num_sample, cat_id, version, unigrid, uni_ratio, skip_all_exist in zip(gpu_lst, catnm_lst, cat_mesh_dir_lst, cat_norm_mesh_dir_lst, cat_sdf_dir_lst, list_objs, res_lst, normalize_lst, num_sample_lst, cat_id_lst, version_lst, unigrid_lst, uni_ratio_lst, skip_all_exist_lst))
+        if thread_num > 1:
+            with Parallel(n_jobs=thread_num) as parallel:
+                vcts_part = parallel(delayed(create_ivt_distribute)
+                    (gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, list_obj, res, normalize, num_sample, cat_id, version, unigrid, uni_ratio, skip_all_exist) for gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, list_obj, res, normalize, num_sample, cat_id, version, unigrid, uni_ratio, skip_all_exist in zip(gpu_lst, catnm_lst, cat_mesh_dir_lst, cat_norm_mesh_dir_lst, cat_sdf_dir_lst, list_objs, res_lst, normalize_lst, num_sample_lst, cat_id_lst, version_lst, unigrid_lst, uni_ratio_lst, skip_all_exist_lst))
+        else:
+            vcts_part = create_ivt_distribute(-1, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, list_objs[0], res, normalize, num_sample, cat_id, version, unigrid, uni_ratio, skip_all_exist)
     print("finish all")
 
 def create_ivt_distribute(gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, list_obj, res, normalize, num_sample, cat_id, version, unigrid, uni_ratio, skip_all_exist):

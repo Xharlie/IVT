@@ -6,23 +6,25 @@ from pycuda.compiler import SourceModule
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import pycuda.driver as drv
-drv.init()
 
 
 def pnts_tries_ivts(pnts, tries, gpu=0):
     print("gpu",gpu)
     # os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     # os.environ["CUDA_VISIBLE_DEVICES"]=str(gpu)
-    # import pycuda.autoinit
-    dev1 = drv.Device(gpu)
-    ctx1 = dev1.make_context()
-    mod = SourceModule("""
+    if gpu < 0:
+        import pycuda.autoinit
+    else:
+        drv.init()
+        dev1 = drv.Device(gpu)
+        ctx1 = dev1.make_context()
 
+    mod = SourceModule("""
     #define CLAMP(x, low, high)  (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
 
     __device__ void closesPointOnTriangle(float *triangle, float *point, float ivt[4])
     {
-        
+
         float edge0x = triangle[3] - triangle[0];
         float edge0y = triangle[4] - triangle[1];
         float edge0z = triangle[5] - triangle[2];
@@ -54,30 +56,54 @@ def pnts_tries_ivts(pnts, tries, gpu=0):
                     if ( d < 0.f )
                     {   
                         t = 0.f;
-                        s = CLAMP( -d/a, 0.f, 1.f );
-                    }
-                    else
-                    {
+                        if (-d >= a){
+                            s = 1.f;
+                        }else{
+                            s = -d / a;
+                        }
+                    }else{
                         s = 0.f;
-                        t = CLAMP( -e/c, 0.f, 1.f );
+                        if (e >= 0.f){
+                            t = 0.f;
+                        }else{
+                            if (-e >= c){
+                                t = 1.f;
+                            }else{
+                                t = -e / c;
+                            }
+                        }
                     }
-                }
-                else
-                {
+                }else{
                     s = 0.f;
-                    t = CLAMP( -e/c, 0.f, 1.f );
+                    if (e >= 0){
+                        t = 0;
+                    }else{
+                        if (-e >= c){
+                            t = 1.f;
+                        }else{
+                            t = -e / c;
+                        }
+                    }
                 }
             }
             else if ( t < 0.f )
             {
                 t = 0.f;
-                s = CLAMP( -d/a, 0.f, 1.f );
+                if (d >= 0){
+                    s = 0.f;
+                }else{
+                    if (-d >= a){
+                        s = 1.f;
+                    }else{
+                        s = -d / a;
+                    }
+                }
             }
             else
             {
                 float invDet = 1.f / det;
-                s *= invDet;
-                t *= invDet;
+                s = s * invDet;
+                t = t * invDet;
             }
         }
         else
@@ -90,13 +116,24 @@ def pnts_tries_ivts(pnts, tries, gpu=0):
                 {
                     float numer = tmp1 - tmp0;
                     float denom = a-2.0*b+c;
-                    s = CLAMP( numer/denom, 0.f, 1.f );
-                    t = 1-s;
-                }
-                else
-                {
+                    if (numer >= denom){
+                        s = 1.f;
+                        t = 0.f;
+                    }else{
+                        s = numer / denom;
+                        t = 1.f - s;
+                    }
+                }else{
                     s = 0.f;
-                    t = CLAMP( -e/c, 0.f, 1.f );
+                    if (tmp1 <= 0.f){
+                        t = 1.f;
+                    }else{
+                        if (e >= 0.f){
+                            t = 0.f;
+                        }else{
+                            t = -e / c;
+                        }
+                    }
                 }
             }
             else if ( t < 0.f )
@@ -107,15 +144,20 @@ def pnts_tries_ivts(pnts, tries, gpu=0):
                 {
                     float numer = tmp1 - tmp0;
                     float denom = a-2.0*b+c;
-                    t = CLAMP( numer/denom, 0.f, 1.f );
-                    s = 1.f-t;
+                    if (numer >= denom){
+                        t = 1.f;
+                        s = 0.f;
+                    }else{
+                        t = numer / denom;
+                        s = 1.f - t;
+                    }
                 }else{
                     t = 0.f;
-                    if (tmp1 <= 0.0){
-                            s = 1;
+                    if (tmp1 <= 0.f){
+                            s = 1.f;
                     }else{
-                        if (d >= 0.0){
-                            s = 0.0;
+                        if (d >= 0.f){
+                            s = 0.f;
                         }else{
                             s = -d / a;
                         }
@@ -125,9 +167,19 @@ def pnts_tries_ivts(pnts, tries, gpu=0):
             else
             {
                 float numer = c+e-b-d;
-                float denom = a-2.f*b+c;
-                s = CLAMP( numer/denom, 0.f, 1.f );
-                t = 1.f - s;
+                if (numer <= 0){
+                    s = 0.f;
+                    t = 1.f;
+                }else{
+                    float denom = a - 2.0 * b + c;
+                    if (numer >= denom){
+                        s = 1.f;
+                        t = 0.f;
+                    }else{
+                        s = numer / denom;
+                        t = 1.f - s;
+                    }
+                }
             }
         }
 
@@ -162,11 +214,23 @@ def pnts_tries_ivts(pnts, tries, gpu=0):
     # print(gridSize*1024, np.int32(pnt_num)*tries_num)
     ivt = np.zeros((pnt_num, tries_num, 3)).astype(np.float32)
     dist = np.zeros((pnt_num, tries_num)).astype(np.float32)
+    # print(pnts[0],pnts[1],tries[0],tries[1])
     pnts_tries_ivt(
-        drv.Out(ivt), drv.Out(dist), drv.In(pnts), drv.In(tries), np.int32(pnt_num), np.int32(tries_num),
+        drv.Out(ivt), drv.Out(dist), drv.In(np.float32(pnts)), drv.In(np.float32(tries)), np.int32(pnt_num), np.int32(tries_num),
         block=(kMaxThreadsPerBlock,1,1), grid=(gridSize,1))
-    # print(ivt)
-    ctx1.pop()
+    print("ivt[0,0,:]", ivt[0,0,:])
+    if gpu >= 0: 
+        ctx1.pop()
+    # print("ivt", ivt[0,0,:],ivt[0,1,:])
+    # print(pnts[0],pnts[1],tries[0],tries[1])
+    # dist0, PP0 = pointTriangleDistance(tries[0], pnts[0])
+    # dist1, PP1 = pointTriangleDistance(tries[1], pnts[0])
+    # distt2, PP2 = pointTriangleDistance(tries[0], pnts[1])
+    # dist1, PP3 = pointTriangleDistance(tries[1], pnts[1])
+    # print("PPO", PP0)
+    # print("PP1", PP1)
+    # print("PP2", PP2)
+    # print("PP3", PP3)
     return ivt, dist
 
 def closet(ivt, dist):
@@ -434,6 +498,7 @@ def pointTriangleDistance(TRI, P):
 
 
 
+
 # ivt = pnts_tries_ivts([],[])
 # ivt_py = np.zeros_like(ivt)
 # dist_py = np.zeros_like(dist)
@@ -487,8 +552,14 @@ def pointTriangleDistance(TRI, P):
 #     Axes3D.plot()
 
 
-i,j = 2, 4
-pnts = np.random.randn(i, 3).astype(np.float32)
-tries = np.random.randn(j, 3, 3).astype(np.float32)
+# i,j = 2000, 4000
+# pnts = np.random.randn(i, 3).astype(np.float32)
+# tries = np.random.randn(j, 3, 3).astype(np.float32)
+pnts = np.array([[ 0.0388784,  -0.43049761,  0.93390526], [ 0.65514363,  0.33294779, -0.46959095]])
+tries = np.array([[[ 0.59400288, -0.48788681,  0.40524953],
+ [ 0.53634743, -0.4928393,   0.40898072],
+ [ 0.59449531, -0.4878803,   0.41286809]], [[ 0.59449531, -0.4878803,   0.41286809],
+ [ 0.53634743, -0.4928393,   0.40898072],
+ [ 0.59300718, -0.48804083,  0.42035432]]])
 ivt, dist = pnts_tries_ivts(pnts, tries)
 closet(ivt, dist)
