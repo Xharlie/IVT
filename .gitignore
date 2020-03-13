@@ -11,3 +11,4 @@ __pychache__/
 */*.log
 *.log
 */checkpoint
+models/CNN/pretrained_model
