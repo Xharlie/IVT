@@ -1,6 +1,7 @@
 {
     "lst_dir": "/media/ssd/xharlie/ShapeNet/filelists_raw",
     "cats": {
+        "chair": "03001627",
         "airplane": "02691156",
         "watercraft": "04530566",
         "rifle": "04090263",
@@ -15,6 +16,7 @@
         "phone": "04401088"
     },
     "all_cats": [
+        "chair",
         "airplane",
         "bench",
         "cabinet",

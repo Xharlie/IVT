@@ -3,3 +3,21 @@ nohup python -u train_ivt.py --gpu 0 --restore_modelcnn ../models/CNN/pretrained
 nohup python -u train_ivt.py --gpu 1 --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/global_direct/chair_evenweight --category chair --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 0.1 --weight_type non  &> global_direct_chair_evenweight.log &
 
 nohup python -u train_ivt.py --gpu 2 --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/global_xyz/chair_evenweight --category chair --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 0.1 --XYZ &> global_xyz_chair.log &
+
+
+
+
+
+
+
+
+nohup python -u train_ivt.py --gpu 0 --img_feat_onestream --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/onestream_direct/chair_b20 --category chair --num_pnts 2048 --batch_size 20 --learning_rate 0.0001 --dir_loss_weight 0.1 &> onestream_direct_chair_b20.log &
+
+
+nohup python -u train_ivt.py --gpu 1 --img_feat_onestream --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/onestream_direct/chair_dw1 --category chair --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 1 &> onestream_direct_chair_dw1.log &
+
+
+nohup python -u train_ivt.py --gpu 2 --img_feat_onestream --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/onestream_direct/chair_evenweight --category chair --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 0.1 --weight_type non &> onestream_direct_chair_evenweight.log &
+
+
+nohup python -u train_ivt.py --gpu 3 --img_feat_onestream --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/onestream_direct/chair --category chair --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 0.1 &> onestream_direct_chair.log &
