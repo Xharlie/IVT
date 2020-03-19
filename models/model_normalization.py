@@ -85,50 +85,50 @@ def get_model(input_pls, is_training, bn=False, bn_decay=None, img_size = 224, w
 
 
     if FLAGS.img_feat_onestream:
-        if not FLAGS.multi_view:
-            with tf.compat.v1.variable_scope("sdfimgfeat") as scope:
-                vgg_conv1 = tf.compat.v1.image.resize_bilinear(vgg_end_points['vgg_16/conv1/conv1_2'], (FLAGS.img_h, FLAGS.img_w))
-                point_vgg_conv1 = tf.contrib.resampler.resampler(vgg_conv1, sample_img_points)
-                vgg_conv2 = tf.compat.v1.image.resize_bilinear(vgg_end_points['vgg_16/conv2/conv2_2'], (FLAGS.img_h, FLAGS.img_w))
-                point_vgg_conv2 = tf.contrib.resampler.resampler(vgg_conv2, sample_img_points)
-                vgg_conv3 = tf.compat.v1.image.resize_bilinear(vgg_end_points['vgg_16/conv3/conv3_3'], (FLAGS.img_h, FLAGS.img_w))
-                point_vgg_conv3 = tf.contrib.resampler.resampler(vgg_conv3, sample_img_points)
-                point_img_feat = tf.concat(axis=2, values=[point_vgg_conv1, point_vgg_conv2, point_vgg_conv3])
-                print("point_img_feat.shape", point_img_feat.get_shape())
-                point_img_feat = tf.expand_dims(point_img_feat, axis=2)
-                ivts_feat = ivtnet.get_ivt_basic_imgfeat_onestream(input_pnts_rot, ref_feats_embedding_cnn, point_img_feat, is_training, batch_size, FLAGS.num_pnts, bn, bn_decay, wd=wd)
+        with tf.compat.v1.variable_scope("sdfimgfeat") as scope:
+            vgg_conv1 = tf.compat.v1.image.resize_bilinear(vgg_end_points['vgg_16/conv1/conv1_2'], (FLAGS.img_h, FLAGS.img_w))
+            point_vgg_conv1 = tf.contrib.resampler.resampler(vgg_conv1, sample_img_points)
+            vgg_conv2 = tf.compat.v1.image.resize_bilinear(vgg_end_points['vgg_16/conv2/conv2_2'], (FLAGS.img_h, FLAGS.img_w))
+            point_vgg_conv2 = tf.contrib.resampler.resampler(vgg_conv2, sample_img_points)
+            vgg_conv3 = tf.compat.v1.image.resize_bilinear(vgg_end_points['vgg_16/conv3/conv3_3'], (FLAGS.img_h, FLAGS.img_w))
+            point_vgg_conv3 = tf.contrib.resampler.resampler(vgg_conv3, sample_img_points)
+            point_img_feat = tf.concat(axis=2, values=[point_vgg_conv1, point_vgg_conv2, point_vgg_conv3])
+            print("point_img_feat.shape", point_img_feat.get_shape())
+            point_img_feat = tf.expand_dims(point_img_feat, axis=2)
+            ivts_feat = ivtnet.get_ivt_basic_imgfeat_onestream(input_pnts_rot, ref_feats_embedding_cnn, point_img_feat, is_training, batch_size, FLAGS.num_pnts, bn, bn_decay, wd=wd)
 
     elif FLAGS.img_feat_twostream:
-        vgg_conv1 = tf.compat.v1.image.resize_bilinear(vgg_end_points['vgg_16/conv1/conv1_2'], (FLAGS.img_h, FLAGS.img_w))
-        point_vgg_conv1 = tf.contrib.resampler.resampler(vgg_conv1, sample_img_points)
-        print('point_vgg_conv1', point_vgg_conv1.shape)
-        vgg_conv2 = tf.compat.v1.image.resize_bilinear(vgg_end_points['vgg_16/conv2/conv2_2'], (FLAGS.img_h, FLAGS.img_w))
-        point_vgg_conv2 = tf.contrib.resampler.resampler(vgg_conv2, sample_img_points)
-        print('point_vgg_conv2', point_vgg_conv2.shape)
-        vgg_conv3 = tf.compat.v1.image.resize_bilinear(vgg_end_points['vgg_16/conv3/conv3_3'], (FLAGS.img_h, FLAGS.img_w))
-        point_vgg_conv3 = tf.contrib.resampler.resampler(vgg_conv3, sample_img_points)
-        print('point_vgg_conv3', point_vgg_conv3.shape)
-        vgg_conv4 = tf.compat.v1.image.resize_bilinear(vgg_end_points['vgg_16/conv4/conv4_3'], (FLAGS.img_h, FLAGS.img_w))
-        point_vgg_conv4 = tf.contrib.resampler.resampler(vgg_conv4, sample_img_points)
-        print('point_vgg_conv4', point_vgg_conv4.shape)
-        vgg_conv5 = tf.compat.v1.image.resize_bilinear(vgg_end_points['vgg_16/conv5/conv5_3'], (FLAGS.img_h, FLAGS.img_w))
-        point_vgg_conv5 = tf.contrib.resampler.resampler(vgg_conv5, sample_img_points)
-        print('point_vgg_conv5', point_vgg_conv5.shape)
+        with tf.compat.v1.variable_scope("sdfimgtwofeat") as scope:
+            vgg_conv1 = tf.compat.v1.image.resize_bilinear(vgg_end_points['vgg_16/conv1/conv1_2'], (FLAGS.img_h, FLAGS.img_w))
+            point_vgg_conv1 = tf.contrib.resampler.resampler(vgg_conv1, sample_img_points)
+            print('point_vgg_conv1', point_vgg_conv1.shape)
+            vgg_conv2 = tf.compat.v1.image.resize_bilinear(vgg_end_points['vgg_16/conv2/conv2_2'], (FLAGS.img_h, FLAGS.img_w))
+            point_vgg_conv2 = tf.contrib.resampler.resampler(vgg_conv2, sample_img_points)
+            print('point_vgg_conv2', point_vgg_conv2.shape)
+            vgg_conv3 = tf.compat.v1.image.resize_bilinear(vgg_end_points['vgg_16/conv3/conv3_3'], (FLAGS.img_h, FLAGS.img_w))
+            point_vgg_conv3 = tf.contrib.resampler.resampler(vgg_conv3, sample_img_points)
+            print('point_vgg_conv3', point_vgg_conv3.shape)
+            vgg_conv4 = tf.compat.v1.image.resize_bilinear(vgg_end_points['vgg_16/conv4/conv4_3'], (FLAGS.img_h, FLAGS.img_w))
+            point_vgg_conv4 = tf.contrib.resampler.resampler(vgg_conv4, sample_img_points)
+            print('point_vgg_conv4', point_vgg_conv4.shape)
+            vgg_conv5 = tf.compat.v1.image.resize_bilinear(vgg_end_points['vgg_16/conv5/conv5_3'], (FLAGS.img_h, FLAGS.img_w))
+            point_vgg_conv5 = tf.contrib.resampler.resampler(vgg_conv5, sample_img_points)
+            print('point_vgg_conv5', point_vgg_conv5.shape)
 
-        point_img_feat = tf.concat(axis=2, values=[point_vgg_conv1, point_vgg_conv2, point_vgg_conv3, point_vgg_conv4,point_vgg_conv5])
-        point_img_feat = tf.expand_dims(point_img_feat, axis=2)
-        print('point_img_feat', point_img_feat.shape)
-        if not FLAGS.multi_view:
-            # Predict SDF
-            with tf.compat.v1.variable_scope("sdfprediction") as scope:
-                pred_ivts_value_global = ivtnet.get_ivt_basic(input_pnts_rot, ref_feats_embedding_cnn, is_training, batch_size, FLAGS.num_pnts, bn, bn_decay, wd=wd)
+            point_img_feat = tf.concat(axis=2, values=[point_vgg_conv1, point_vgg_conv2, point_vgg_conv3, point_vgg_conv4,point_vgg_conv5])
+            point_img_feat = tf.expand_dims(point_img_feat, axis=2)
+            print('point_img_feat', point_img_feat.shape)
+            if not FLAGS.multi_view:
+                # Predict SDF
+                with tf.compat.v1.variable_scope("sdfprediction") as scope:
+                    pred_ivts_global_feat = ivtnet.get_ivt_basic(input_pnts_rot, ref_feats_embedding_cnn, is_training, batch_size, FLAGS.num_pnts, bn, bn_decay, wd=wd)
 
-            with tf.compat.v1.variable_scope("sdfprediction_imgfeat") as scope:
-                pred_ivts_value_local = ivtnet.get_ivt_basic_imgfeat_twostream(input_pnts_rot, point_img_feat, is_training, batch_size, FLAGS.num_pnts, bn, bn_decay, wd=wd)
+                with tf.compat.v1.variable_scope("sdfprediction_imgfeat") as scope:
+                    pred_ivts_local_feat = ivtnet.get_ivt_basic_imgfeat_twostream(input_pnts_rot, point_img_feat, is_training, batch_size, FLAGS.num_pnts, bn, bn_decay, wd=wd)
 
-            pred_ivt = pred_ivts_value_global + pred_ivts_value_local
-            end_points["pred_ivts_value_global"] = pred_ivts_value_global
-            end_points["pred_ivts_value_local"] = pred_ivts_value_local
+                ivts_feat = pred_ivts_global_feat + pred_ivts_local_feat
+                end_points["pred_ivts_global_feat"] = pred_ivts_global_feat
+                end_points["pred_ivts_local_feat"] = pred_ivts_local_feat
     else:
         if not FLAGS.multi_view:
             with tf.compat.v1.variable_scope("sdfprediction") as scope:

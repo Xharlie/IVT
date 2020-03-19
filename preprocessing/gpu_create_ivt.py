@@ -14,6 +14,7 @@ import points_tries_dist_pycuda as ptdcuda
 import argparse
 
 
+START = 0
 CUR_PATH = os.path.dirname(os.path.realpath(__file__))
 
 parser = argparse.ArgumentParser()
@@ -36,8 +37,11 @@ def get_unigrid(ivt_res, uni_num):
     z_vals = z[choicez]
     return np.stack([x_vals, y_vals, z_vals], axis=1)
 
-def add_jitters(uni_grid, std=0.05):
-    jitterx = np.random.normal(0, std, 3 * uni_grid.shape[0]).reshape([uni_grid.shape[0],3])
+def add_jitters(uni_grid, std=0.05, type="normal"):
+    if type == "normal":
+        jitterx = np.random.normal(0, std, 3 * uni_grid.shape[0]).reshape([uni_grid.shape[0],3])
+    else:
+        jitterx = np.random.uniform(-std, std, 3 * uni_grid.shape[0]).reshape([uni_grid.shape[0],3])
     print(uni_grid.shape, jitterx.shape)
     return uni_grid + jitterx
 
@@ -91,7 +95,7 @@ def rank_dist_tries(points, tries, rank_thresh=100):
 def gpu_calculate_ivt(points, tries, gpu):
     start = time.time()
     num_tries = tries.shape[0]
-    times = points.shape[0] * num_tries // (25000 * 6553 * 1) + 1
+    times = points.shape[0] * num_tries // (25000 * 6553 * 3) + 1
     span = points.shape[0] // times + 1
     vcts = []
     for i in range(times):
@@ -170,11 +174,14 @@ def calculate_ivt_single(planes, e, point, tries):
 
 
 def create_h5_ivt_pt(gpu, cat_id, h5_file, verts, faces, surfpoints_sample, surfpoints, ungrid, norm_params, ivt_res, num_sample, uni_ratio):
+    if faces.shape[0] > 2000000:
+        print(cat_id,h5_file,"is too big!!! faces_size", faces.shape[0])
+        return
     index = faces.reshape(-1)
     tries = verts[index].reshape([-1,3,3])
     print("tries.shape", tries.shape, faces.shape)
-    ungrid = add_jitters(ungrid, std=0.05)
-    surfpoints_sample = add_jitters(surfpoints_sample, std=0.05)
+    ungrid = add_jitters(ungrid, std=0.0)
+    surfpoints_sample = add_jitters(surfpoints_sample, std=0.05, type="uniform")
     uni_ivts = gpu_calculate_ivt(ungrid, tries,gpu)  # (N*8)x4 (x,y,z)
     surf_ivts = gpu_calculate_ivt(surfpoints_sample, tries, gpu)  # (N*8)x4 (x,y,z)
     print("start to write", h5_file)
@@ -298,7 +305,7 @@ def create_ivt(num_sample, res, cats, raw_dirs, lst_dir, uni_ratio=0.2, normaliz
             np.random.shuffle(index)
         list_objs = [[list_obj[j] for j in index[i*span:min((i+1)*span,len(list_obj))].tolist()] for i in range(thread_num)]
         cat_mesh_dir_lst = [cat_mesh_dir for i in range(thread_num)]
-        gpu_lst = [i % 4 for i in range(thread_num)]
+        gpu_lst = [i % 4 for i in range(START, thread_num+START)]
         catnm_lst = [catnm for i in range(thread_num)]
         cat_norm_mesh_dir_lst = [cat_norm_mesh_dir for i in range(thread_num)]
         cat_sdf_dir_lst = [cat_sdf_dir for i in range(thread_num)]

@@ -362,9 +362,9 @@ def train_one_epoch(sess, ops, train_writer, saver):
         for il, lossname in enumerate(losses.keys()):
             if lossname == "ivts_xyz_avg_diff":
                 xyz_avg_diff_epoch += outputs[len(output_list)+il]
-            if lossname == "ivts_dist_avg_diff_epoch":
+            if lossname == "ivts_dist_avg_diff":
                 dist_avg_diff_epoch += outputs[len(output_list)+il]
-            if lossname == "ivts_direction_avg_diff_epoch":
+            if lossname == "ivts_direction_avg_diff":
                 direction_avg_diff_epoch += outputs[len(output_list)+il]
             losses[lossname] += outputs[len(output_list)+il]
 

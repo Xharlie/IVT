@@ -33,7 +33,7 @@
     "raw_dirs_v1": {
         "mesh_dir": "/media/ssd/xharlie/ShapeNet/ShapeNetCore.v1/",
         "norm_mesh_dir":"/media/ssd/xharlie/ShapeNet/ShapeNetCore_v1_norm/",
-        "ivt_dir": "/media/ssd/xharlie/ShapeNet/IVT_v1/",
+        "ivt_dir": "/media/ssd/xharlie/ShapeNet/IVT_v1_uni/",
         "rendered_dir": "/media/ssd/xharlie/ShapeNet/ShapeNetRendering/",
         "renderedh5_dir": "/media/ssd/xharlie/ShapeNet/ShapeNetRenderingh5_v1_all/",
         "renderedh5_dir_est": "/media/ssd/xharlie/ShapeNet/ShapeNetRenderingh5_v1_all_pred_3d/"
