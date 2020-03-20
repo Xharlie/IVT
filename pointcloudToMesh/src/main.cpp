@@ -66,10 +66,8 @@
 #include <string>
 
 void printUsage(const char *progName) {
-    std::cout << "\nUsage: " << progName << " <input cloud> <surface method> <normal estimation method> <output dir>"
+    std::cout << "\nUsage: " << progName << " <input cloud> <output dir> <setKSearch normal> <nThreads> <depth> <pointWeight f> <samplePNode f> <scale f> <isoDivide> <degree>"
               << std::endl;
-    std::cout << "surface method: \n '1' for poisson \n '2' for gp3" << std::endl;
-    std::cout << "normal estimation method: \n '1' for normal estimation \n '2' for mls normal estimation" << std::endl;
 }
 
 void create_mesh(pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud, pcl::PolygonMesh &triangles, int setKSearch, int nThreads, int depth,
@@ -98,7 +96,7 @@ void create_mesh(pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud, pcl::PolygonMesh &t
 
     n.setInputCloud(cloudTranslated);
     n.setSearchMethod(kdtree_for_points);
-    n.setKSearch(20); //It was 20
+    n.setKSearch(setKSearch); //It was 20
     n.compute(*normals);//Normals are estimated using standard method.
 
     //pcl::PointCloud<pcl::PointNormal>::Ptr cloud_with_normals (new pcl::PointCloud<pcl::PointNormal> ());
@@ -128,8 +126,8 @@ void create_mesh(pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud, pcl::PolygonMesh &t
     bool outputPolygons = false;
     bool manifold = false;
     int solverDivide = 8;
-    printf("setKsearch %d, depth %d, pointWeight %f, samplePNode %f, scale %f, isoDivide %d", setKsearch, depth,
-           pointWeight, samplePNode, scale, isoDivide);
+    printf("setKSearch %d, depth %d, pointWeight %f, samplePNode %f, scale %f, isoDivide %d, degree %d", setKSearch, depth,
+           pointWeight, samplePNode, scale, isoDivide, degree);
 
     pcl::Poisson <pcl::PointNormal> poisson;
 
@@ -225,7 +223,7 @@ int main(int argc, char **argv) {
     bool file_is_txt = false;
     bool file_is_xyz = false;
 
-    if (argc < 5 or argc > 5) {
+    if (argc < 11 or argc > 11) {
         printUsage(argv[0]);
         return -1;
     }
@@ -410,9 +408,9 @@ int main(int argc, char **argv) {
     //cloudPointFilter(cloud_xyz,cloud_xyz_filtered);
 
     pcl::PolygonMesh cloud_mesh;
-    create_mesh(cloud_xyz, cloud_mesh);
-
-    output_dir += "/" + filenames + ".ply";
+    create_mesh(cloud_xyz, cloud_mesh, setKSearch, nThreads, depth, pointWeight, samplePNode, scale, isoDivide, degree);
+    char* filename = argv[filenames[0]];
+    output_dir += "/" + std::string(filename, filename+sizeof(filename)-4) + ".ply";
 
     std::string sav = "saved mesh in:";
     sav += output_dir;

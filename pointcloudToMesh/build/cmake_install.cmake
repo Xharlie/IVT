@@ -1,4 +1,4 @@
-# Install script for directory: /home/xharlie/dev/pointcloudToMesh/src
+# Install script for directory: /home/xharlie/dev/IVT/pointcloudToMesh/src
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -40,5 +40,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "/home/xharlie/dev/pointcloudToMesh/build/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "/home/xharlie/dev/IVT/pointcloudToMesh/build/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")
