@@ -18,3 +18,7 @@ models/CNN/pretrained_model
 *.txt
 */*.txt
 */*/*.txt
+*.ply
+*.tmp
+pointcloudToMesh/build/CMakeFiles
+pointcloudToMesh/example
