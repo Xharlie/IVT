@@ -116,7 +116,8 @@ if __name__ == "__main__":
     distr="ball"
     form="reverse"
 
-    mean_loc, std, weights, gt_pc, tries = unisample_pnts(res, nums, "/ssd1/datasets/ShapeNet/ShapeNetCore_v1_norm/04530566/5d48d75153eb221b476c772fd813166d/pc_norm.obj", threshold=0.1, stdratio=2, gpu=0)
+    # mean_loc, std, weights, gt_pc, tries = unisample_pnts(res, nums, "/ssd1/datasets/ShapeNet/ShapeNetCore_v1_norm/04530566/5d48d75153eb221b476c772fd813166d/pc_norm.obj", threshold=0.1, stdratio=2, gpu=0)
+    mean_loc, std, weights, gt_pc, tries = unisample_pnts(res, nums, "/ssd1/datasets/ShapeNet/ShapeNetCore_v1_norm/03001627/17e916fc863540ee3def89b32cef8e45/pc_norm.obj", threshold=0.1, stdratio=2, gpu=0)
     pc = sample_from_MM(mean_loc, std, weights, nums, distr=distr)
     np.savetxt("gt_pc.txt", gt_pc, delimiter=';')
     np.savetxt("gt_pc.xyz", gt_pc, delimiter=' ')

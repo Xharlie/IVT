@@ -103,12 +103,15 @@ void create_mesh(pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud, pcl::PolygonMesh &t
     pcl::concatenateFields(*cloud, *normals, *cloud_with_normals);
 
     std::cout << "normal estimated [OK]" << std::endl;
+
     // end normal estimation
 
 
     // Create search tree*
     pcl::search::KdTree<pcl::PointNormal>::Ptr kdtree_for_normals(new pcl::search::KdTree <pcl::PointNormal>);
     kdtree_for_normals->setInputCloud(cloud_with_normals);
+    std::string xyzn = "xyznormalb.ply";
+    pcl::io::savePLYFileBinary( xyzn.c_str(), *cloud_with_normals);
 
     std::cout << "Applying surface meshing...";
 
@@ -148,7 +151,6 @@ void create_mesh(pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud, pcl::PolygonMesh &t
     //poisson.reconstruct(mesh2);
     //pcl::surface::SimplificationRemoveUnusedVertices rem;
     //rem.simplify(mesh2,triangles);
-
     std::cout << "[OK]" << std::endl;
 
 
@@ -410,7 +412,7 @@ int main(int argc, char **argv) {
     pcl::PolygonMesh cloud_mesh;
     create_mesh(cloud_xyz, cloud_mesh, setKSearch, nThreads, depth, pointWeight, samplePNode, scale, isoDivide, degree);
     char* filename = argv[filenames[0]];
-    output_dir += "/" + std::string(filename, filename+sizeof(filename)-4) + ".ply";
+    output_dir += "/" + std::string(filename, filename+sizeof(filename)-3) + ".ply";
 
     std::string sav = "saved mesh in:";
     sav += output_dir;

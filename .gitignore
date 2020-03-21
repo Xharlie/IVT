@@ -23,3 +23,4 @@ models/CNN/pretrained_model
 pointcloudToMesh/build/CMakeFiles
 pointcloudToMesh/example
 *.cmake
+*/*/*/*.txt
