@@ -111,6 +111,19 @@ depend:
 .PHONY : depend
 
 #=============================================================================
+# Target rules for targets named caln
+
+# Build rule for target.
+caln: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 caln
+.PHONY : caln
+
+# fast build rule for target.
+caln/fast:
+	$(MAKE) -f CMakeFiles/caln.dir/build.make CMakeFiles/caln.dir/build
+.PHONY : caln/fast
+
+#=============================================================================
 # Target rules for targets named pointcloudToMESH
 
 # Build rule for target.
@@ -150,6 +163,33 @@ main.cpp.s:
 	$(MAKE) -f CMakeFiles/pointcloudToMESH.dir/build.make CMakeFiles/pointcloudToMESH.dir/main.cpp.s
 .PHONY : main.cpp.s
 
+normal.o: normal.cpp.o
+
+.PHONY : normal.o
+
+# target to build an object file
+normal.cpp.o:
+	$(MAKE) -f CMakeFiles/caln.dir/build.make CMakeFiles/caln.dir/normal.cpp.o
+.PHONY : normal.cpp.o
+
+normal.i: normal.cpp.i
+
+.PHONY : normal.i
+
+# target to preprocess a source file
+normal.cpp.i:
+	$(MAKE) -f CMakeFiles/caln.dir/build.make CMakeFiles/caln.dir/normal.cpp.i
+.PHONY : normal.cpp.i
+
+normal.s: normal.cpp.s
+
+.PHONY : normal.s
+
+# target to generate assembly for a file
+normal.cpp.s:
+	$(MAKE) -f CMakeFiles/caln.dir/build.make CMakeFiles/caln.dir/normal.cpp.s
+.PHONY : normal.cpp.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -158,10 +198,14 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
+	@echo "... caln"
 	@echo "... pointcloudToMESH"
 	@echo "... main.o"
 	@echo "... main.i"
 	@echo "... main.s"
+	@echo "... normal.o"
+	@echo "... normal.i"
+	@echo "... normal.s"
 .PHONY : help
 
 
