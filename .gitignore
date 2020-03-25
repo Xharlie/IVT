@@ -1,3 +1,4 @@
+train/gau*
 inference/render*
 *.DS_Store
 .idea/*

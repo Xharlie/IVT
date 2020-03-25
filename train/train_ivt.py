@@ -221,7 +221,6 @@ def train():
                 optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate, beta1=FLAGS.beta1)
 
             # Create a session
-            config = tf.compat.v1.ConfigProto()
             gpu_options = tf.compat.v1.GPUOptions()#(per_process_gpu_memory_fraction=0.99)
             config=tf.compat.v1.ConfigProto(gpu_options=gpu_options)
             config.gpu_options.allow_growth = True
@@ -274,7 +273,6 @@ def train():
                    'lr': learning_rate,
                    'end_points': end_points}
 
-            best_loss = 1e20
             TRAIN_DATASET.start()
             best_xyz_diff, best_dist_diff, best_dir_diff = 10000, 10000, 10000
             for epoch in range(FLAGS.max_epoch):

@@ -477,8 +477,8 @@ if __name__ == "__main__":
     #                 cats_limit[cat_id] += 1
     #                 TEST_LISTINFO += [(cat_id, line.strip(), render)]
     cats_limit = {"03001627":99999}
-    # TEST_LISTINFO += [("03001627", "17e916fc863540ee3def89b32cef8e45", 11)]
-    TEST_LISTINFO += [("03001627", "1be38f2624022098f71e06115e9c3b3e", 0)]
+    TEST_LISTINFO += [("03001627", "17e916fc863540ee3def89b32cef8e45", 11)]
+    # TEST_LISTINFO += [("03001627", "1be38f2624022098f71e06115e9c3b3e", 0)]
 
     info = {'rendered_dir': raw_dirs["renderedh5_dir"],
             'ivt_dir': raw_dirs["ivt_dir"]}
