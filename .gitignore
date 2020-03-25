@@ -1,3 +1,4 @@
+inference/render*
 *.DS_Store
 .idea/*
 */.idea/*

@@ -236,6 +236,7 @@ class Pt_sdf_img(threading.Thread):
         batch_view_id = []
         cnt = 0
         for i in range(index, index + self.FLAGS.batch_size):
+            # print(index, self.order,i)
             single_obj = self.getitem(self.order[i])
             if single_obj == None:
                 raise Exception("single mesh is None!")
@@ -287,6 +288,7 @@ class Pt_sdf_img(threading.Thread):
         return self.get_batch(index)
 
     def run(self):
+        print("start running")
         while (self.bno // (self.num_batches* self.FLAGS.batch_size)) < self.FLAGS.max_epoch and not self.stopped:
             self.queue.put(self.work(self.bno // (self.num_batches* self.FLAGS.batch_size),
                                      self.bno % (self.num_batches * self.FLAGS.batch_size)))

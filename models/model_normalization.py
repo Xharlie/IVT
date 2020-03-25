@@ -11,15 +11,16 @@ sys.path.append(os.path.join(BASE_DIR, 'models'))
 print(os.path.join(BASE_DIR, 'models'))
 import ivtnet
 
-def placeholder_inputs(scope='', FLAGS=None):
-
+def placeholder_inputs(scope='', FLAGS=None, num_pnts=None):
+    if num_pnts is None:
+        num_pnts = FLAGS.num_pnts
     with tf.compat.v1.variable_scope(scope) as sc:
-        pnts_pl = tf.compat.v1.placeholder(tf.float32, shape=(FLAGS.batch_size, FLAGS.num_pnts, 3))
+        pnts_pl = tf.compat.v1.placeholder(tf.float32, shape=(FLAGS.batch_size, num_pnts, 3))
         if FLAGS.alpha:
             imgs_pl = tf.compat.v1.placeholder(tf.float32, shape=(FLAGS.batch_size, FLAGS.img_h, FLAGS.img_w, 4))
         else:
             imgs_pl = tf.compat.v1.placeholder(tf.float32, shape=(FLAGS.batch_size, FLAGS.img_h, FLAGS.img_w, 3))
-        ivts_pl = tf.compat.v1.placeholder(tf.float32, shape=(FLAGS.batch_size, FLAGS.num_pnts, 3))
+        ivts_pl = tf.compat.v1.placeholder(tf.float32, shape=(FLAGS.batch_size, num_pnts, 3))
         obj_rot_mat_pl = tf.compat.v1.placeholder(tf.float32, shape=(FLAGS.batch_size, 3, 3))
         trans_mat_pl = tf.compat.v1.placeholder(tf.float32, shape=(FLAGS.batch_size, 4, 3))
     ivt = {}

@@ -3,15 +3,15 @@ import argparse
 import sys
 
 
-def poissonSingle(normloc, binloc, trimloc, infile, normfile, recfile, finalfile, ksearch=5, samplesPerNode=1.0, depth=12, trimD=7):
+def poissonSingle(normloc, binloc, trimloc, infile, normfile, recfile, finalfile, confidence, ksearch=5, samplesPerNode=1.0, depth=12, trimD=7, infnorm = False):
     
+    if not infnorm:
+        command_norm = normloc + " " + infile + " " + "./" + " " + str(ksearch)
+        print(command_norm)
+        os.system(command_norm)
 
-    command_norm = normloc + " " + infile + " " + "./" + " " + str(ksearch)
-    print(command_norm)
-    os.system(command_norm)
-
-    command_rec= binloc + " --in " + normfile + " --out " + recfile + " --depth " + str(depth) + " --density" + \
-        " --samplesPerNode " + str(samplesPerNode)
+    command_rec = binloc + " --in " + normfile + " --out " + recfile + " --depth " + str(depth) + " --linearFit --density" + \
+        " --samplesPerNode " + str(samplesPerNode) + " --confidence " + str(confidence)
     print(command_rec)
     os.system(command_rec)
 
@@ -22,13 +22,15 @@ def poissonSingle(normloc, binloc, trimloc, infile, normfile, recfile, finalfile
 normloc = "./../pointcloudToMesh/build/bin/caln"
 binloc = "./../PoissonRecon/Bin/Linux/PoissonRecon"
 trimloc = "./../PoissonRecon/Bin/Linux/SurfaceTrimmer"
-infile = "gt_pc.xyz"
-normfile = "gt_pc.ply"
-recfile = "chair_den1.ply"
-finalfile = "chair_final1.ply"
+infile = "uni_loc.xyz"
+normfile = "uni_l.ply"
+recfile = "uni_rec.ply"
+finalfile = "uni_final.ply"
 trimD = 7
 depth = 12
 ksearch = 5
-samplesPerNode = 1.0
+samplesPerNode = 3.0
+confidence = 2.0
+infnorm = True
 
-poissonSingle(normloc, binloc, trimloc, infile, normfile, recfile, finalfile, ksearch=ksearch, samplesPerNode=samplesPerNode, depth=depth, trimD=trimD)
+poissonSingle(normloc, binloc, trimloc, infile, normfile, recfile, finalfile, confidence, ksearch=ksearch, samplesPerNode=samplesPerNode, depth=depth, trimD=trimD, infnorm=infnorm)

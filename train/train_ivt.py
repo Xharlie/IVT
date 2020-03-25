@@ -379,22 +379,6 @@ def train_one_epoch(sess, ops, train_writer, saver):
         if (batch_idx + 1) % verbose_freq == 0:
             bid = 0
             # sampling
-            if (batch_idx + 1) % (200*verbose_freq) == 0:
-                saveimg = (imgs_val[bid, :, :, :] * 255).astype(np.uint8)
-                samplept_img = sample_img_points_val[bid, ...]
-                choice = np.random.randint(samplept_img.shape[0], size=100)
-                samplept_img = samplept_img[choice, ...]
-                for j in range(samplept_img.shape[0]):
-                    x = int(samplept_img[j, 0])
-                    y = int(samplept_img[j, 1])
-                    cv2.circle(saveimg, (x, y), 3, (0, 0, 255, 255), -1)
-                cv2.imwrite(os.path.join(RESULT_PATH, '%d_img_pnts.png' % batch_idx), saveimg)
-
-                np.savetxt(os.path.join(RESULT_PATH, '%d_input_pnts.txt' % batch_idx), gt_rot_pnts_val[bid,:,:])
-
-                np.savetxt(os.path.join(RESULT_PATH, '%d_ivts_pred.txt' % batch_idx), np.concatenate((gt_rot_pnts_val[bid,:,:] + pred_xyz_val[bid,:,:], np.expand_dims(pred_dist_val[bid,:,0],1)), axis=1))
-                np.savetxt(os.path.join(RESULT_PATH, '%d_ivts_gt.txt' % batch_idx), np.concatenate((gt_rot_pnts_val[bid,:,:] + gt_ivts_xyz_val[bid,:,:], np.expand_dims(gt_ivts_dist_val[bid,:,0],1)), axis=1))
-
             outstr = ' -- %03d / %03d -- ' % (batch_idx+1, num_batches)
             for lossname in losses.keys():
                 outstr += '%s: %f, ' % (lossname, losses[lossname] / verbose_freq)
@@ -408,6 +392,21 @@ def train_one_epoch(sess, ops, train_writer, saver):
     print("avg xyz_avg_diff:", xyz_avg_diff_epoch / num_batches)
     print("avg dist_avg_diff:", dist_avg_diff_epoch / num_batches)
     print("avg direction_avg_diff:", direction_avg_diff_epoch / num_batches)
+
+    saveimg = (imgs_val[bid, :, :, :] * 255).astype(np.uint8)
+    samplept_img = sample_img_points_val[bid, ...]
+    choice = np.random.randint(samplept_img.shape[0], size=100)
+    samplept_img = samplept_img[choice, ...]
+    for j in range(samplept_img.shape[0]):
+        x = int(samplept_img[j, 0])
+        y = int(samplept_img[j, 1])
+        cv2.circle(saveimg, (x, y), 3, (0, 0, 255, 255), -1)
+    cv2.imwrite(os.path.join(RESULT_PATH, '%d_img_pnts.png' % batch_idx), saveimg)
+
+    np.savetxt(os.path.join(RESULT_PATH, '%d_input_pnts.txt' % batch_idx), gt_rot_pnts_val[bid, :, :])
+
+    np.savetxt(os.path.join(RESULT_PATH, '%d_ivts_pred.txt' % batch_idx), np.concatenate((gt_rot_pnts_val[bid, :, :] + pred_xyz_val[bid, :, :], np.expand_dims(pred_dist_val[bid, :, 0], 1)), axis=1))
+    np.savetxt(os.path.join(RESULT_PATH, '%d_ivts_gt.txt' % batch_idx), np.concatenate((gt_rot_pnts_val[bid, :, :] + gt_ivts_xyz_val[bid, :, :], np.expand_dims(gt_ivts_dist_val[bid, :, 0], 1)), axis=1))
     return xyz_avg_diff_epoch / num_batches, dist_avg_diff_epoch / num_batches, direction_avg_diff_epoch / num_batches
 
 if __name__ == "__main__":
