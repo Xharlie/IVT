@@ -208,7 +208,7 @@ def train():
             print("--- Get model and loss")
             # Get model and loss
 
-            end_points = model.get_model(input_pls, is_training_pl, bn=False, FLAGS=FLAGS)
+            end_points = model.get_model(input_pls, is_training_pl, bn=False, bn_decay=bn_decay, FLAGS=FLAGS)
             loss, end_points = model.get_loss(end_points, FLAGS=FLAGS)
             # tf.summary.scalar('loss', loss)
 
@@ -383,7 +383,7 @@ def train_one_epoch(sess, ops, train_writer, saver):
                 losses[lossname] = 0
             outstr += "lr: %f" % (lr_val)
             outstr += ' time per b: %.02f, ' % ((time.time() - tic)/verbose_freq)
-            outstr += ', fetch time per b: %.02f, ' % (fetch_time/verbose_freq)
+            outstr += ' fetch time per b: %.02f, ' % (fetch_time/verbose_freq)
             tic = time.time()
             fetch_time = 0
             log_string(outstr)
@@ -412,4 +412,6 @@ if __name__ == "__main__":
     try:
         train()
     finally:
+        print("finally")
+        TRAIN_DATASET.shutdown()
         LOG_FOUT.close()

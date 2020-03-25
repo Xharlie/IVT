@@ -1,3 +1,6 @@
+-----------------------------------------------train-----------------------------------------------------------
+-----global all
+dw 0.1
 nohup python -u train_ivt.py --gpu 0 --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/global_direct/chair --category chair --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 0.1 &> global_direct_chair.log &
 
 nohup python -u train_ivt.py --gpu 0 --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/global_direct/chair_evenweight --category chair --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 0.1 --weight_type non  &> global_direct_chair_evenweight.log &
@@ -6,7 +9,12 @@ nohup python -u train_ivt.py --gpu 2 --restore_modelcnn ../models/CNN/pretrained
 poor
 
 
+dw1
+nohup python -u train_ivt.py --gpu 3 --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/global_direct/chair_evenweight_dw1 --category chair --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 1 --weight_type non  &> global_direct_chair_evenweight_dw1.log &
 
+
+dw1 with bn:
+nohup python -u train_ivt.py --gpu 3 --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/global_direct/chair_evenweight_dw1 --category chair --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 1 --weight_type non  &> global_direct_chair_evenweight_dw1.log &
 
 
 --- onestream all
@@ -25,18 +33,22 @@ nohup python -u train_ivt.py --gpu 3 --img_feat_onestream --restore_modelcnn ../
 
 
 
------ surface only
+----- global surface only
+dw1
+nohup python -u train_ivt.py --gpu 0  --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/global_direct_surfaceonly/chair_evenweight --category chair --uni_num 0 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 1 --weight_type non  &> global_direct_surfaceonly_chair_evenweight_dw1.log &
 
-nohup python -u train_ivt.py --gpu 2  --restore_model checkpoint/global_direct_surfaceonly/chair_evenweight --log_dir checkpoint/global_direct_surfaceonly/chair_evenweight --category chair --uni_num 0 --num_pnts 2048 --batch_size 32 --learning_rate 0.00005 --dir_loss_weight 1 --weight_type non  &> global_direct_surfaceonly_chair_evenweight_dw1.log &
+dw0.1
+nohup python -u train_ivt.py --gpu 1  --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/global_direct_surfaceonly/chair_evenweight --category chair --uni_num 0 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 0.1 --weight_type non  &> global_direct_surfaceonly_chair_evenweight.log &
 
 
- -- onestream
+
+ -- onestream surface only
 nohup python -u train_ivt.py --gpu 2  --img_feat_onestream --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/onestream_direct_surfaceonly/chair_evenweight --category chair --uni_num 0 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 1 --weight_type non  &> onestream_direct_surfaceonly_chair_evenweight_dw1.log &
 
 
 ----- uni only
 
-nohup python -u train_ivt.py --gpu 1  --restore_model checkpoint/global_direct_unionly/chair_evenweight --log_dir checkpoint/global_direct_unionly/chair_evenweight --category chair --uni_num 2048 --num_pnts 2048 --batch_size 32 --learning_rate 0.00005 --dir_loss_weight 1 --weight_type non &> global_direct_unionly_chair_evenweight_dw1.log &
+nohup python -u train_ivt.py --gpu 1  --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/global_direct_unionly/chair_evenweight --category chair --uni_num 2048 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 1 --weight_type non &> global_direct_unionly_chair_evenweight_dw1.log &
 
 
 
