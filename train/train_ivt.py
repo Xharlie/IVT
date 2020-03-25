@@ -409,5 +409,7 @@ def train_one_epoch(sess, ops, train_writer, saver):
 
 if __name__ == "__main__":
     log_string('pid: %s'%(str(os.getpid())))
-    train()
-    LOG_FOUT.close()
+    try:
+        train()
+    finally:
+        LOG_FOUT.close()
