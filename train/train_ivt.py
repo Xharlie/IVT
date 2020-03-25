@@ -63,6 +63,7 @@ parser.add_argument('--XYZ', action='store_true')
 parser.add_argument('--cam_est', action='store_true')
 parser.add_argument('--cat_limit', type=int, default=168000, help="balance each category, 1500 * 24 = 36000")
 parser.add_argument('--multi_view', action='store_true')
+parser.add_argument('--bn', action='store_true')
 
 FLAGS = parser.parse_args()
 print(FLAGS)
@@ -208,7 +209,7 @@ def train():
             print("--- Get model and loss")
             # Get model and loss
 
-            end_points = model.get_model(input_pls, is_training_pl, bn=False, bn_decay=bn_decay, FLAGS=FLAGS)
+            end_points = model.get_model(input_pls, is_training_pl, bn=FLAGS.bn, bn_decay=bn_decay, FLAGS=FLAGS)
             loss, end_points = model.get_loss(end_points, FLAGS=FLAGS)
             # tf.summary.scalar('loss', loss)
 
