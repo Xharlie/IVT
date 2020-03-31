@@ -4,6 +4,11 @@ dw 0.1
 nohup python -u train_ivt.py --gpu 0 --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/global_direct/chair --category chair --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 0.1 &> global_direct_chair.log &
 
 nohup python -u train_ivt.py --gpu 0 --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/global_direct/chair_evenweight --category chair --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 0.1 --weight_type non  &> global_direct_chair_evenweight.log &
+result:
+    avg xyz_avg_diff: 0.01434130717500965
+    avg dist_avg_diff: 0.01246840967571518
+    avg direction_avg_diff: 0.6608628248015245
+
 
 nohup python -u train_ivt.py --gpu 2 --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/global_xyz/chair_evenweight --category chair --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 0.1 --XYZ &> global_xyz_chair.log &
 poor
@@ -11,11 +16,18 @@ poor
 
 dw1
 nohup python -u train_ivt.py --gpu 3 --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/global_direct/chair_evenweight_dw1 --category chair --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 1 --weight_type non  &> global_direct_chair_evenweight_dw1.log &
+result:
+    avg xyz_avg_diff: 0.014767606056628574
+    avg dist_avg_diff: 0.014873905941536454
+    avg direction_avg_diff: 0.6899501082111715
 
 
 dw1 with bn:
-nohup python -u train_ivt.py --gpu 2 --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/global_direct/chair_evenweight_dw1 --category chair --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 1 --weight_type non  -bn &> global_direct_chair_evenweight_dw1_bn.log &
-
+nohup python -u train_ivt.py --gpu 2 --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/global_direct/chair_evenweight_dw1_bn --category chair --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 1 --weight_type non  --bn &> global_direct_chair_evenweight_dw1_bn.log &
+result: poor
+    avg xyz_avg_diff: 0.01760587444782227
+    avg dist_avg_diff: 0.01833312210779487
+    avg direction_avg_diff: 0.633352470476436
 
 --- onestream all
 
@@ -33,22 +45,52 @@ nohup python -u train_ivt.py --gpu 3 --img_feat_onestream --restore_modelcnn ../
 
 
 
+
+
+
 ----- global surface only
 dw1
-nohup python -u train_ivt.py --gpu 0  --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/global_direct_surfaceonly/chair_evenweight --category chair --uni_num 0 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 1 --weight_type non  &> global_direct_surfaceonly_chair_evenweight_dw1.log &
+nohup python -u train_ivt.py --gpu 0  --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/global_direct_surfaceonly/chair_evenweight_dw1 --category chair --uni_num 0 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 1 --weight_type non  &> global_direct_surfaceonly_chair_evenweight_dw1.log &
+result:
+    avg xyz_avg_diff: 0.006745036613836669
+    avg dist_avg_diff: 0.00981139590684018
+    avg direction_avg_diff: 0.6197073895830418
 
-dw0.1
+dw1 propor
+nohup python -u train_ivt.py --gpu 3  --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/global_direct_surfaceonly/chair_evenweight_dw1_propor --category chair --uni_num 0 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 1 --weight_type propor  &> global_direct_surfaceonly_chair_evenweight_dw1_propor.log &
+result:
+
+
+
+dw0.1  poor
 nohup python -u train_ivt.py --gpu 1  --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/global_direct_surfaceonly/chair_evenweight --category chair --uni_num 0 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 0.1 --weight_type non  &> global_direct_surfaceonly_chair_evenweight.log &
-
+result:
+    avg xyz_avg_diff: 0.010745914002503586
+    avg dist_avg_diff: 0.011969977314118177
+    avg direction_avg_diff: 0.1736399324110382
 
 
  -- onestream surface only
-nohup python -u train_ivt.py --gpu 2  --img_feat_onestream --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/onestream_direct_surfaceonly/chair_evenweight --category chair --uni_num 0 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 1 --weight_type non  &> onestream_direct_surfaceonly_chair_evenweight_dw1.log &
+nohup python -u train_ivt.py --gpu 2  --img_feat_onestream --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/onestream_direct_surfaceonly/chair_evenweight_dw1 --category chair --uni_num 0 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 1 --weight_type non  &> onestream_direct_surfaceonly_chair_evenweight_dw1.log &
 
 
------ uni only
 
-nohup python -u train_ivt.py --gpu 1  --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/global_direct_unionly/chair_evenweight --category chair --uni_num 2048 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 1 --weight_type non &> global_direct_unionly_chair_evenweight_dw1.log &
+
+nohup python -u train_ivt.py --gpu 1  --img_feat_onestream --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/onestream_direct_surfaceonly/chair_evenweight_dw1_propor --category chair --uni_num 0 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 1 --weight_type propor  &> onestream_direct_surfaceonly_chair_evenweight_dw1_propor.log &
+
+
+
+
+
+----- global uni only
+
+nohup python -u train_ivt.py --gpu 1  --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/global_direct_unionly/chair_evenweight_dw1 --category chair --uni_num 2048 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 1 --weight_type non &> global_direct_unionly_chair_evenweight_dw1.log &
+
+result:
+avg xyz_avg_diff: 0.01959535391248006
+avg dist_avg_diff: 0.008822792168413274
+avg direction_avg_diff: 0.9741547924713353
+
 
 
 
@@ -84,4 +126,10 @@ nohup python -u inference.py --restore_model ../train/checkpoint/global_direct_u
 -------------------- uniform sample dataset ---------------------
 
 
+-------------------inference:
 
+nohup python -u inference.py --restore_model ../train/checkpoint/global_direct_unionly/chair_evenweight_dw1 --outdir  uniform/chair_drct_even_unionly_uni --unionly &> global_direct_chair_uni_evenweight_uni.log &
+
+
+
+nohup python -u inference.py --restore_model ../train/checkpoint/global_direct_surfaceonly/chair_evenweight --outdir  chair_drct_even_surfonly_uni --unionly &> global_direct_chair_surf_evenweight_uni.log &

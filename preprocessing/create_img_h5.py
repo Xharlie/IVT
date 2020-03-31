@@ -234,10 +234,9 @@ def gen_obj_img_h5(source_dir, cat_target_dir, norm_mesh_dir, vals, obj):
             img_arr = cv2.imread(img_file, cv2.IMREAD_UNCHANGED).astype(np.uint8)
             az, el, distance_ratio = param_lst[i][0], param_lst[i][1], param_lst[i][3]
             K, RT = getBlenderProj(az, el, distance_ratio, img_w=137, img_h=137)
-            W2O_mat = get_W2O_mat((param_lst[i][-3], param_lst[i][-1], -param_lst[i][-2]))
-            trans_mat = np.linalg.multi_dot([K, RT, rot_mat, W2O_mat, norm_mat])
+            trans_mat = np.linalg.multi_dot([K, RT, rot_mat, norm_mat])
             trans_mat_right = np.transpose(trans_mat)
-            regress_mat = np.transpose(np.linalg.multi_dot([RT, rot_mat, W2O_mat, norm_mat]))
+            regress_mat = np.transpose(np.linalg.multi_dot([RT, rot_mat, norm_mat]))
 
             with h5py.File(h5_file, 'w') as f1:
                 f1.create_dataset('img_arr', data=img_arr, compression='gzip',
@@ -315,8 +314,13 @@ def get_img_points(sample_pc, trans_mat_right):
     homo_pc = np.concatenate((sample_pc, np.ones((sample_pc.shape[0],1),dtype=np.float32)),axis=-1)
     pc_xyz = np.dot(homo_pc, trans_mat_right).reshape((-1,3))
     print("pc_xyz shape: ", pc_xyz.shape)
-    pc_xy = pc_xyz[:,:2] / np.expand_dims(pc_xyz[:,2], axis=1)
+    norm = pc_xyz[:, 2]
+    print("norm.shape",norm.shape)
+    pc_xy = pc_xyz[:,:2] / norm
     return pc_xy.astype(np.int32)
+    # mintensor = np.array([0.0,0.0], dtype=float)
+    # maxtensor = np.array([136.0,136.0], dtype=float)
+    # return np.minimum(maxtensor, np.maximum(mintensor, pc_xy)).astype(np.int32)
 
 def get_points(obj_fl):
     sample_pc = np.zeros((0,3), dtype=np.float32)
@@ -361,22 +365,58 @@ def test_img_h5(img_h5_fl, num, march_obj_fl):
     print("send/184b4797cea77beb5ca1c42bb8ac17a_{}.png".format(str(num)))
     cv2.imwrite("send/184b4797cea77beb5ca1c42bb8ac17a_{}.png".format(str(num)), img_arr)
 
+def check_trans(img_dir, norm_mesh_dir):
+    ivt_fl = os.path.join(norm_mesh_dir, "pc_norm.txt")
+    norm_mat = get_norm_matrix(ivt_fl)
+    rot_mat = get_rotate_matrix(-np.pi / 2)
+    with open(img_dir + "/renderings.txt", 'r') as f:
+        lines = f.read().splitlines()
+        file_lst = [line.strip() for line in lines]
+        params = np.loadtxt(img_dir + "/rendering_metadata.txt")
+        param_lst = [params[num, ...].astype(np.float32) for num in range(len(file_lst))]
+        for i in range(len(file_lst)):
+            camR, _ = get_img_cam(param_lst[i])
+            obj_rot_mat = np.dot(rot90y, camR)
+            img_file = os.path.join(img_dir, file_lst[i])
+            img_arr = cv2.imread(img_file, cv2.IMREAD_UNCHANGED).astype(np.uint8)
+            az, el, distance_ratio = param_lst[i][0], param_lst[i][1], param_lst[i][3]
+            K, RT = getBlenderProj(az, el, distance_ratio, img_w=137, img_h=137)
+            trans_mat = np.linalg.multi_dot([K, RT, rot_mat, norm_mat])
+            trans_mat_right = np.transpose(trans_mat)
+            regress_mat = np.transpose(np.linalg.multi_dot([RT, rot_mat, norm_mat]))
+
+            new_pts, colors = get_points(os.path.join(norm_mesh_dir,"pc_norm.obj"))
+            print(new_pts.shape)
+            pc_xy = get_img_points(new_pts, trans_mat_right)
+            for j in range(pc_xy.shape[0]):
+                y = int(pc_xy[j, 1])
+                x = int(pc_xy[j, 0])
+                # print (y,x)
+                # print(img_arr[y, x, :])
+                # print(tuple([int(x) for x in colors[j]]))
+                cv2.circle(img_arr, (x, y), 3, (0, 0, 255, 255), -1)
+            rot_pc = np.dot(new_pts, obj_rot_mat)
+            np.savetxt(os.path.join("send/", "{}_{}_{}.txt".format("03001627", "184b4797cea77beb5ca1c42bb8ac17a", str(i))), rot_pc, delimiter=';')
+
+            print("send/184b4797cea77beb5ca1c42bb8ac17a_{}.png".format(str(i)))
+            cv2.imwrite("send/184b4797cea77beb5ca1c42bb8ac17a_{}.png".format(str(i)), img_arr)
 
 if __name__ == "__main__":
 
     # nohup python -u create_img_h5.py &> create_imgh5.log &
 
-    # lst_dir, cats, all_cats, raw_dirs = create_file_lst.get_all_info()
-    # print("start")
-    # # original rendering 2d dataset
-    # convert_img2h5(raw_dirs["rendered_dir"],
-    #                raw_dirs["renderedh5_dir"],
-    #                lst_dir, cats, 
-    #                raw_dirs["norm_mesh_dir"])
+    lst_dir, cats, all_cats, raw_dirs = create_file_lst.get_all_info()
+    print("start")
+    # original rendering 2d dataset
+    convert_img2h5(raw_dirs["rendered_dir"],
+                   raw_dirs["renderedh5_dir"],
+                   lst_dir, cats,
+                   raw_dirs["norm_mesh_dir"])
 
 
-    # test_img_h5("/ssd1/datasets/ShapeNet/ShapeNetRenderingh5_v1/03001627/184b4797cea77beb5ca1c42bb8ac17a/05.h5", 5,
-    #             "/ssd1/datasets/ShapeNet/march_cube_objs_v1/03001627/184b4797cea77beb5ca1c42bb8ac17a/isosurf.obj")
+    # test_img_h5("/ssd1/datasets/ShapeNet/ShapeNetRenderingh5_v1_all/03001627/184b4797cea77beb5ca1c42bb8ac17a/05.h5", 5, "/ssd1/datasets/ShapeNet/ShapeNetCore_v1_norm/03001627/184b4797cea77beb5ca1c42bb8ac17a/pc_norm.obj")
+
+    # check_trans("/ssd1/datasets/ShapeNet/ShapeNetRendering/03001627/184b4797cea77beb5ca1c42bb8ac17a/rendering", "/ssd1/datasets/ShapeNet/ShapeNetCore_v1_norm/03001627/184b4797cea77beb5ca1c42bb8ac17a")
 
     # gen_obj_img_h5("/ssd1/datasets/ShapeNet/ShapeNetRendering",
     #    "send/03001627", "/ssd1/datasets/ShapeNet/SDF_v1/256_expr_1.2_bw_0.1/", "03001627", "184b4797cea77beb5ca1c42bb8ac17a")

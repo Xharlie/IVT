@@ -10,7 +10,7 @@ def poissonSingle(normloc, binloc, trimloc, infile, normfile, recfile, finalfile
         print(command_norm)
         os.system(command_norm)
 
-    command_rec = binloc + " --in " + normfile + " --out " + recfile + " --depth " + str(depth) + " --linearFit --density" + \
+    command_rec = binloc + " --in " + normfile + " --out " + recfile + " --depth " + str(depth) + " --density" + \
         " --samplesPerNode " + str(samplesPerNode) + " --confidence " + str(confidence)
     print(command_rec)
     os.system(command_rec)

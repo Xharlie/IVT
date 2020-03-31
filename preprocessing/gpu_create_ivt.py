@@ -180,7 +180,7 @@ def create_h5_ivt_pt(gpu, cat_id, h5_file, verts, faces, surfpoints_sample, surf
     index = faces.reshape(-1)
     tries = verts[index].reshape([-1,3,3])
     print("tries.shape", tries.shape, faces.shape)
-    ungrid = add_jitters(ungrid, std=0.0)
+    ungrid = add_jitters(ungrid, std=0.005)
     surfpoints_sample = add_jitters(surfpoints_sample, std=0.05, type="uniform")
     uni_ivts = gpu_calculate_ivt(ungrid, tries,gpu)  # (N*8)x4 (x,y,z)
     surf_ivts = gpu_calculate_ivt(surfpoints_sample, tries, gpu)  # (N*8)x4 (x,y,z)

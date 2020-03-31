@@ -27,3 +27,4 @@ pointcloudToMesh/build/CMakeFiles
 pointcloudToMesh/example
 *.cmake
 */*/*/*.txt
+*/send/

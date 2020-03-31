@@ -185,7 +185,9 @@ def get_loss(end_points, regularization=True, FLAGS=None):
     end_points['gt_ivts_dist'] = gt_ivts_dist
     end_points['gt_ivts_direction'] = gt_ivts_direction
 
-    if FLAGS.weight_type == 'ntanh':
+    if FLAGS.weight_type == 'propor':
+        weight_mask = 1 / tf.maximum(gt_ivts_dist, 1e-6)
+    elif FLAGS.weight_type == 'ntanh':
         thresh = tf.constant(0.05, dtype=tf.float32)
         weight_mask = tf.cast(tf.less_equal(gt_ivts_dist, thresh),dtype=tf.float32) \
               + tf.cast(tf.greater(gt_ivts_dist, thresh),dtype=tf.float32) * (tf.tanh(thresh - gt_ivts_dist) + 1)
@@ -216,7 +218,7 @@ def get_loss(end_points, regularization=True, FLAGS=None):
 
     else:
         ivts_dist_loss = tf.reduce_mean(ivts_dist_diff * weight_mask)
-        ivts_direction_loss = tf.reduce_mean((1.0-ivts_direction_diff) * weight_mask)
+        ivts_direction_loss = tf.reduce_mean((1.0-ivts_direction_diff))
         end_points['losses']['ivts_dist_loss'] = ivts_dist_loss
         end_points['losses']['ivts_direction_loss'] = ivts_direction_loss  
     print("weight_mask.get_shape().as_list(): ", weight_mask.get_shape().as_list())
