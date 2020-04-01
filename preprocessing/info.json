@@ -33,7 +33,7 @@
     "raw_dirs_v1": {
         "mesh_dir": "/ssd1/datasets/ShapeNet/ShapeNetCore.v1/",
         "norm_mesh_dir":"/ssd1/datasets/ShapeNet/ShapeNetCore_v1_norm/",
-        "ivt_dir": "/ssd1/datasets/ShapeNet/IVT_v1_uni/",
+        "ivt_dir": "/ssd1/datasets/ShapeNet/IVT_v1_biguni/",
         "rendered_dir": "/ssd1/datasets/ShapeNet/ShapeNetRendering/",
         "renderedh5_dir": "/ssd1/datasets/ShapeNet/ShapeNetRenderingh5_v1_all/",
         "renderedh5_dir_est": "/ssd1/datasets/ShapeNet/ShapeNetRenderingh5_v1_all_pred_3d/"

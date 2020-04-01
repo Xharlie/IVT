@@ -18,7 +18,7 @@ START = 0
 CUR_PATH = os.path.dirname(os.path.realpath(__file__))
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--thread_num', type=int, default='4', help='how many objs are creating at the same time')
+parser.add_argument('--thread_num', type=int, default='1', help='how many objs are creating at the same time')
 parser.add_argument('--shuffle', action='store_true')
 parser.add_argument('--category', type=str, default="all", help='Which single class to generate on [default: all, can '
                                                                 'be chair or plane, etc.]')
@@ -333,7 +333,7 @@ def create_ivt_distribute(gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_d
 
 if __name__ == "__main__":
 
-    # nohup python -u create_point_sdf_grid.py &> create_sdf.log &
+    # nohup python -u gpu_create_ivt.py &> create_sdf.log &
 
     #  full set
     lst_dir, cats, all_cats, raw_dirs = create_file_lst.get_all_info()
@@ -342,8 +342,8 @@ if __name__ == "__main__":
             FLAGS.category:cats[FLAGS.category]
         }
 
-    create_ivt(32768, 0.01, cats, raw_dirs,
-               lst_dir, uni_ratio=0.2, normalize=True, version=1, skip_all_exist=True)
+    create_ivt(32768*2, 0.01, cats, raw_dirs,
+               lst_dir, uni_ratio=0.5, normalize=True, version=1, skip_all_exist=True)
     
     # tries = [[
     #     [1, 2, 3],
