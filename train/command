@@ -71,6 +71,11 @@ init: nohup python -u train_ivt.py --gpu 1  --img_feat_onestream --restore_model
 nohup python -u train_ivt.py --gpu 1  --img_feat_onestream --restore_model checkpoint/onestream_direct_surfaceonly/chair_evenweight_dw1/ --log_dir checkpoint/onestream_direct_surfaceonly/chair_evenweight_dw1 --category chair --uni_num 0 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 1 --weight_type non  &> onestream_direct_surfaceonly_chair_evenweight_dw1.log &
 
 
+----onestream surface only XYZ 1001
+nohup python -u train_ivt.py --gpu 1  --img_feat_onestream --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/onestream_XYZ_surfaceonly/chair_evenweight_1001 --category chair --uni_num 0 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --weight_type non --XYZ &> onestream_XYZ_surfaceonly_chair_evenweight_1001.log &
+
+
+
 
 dw1 propor
 nohup python -u train_ivt.py --gpu 1  --img_feat_onestream --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/onestream_direct_surfaceonly/chair_evenweight_dw1_propor --category chair --uni_num 0 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 1 --weight_type propor  &> onestream_direct_surfaceonly_chair_evenweight_dw1_propor.log &

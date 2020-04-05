@@ -16,13 +16,8 @@ import argparse
 
 START = 0
 CUR_PATH = os.path.dirname(os.path.realpath(__file__))
+FLAGS=None
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--thread_num', type=int, default='1', help='how many objs are creating at the same time')
-parser.add_argument('--shuffle', action='store_true')
-parser.add_argument('--category', type=str, default="all", help='Which single class to generate on [default: all, can '
-                                                                'be chair or plane, etc.]')
-FLAGS = parser.parse_args()
 
 def get_unigrid(ivt_res, uni_num):
     grids = int(1 / ivt_res) 
@@ -95,7 +90,7 @@ def rank_dist_tries(points, tries, rank_thresh=100):
 def gpu_calculate_ivt(points, tries, gpu):
     start = time.time()
     num_tries = tries.shape[0]
-    times = points.shape[0] * num_tries // (25000 * 6553 * 3) + 1
+    times = points.shape[0] * num_tries // (25000 * 6553 * 4) + 1
     span = points.shape[0] // times + 1
     vcts = []
     for i in range(times):
@@ -105,8 +100,9 @@ def gpu_calculate_ivt(points, tries, gpu):
         ivt, dist = ptdcuda.pnts_tries_ivts(pnts, tries, gpu=gpu)
         vcts_part = ptdcuda.closet(ivt, dist)
         vcts.append(vcts_part)
+        print("ptdcuda: {}/{}".format(i+1, times))
     ivt_closest = vcts[0] if len(vcts) == 0 else np.concatenate(vcts, axis=0)
-    print("times", times, "ivt_closest.shape",ivt_closest.shape, "time diff:", time.time() - start)
+    print("times", times, "ivt_closest.shape", ivt_closest.shape, "time diff:", time.time() - start)
     return ivt_closest
 
 def get_plane_abcd(tries):
@@ -332,6 +328,12 @@ def create_ivt_distribute(gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_d
         print("finish {}/{} for {}".format(i,len(list_obj),catnm))
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--thread_num', type=int, default='1', help='how many objs are creating at the same time')
+    parser.add_argument('--shuffle', action='store_true')
+    parser.add_argument('--category', type=str, default="all",
+                        help='Which single class to generate on [default: all, can be chair or plane, etc.]')
+    FLAGS = parser.parse_args()
 
     # nohup python -u gpu_create_ivt.py &> create_sdf.log &
 

@@ -1,4 +1,3 @@
-import argparse
 from datetime import datetime
 import numpy as np
 import warnings
@@ -22,89 +21,30 @@ import data_ivt_h5_queue  # as data
 import output_utils
 import create_file_lst
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../preprocessing'))
-# import gpu_create_ivt as ct
+import gpu_create_ivt as ct
+import argparse
 import pymesh
 import trimesh
 import pandas as pd
 from pyntcloud import PyntCloud
+from sklearn.neighbors import DistanceMetric as dm
+from sklearn.neighbors import NearestNeighbors
+from random import sample
 lst_dir, cats, all_cats, raw_dirs = create_file_lst.get_all_info()
 
 slim = tf.contrib.slim
+FLAGS=None
+RESULT_PATH = None
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--gpu', type=str, default='1', help='GPU to use [default: GPU 0]')
-parser.add_argument('--category', type=str, default="all", help='Which single class to train on [default: None]')
-parser.add_argument('--log_dir', default='checkpoint', help='Log dir [default: log]')
-parser.add_argument('--num_pnts', type=int, default=0, help='Point Number [default: 2048]')
-parser.add_argument('--uni_num', type=int, default=0, help='Point Number [default: 2048]')
-parser.add_argument('--num_classes', type=int, default=1024, help='vgg dim')
-parser.add_argument("--beta1", type=float, dest="beta1", default=0.5, help="beta1 of adams")
-parser.add_argument('--batch_size', type=int, default=1, help='Batch Size during training [default: 32]')
-parser.add_argument('--img_h', type=int, default=137, help='Image Height')
-parser.add_argument('--img_w', type=int, default=137, help='Image Width')
-parser.add_argument('--learning_rate', type=float, default=1e-5, help='Initial learning rate [default: 0.001]')
-parser.add_argument('--momentum', type=float, default=0.9, help='Initial learning rate [default: 0.9]')
-parser.add_argument('--optimizer', default='adam', help='adam or momentum [default: adam]')
-parser.add_argument('--restore_model', default='', help='restore_model')  # checkpoint/sdf_2d3d_sdfbasic2_nowd
-parser.add_argument('--restore_surfmodel', default='', help='restore_model surface only')  # ../models/CNN/pretrained_model/vgg_16.ckpt
-parser.add_argument('--train_lst_dir', default=lst_dir, help='train mesh data list')
-parser.add_argument('--valid_lst_dir', default=lst_dir, help='test mesh data list')
-parser.add_argument('--decay_step', type=int, default=200000, help='Decay step for lr decay [default: 200000]')
-parser.add_argument('--decay_rate', type=float, default=0.9, help='Decay rate for lr decay [default: 0.7]')
-parser.add_argument('--weight_type', type=str, default="ntanh")
-parser.add_argument('--dir_loss_weight', type=float, default=0.1)
-parser.add_argument('--img_feat_onestream', action='store_true')
-parser.add_argument('--img_feat_twostream', action='store_true')
-parser.add_argument('--binary', action='store_true')
-parser.add_argument('--alpha', action='store_true')
-parser.add_argument('--augcolorfore', action='store_true')
-parser.add_argument('--augcolorback', action='store_true')
-parser.add_argument('--backcolorwhite', action='store_true')
-parser.add_argument('--rot', action='store_true')
-parser.add_argument('--XYZ', action='store_true')
-parser.add_argument('--cam_est', action='store_true')
-parser.add_argument('--cat_limit', type=int, default=168000, help="balance each category, 1500 * 24 = 36000")
-parser.add_argument('--multi_view', action='store_true')
-parser.add_argument('--rounds', type=int, default=1, help='how many rounds of ivf')
-parser.add_argument('--res', type=float, default=0.005, help='cube resolution')
-parser.add_argument('--initnums', type=int, default=8096, help='initial sampled uni point numbers')
-parser.add_argument('--num_ratio', type=int, default=2, help='point numbers expansion each round')
-parser.add_argument('--stdratio', type=int, default=2, help='')
-# parser.add_argument('--stdupb', nargs='+', action='append', default=[0.1, 0.1, 0.03, 0, 0])
-# parser.add_argument('--stdlwb', nargs='+', action='append', default=[0.08, 0.04, 0.003, 0, 0])
-parser.add_argument('--stdupb', nargs='+', action='append', default=[0, 0])
-parser.add_argument('--stdlwb', nargs='+', action='append', default=[0, 0])
-parser.add_argument('--distr', type=str, default="ball", help='local points sampling: gaussian or ball')
-parser.add_argument('--weightform', type=str, default="reverse", help='GMM weight: even or reverse')
-parser.add_argument('--gridsize', type=float, default=0.01, help='GMM weight: even or reverse')
-parser.add_argument('--outdir', type=str, default="./", help='out_dir')
-parser.add_argument('--unionly', action='store_true')
+LOG_FOUT = None
 
-FLAGS = parser.parse_args()
-print(FLAGS)
-
-os.environ["CUDA_VISIBLE_DEVICES"] = FLAGS.gpu
-
-if not os.path.exists(FLAGS.log_dir): os.makedirs(FLAGS.log_dir)
-
-RESULT_PATH = os.path.join(FLAGS.log_dir, 'test_results')
-if not os.path.exists(RESULT_PATH): os.mkdir(RESULT_PATH)
-
-os.system('cp %s.py %s' % (os.path.splitext(model.__file__)[0], FLAGS.log_dir))
-os.system('cp inference.py %s' % (FLAGS.log_dir))
-LOG_FOUT = open(os.path.join(FLAGS.log_dir, 'log_test.txt'), 'w')
-LOG_FOUT.write(str(FLAGS) + '\n')
-
-MAXOUT = FLAGS.initnums * FLAGS.num_ratio ** (FLAGS.rounds - 1)
-NUM_INPUT_POINTS = min(MAXOUT, 274625)
-print("NUM_INPUT_POINTS",NUM_INPUT_POINTS)
+MAXOUT = None
+NUM_INPUT_POINTS = None
 
 BN_INIT_DECAY = 0.5
 BN_DECAY_DECAY_RATE = 0.5
-BN_DECAY_DECAY_STEP = float(FLAGS.decay_step)
+BN_DECAY_DECAY_STEP = None
 BN_DECAY_CLIP = 0.99
-
-
 
 
 def log_string(out_str):
@@ -240,9 +180,7 @@ def test(batch_data):
             weightform = FLAGS.weightform
             distr = FLAGS.distr
 
-            loc, norm, std, weights, gt_pc, tries = unisample_pnts(sess, ops, -1, batch_data, FLAGS.res, nums, threshold=0.1, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
-            np.savetxt(os.path.join(FLAGS.outdir, "uni_loc.txt"), loc, delimiter=';')
-            np.savetxt(os.path.join(FLAGS.outdir, "uni_loc.xyz"), loc, delimiter=' ')
+            loc, norm, std, weights, gt_pc, tries = unisample_pnts(sess, ops, -1, batch_data, FLAGS.res, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
             save_norm(loc, norm, os.path.join(FLAGS.outdir, "uni_l.ply"))
             if FLAGS.restore_surfmodel != "":
                 sess = load_model_strict(sess, saver, FLAGS.restore_surfmodel)
@@ -256,14 +194,88 @@ def test(batch_data):
                 pc = sample_from_MM(loc, std, weights, nums, distr=distr, gridsize=FLAGS.gridsize)
                 batch_data['pnts'] = np.array([pc])
                 # print("batch_data['pnts'].shape", batch_data['pnts'].shape)
-                loc, norm, std, weights = nearsample_pnts(sess, ops, i, batch_data, tries, stdratio=FLAGS.stdratio, weightform=weightform, gpu=0, stdlwb=FLAGS.stdlwb[i+1], stdupb=FLAGS.stdupb[i+1])
-                # print("pc.shape", pc.shape, "loc.shape", loc.shape, "std.shape", std.shape, "weights.shape", weights.shape)
-                np.savetxt(os.path.join(FLAGS.outdir, "surf_pc{}.txt".format(i)), pc, delimiter=';')
-                np.savetxt(os.path.join(FLAGS.outdir,"surf_loc{}.txt".format(i)), loc, delimiter=';')
-                sys.stdout.flush()
-            np.savetxt(os.path.join(FLAGS.outdir,"surf_loc{}.xyz".format(FLAGS.rounds - 1)), loc, delimiter=' ')
-            save_norm(loc, norm, os.path.join(FLAGS.outdir, "surf_l.ply"))
+                loc, norm, std, weights = nearsample_pnts(sess, ops, i, batch_data, tries, stdratio=FLAGS.stdratio, weightform=weightform, stdlwb=FLAGS.stdlwb[i+1], stdupb=FLAGS.stdupb[i+1])
+                save_norm(loc, norm, os.path.join(FLAGS.outdir, "surf_loc{}.ply".format(i)))
+            sys.stdout.flush()
 
+
+def gt_test(batch_data):
+    log_string(FLAGS.log_dir)
+
+    input_pls = model.placeholder_inputs(scope='inputs_pl', FLAGS=FLAGS, num_pnts=NUM_INPUT_POINTS)
+    is_training_pl = tf.compat.v1.placeholder(tf.bool, shape=())
+    print(is_training_pl)
+    batch = tf.Variable(0, name='batch')
+
+    print("--- Get model and loss")
+    # Get model and loss
+
+    nums = FLAGS.initnums
+    weightform = FLAGS.weightform
+    distr = FLAGS.distr
+
+    loc, norm, std, weights, gt_pc, tries = unisample_pnts(None, None, -1, batch_data, FLAGS.res, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
+    # norm = randomneg(norm)
+    save_norm(loc, norm, os.path.join(FLAGS.outdir, "uni_l.ply"))
+    save_norm(loc, linearRect(loc, randomneg(norm)), os.path.join(FLAGS.outdir, "uni_l_rect.ply"))
+
+    for i in range(FLAGS.rounds):
+        if FLAGS.rounds > 2 and i == (FLAGS.rounds - 2):
+            distr = "gaussian"
+            weightform = "even"
+        else:
+            nums = nums * FLAGS.num_ratio
+        pc = sample_from_MM(loc, std, weights, nums, distr=distr, gridsize=FLAGS.gridsize)
+        batch_data['pnts'] = np.array([pc])
+        # print("batch_data['pnts'].shape", batch_data['pnts'].shape)
+        loc, norm, std, weights = nearsample_pnts(None, None, i, batch_data, tries, stdratio=FLAGS.stdratio, weightform=weightform, stdlwb=FLAGS.stdlwb[i+1], stdupb=FLAGS.stdupb[i+1])
+        # print("pc.shape", pc.shape, "loc.shape", loc.shape, "std.shape", std.shape, "weights.shape", weights.shape)
+        save_norm(loc, norm, os.path.join(FLAGS.outdir, "surf_loc{}.ply".format(i)))
+        save_norm(loc, linearRect(loc, norm), os.path.join(FLAGS.outdir, "surf_loc_rect{}.ply".format(i)))
+    sys.stdout.flush()
+
+
+def rectify(norm, right_drct):
+    cosim = np.dot(norm, right_drct)
+    norm = -norm if cosim < 0 else norm
+    return norm
+
+def randomneg(norm):
+    ind = np.array(sample([i for i in range(norm.shape[0])], norm.shape[0]//2))
+    norm[ind] = -norm[ind]
+    print(ind.shape, norm.shape)
+    return norm
+
+def get_right_drct(norm, ind, nnindices, nndistances, flag):
+    marked_nn_ind = nnindices[flag[nnindices] > 0]
+    if marked_nn_ind.shape[0] == 1:
+        return norm[marked_nn_ind[0]]
+    return np.mean(norm[marked_nn_ind], axis = 0)
+
+def linearRect(loc, norm):
+    indarr = np.arange(loc.shape[0])
+    flag = np.zeros(loc.shape[0], dtype=int)
+    dist = dm.get_metric("euclidean")
+    dist_matrix = dist.pairwise(loc)
+    nbrs = NearestNeighbors(n_neighbors=5, algorithm='ball_tree').fit(loc)
+    nndistances, nnindices = nbrs.kneighbors(loc)
+    # dist_sorted_ind = np.argsort(dist_matrix, axis=1)[:,1:]
+    flag_closest_rected = np.ones_like(flag, dtype=int) * -1
+    flag_closest_rected_dist = np.ones_like(flag, dtype=float) * 10
+    ind = np.argmax(np.linalg.norm(loc, axis=1))
+    right_drct = loc[ind] / np.linalg.norm(loc[ind])
+    for i in range(loc.shape[0]):
+        if i != 0:
+            unmarkind = np.argmin(flag_closest_rected_dist[flag<1])
+            ind = indarr[flag<1][unmarkind]
+            right_drct = get_right_drct(norm, ind, nnindices[ind], nndistances[ind], flag)
+            # print(ind, flag_closest_rected[ind], "flag_closest_rected_dist[ind]", flag_closest_rected_dist[ind])
+        norm[ind] = rectify(norm[ind], right_drct)
+        flag[ind] = 1
+        flag_closest_rected_dist_new = np.minimum(dist_matrix[:, ind],flag_closest_rected_dist)
+        flag_closest_rected = np.where(flag_closest_rected_dist_new<flag_closest_rected_dist, ind, flag_closest_rected)
+        flag_closest_rected_dist = flag_closest_rected_dist_new
+    return norm
 
 def inference_batch(sess, ops, roundnum, batch_data):
     """ ops: dict mapping from string to tf ops """
@@ -362,8 +374,15 @@ def unisample_pnts(sess, ops, roundnum, batch_data, res, num, threshold=0.1, std
         inds = np.random.choice(unigrid.shape[0], num * 8)
         unigrid = unigrid[inds]  # uni_ivts = ct.gpu_calculate_ivt(unigrid, tries, gpu)
     batch_data["pnts"] = np.array([unigrid])
-    uni_ivts, uni_drcts = inference_batch(sess, ops, roundnum, batch_data)
-    uni_dist = np.linalg.norm(uni_ivts, axis=1)
+    if sess is None:
+        uni_ivts = ct.gpu_calculate_ivt(batch_data["pnts"][0], tries, int(FLAGS.gpu))
+        uni_dist = np.linalg.norm(uni_ivts, axis=1, keepdims=True)
+        uni_drcts = uni_ivts / uni_dist
+        uni_dist = uni_dist.reshape((-1))
+        print("uni_ivts.shape, uni_drcts.shape", uni_ivts.shape, uni_drcts.shape)
+    else:
+        uni_ivts, uni_drcts = inference_batch(sess, ops, roundnum, batch_data)
+        uni_dist = np.linalg.norm(uni_ivts, axis=1)
     ind = uni_dist <= threshold
     # if FLAGS.unionly:
     #     return unigrid[ind]+uni_ivts[ind], None, None, None, None
@@ -429,8 +448,14 @@ def ball_sample(xyzmean, radius):
     return xyzmean + uvw / denom * radius
 
 
-def nearsample_pnts(sess, ops, roundnum, batch_data, tries, stdratio=10, weightform="reverse", gpu=0, stdlwb=0.04, stdupb=0.1):
-    surface_ivts, surf_norm = inference_batch(sess, ops, roundnum, batch_data)
+def nearsample_pnts(sess, ops, roundnum, batch_data, tries, stdratio=10, weightform="reverse", stdlwb=0.04, stdupb=0.1):
+    if sess is None:
+        surface_ivts = ct.gpu_calculate_ivt(batch_data["pnts"][0], tries, int(FLAGS.gpu))
+        dist = np.linalg.norm(surface_ivts, axis=1, keepdims=True)
+        surf_norm = surface_ivts / dist
+        print("surface_ivts.shape, surface_ivts.shape", surface_ivts.shape, surface_ivts.shape)
+    else:
+        surface_ivts, surf_norm = inference_batch(sess, ops, roundnum, batch_data)
     # print("batch_data[pnts][0], surface_ivts",batch_data["pnts"][0].shape, surface_ivts.shape)
     dist, surface_place, std = cal_std_loc(batch_data["pnts"][0], surface_ivts, stdratio, stdlwb=stdlwb, stdupb=stdupb)
     if weightform == "even":
@@ -448,9 +473,84 @@ def save_norm(loc, norm, outfile):
     cloud.to_file(outfile)
 
 if __name__ == "__main__":
-    # nohup python -u create_point_sdf_grid.py &> create_sdf.log &
+    # nohup python -u inference.py --restore_model ../train/checkpoint/global_direct_surfaceonly/chair_evenweight --outdir  chair_drct_even_surfonly_uni --unionly &> global_direct_chair_surf_evenweight_uni.log &
 
+    # nohup python -u inference.py --gt --outdir  gt_noerr --unionly &> gt_uni.log &
      # full set
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--gpu', type=str, default='0', help='GPU to use [default: GPU 0]')
+    parser.add_argument('--category', type=str, default="all", help='Which single class to train on [default: None]')
+    parser.add_argument('--log_dir', default='checkpoint', help='Log dir [default: log]')
+    parser.add_argument('--num_pnts', type=int, default=0, help='Point Number [default: 2048]')
+    parser.add_argument('--uni_num', type=int, default=0, help='Point Number [default: 2048]')
+    parser.add_argument('--num_classes', type=int, default=1024, help='vgg dim')
+    parser.add_argument("--beta1", type=float, dest="beta1", default=0.5, help="beta1 of adams")
+    parser.add_argument('--batch_size', type=int, default=1, help='Batch Size during training [default: 32]')
+    parser.add_argument('--img_h', type=int, default=137, help='Image Height')
+    parser.add_argument('--img_w', type=int, default=137, help='Image Width')
+    parser.add_argument('--learning_rate', type=float, default=1e-5, help='Initial learning rate [default: 0.001]')
+    parser.add_argument('--momentum', type=float, default=0.9, help='Initial learning rate [default: 0.9]')
+    parser.add_argument('--optimizer', default='adam', help='adam or momentum [default: adam]')
+    parser.add_argument('--restore_model', default='', help='restore_model')  # checkpoint/sdf_2d3d_sdfbasic2_nowd
+    parser.add_argument('--restore_surfmodel', default='',
+                        help='restore_model surface only')  # ../models/CNN/pretrained_model/vgg_16.ckpt
+    parser.add_argument('--train_lst_dir', default=lst_dir, help='train mesh data list')
+    parser.add_argument('--valid_lst_dir', default=lst_dir, help='test mesh data list')
+    parser.add_argument('--decay_step', type=int, default=200000, help='Decay step for lr decay [default: 200000]')
+    parser.add_argument('--decay_rate', type=float, default=0.9, help='Decay rate for lr decay [default: 0.7]')
+    parser.add_argument('--weight_type', type=str, default="ntanh")
+    parser.add_argument('--dir_loss_weight', type=float, default=0.1)
+    parser.add_argument('--img_feat_onestream', action='store_true')
+    parser.add_argument('--img_feat_twostream', action='store_true')
+    parser.add_argument('--binary', action='store_true')
+    parser.add_argument('--alpha', action='store_true')
+    parser.add_argument('--augcolorfore', action='store_true')
+    parser.add_argument('--augcolorback', action='store_true')
+    parser.add_argument('--backcolorwhite', action='store_true')
+    parser.add_argument('--rot', action='store_true')
+    parser.add_argument('--XYZ', action='store_true')
+    parser.add_argument('--cam_est', action='store_true')
+    parser.add_argument('--cat_limit', type=int, default=168000, help="balance each category, 1500 * 24 = 36000")
+    parser.add_argument('--multi_view', action='store_true')
+    parser.add_argument('--rounds', type=int, default=4, help='how many rounds of ivf')
+    parser.add_argument('--uni_thresh', type=float, default=0.1, help='threshold for uniform sampling')
+    parser.add_argument('--res', type=float, default=0.01, help='cube resolution')
+    parser.add_argument('--initnums', type=int, default=8096, help='initial sampled uni point numbers')
+    parser.add_argument('--num_ratio', type=int, default=4, help='point numbers expansion each round')
+    parser.add_argument('--stdratio', type=int, default=2, help='')
+    parser.add_argument('--stdupb', nargs='+', action='append', default=[0.1, 0.1, 0.03, 0.01, 0])
+    parser.add_argument('--stdlwb', nargs='+', action='append', default=[0.08, 0.04, 0.003, 0.001, 0])
+    # parser.add_argument('--stdupb', nargs='+', action='append', default=[0, 0])
+    # parser.add_argument('--stdlwb', nargs='+', action='append', default=[0, 0])
+    parser.add_argument('--distr', type=str, default="ball", help='local points sampling: gaussian or ball')
+    parser.add_argument('--weightform', type=str, default="reverse", help='GMM weight: even or reverse')
+    parser.add_argument('--gridsize', type=float, default=0.01, help='GMM weight: even or reverse')
+    parser.add_argument('--outdir', type=str, default="./", help='out_dir')
+    parser.add_argument('--unionly', action='store_true')
+    parser.add_argument('--gt', action='store_true')
+
+    FLAGS = parser.parse_args()
+    print(FLAGS)
+
+    os.environ["CUDA_VISIBLE_DEVICES"] = FLAGS.gpu
+
+    if not os.path.exists(FLAGS.log_dir): os.makedirs(FLAGS.log_dir)
+
+    RESULT_PATH = os.path.join(FLAGS.log_dir, 'test_results')
+    if not os.path.exists(RESULT_PATH): os.mkdir(RESULT_PATH)
+
+    os.system('cp %s.py %s' % (os.path.splitext(model.__file__)[0], FLAGS.log_dir))
+    os.system('cp inference.py %s' % (FLAGS.log_dir))
+    LOG_FOUT = open(os.path.join(FLAGS.log_dir, 'log_test.txt'), 'w')
+    LOG_FOUT.write(str(FLAGS) + '\n')
+
+    MAXOUT = FLAGS.initnums * FLAGS.num_ratio ** (FLAGS.rounds - 1)
+    NUM_INPUT_POINTS = min(MAXOUT, 274625)
+    print("NUM_INPUT_POINTS", NUM_INPUT_POINTS)
+
+    BN_DECAY_DECAY_STEP = float(FLAGS.decay_step)
+
     if FLAGS.category != "all":
         cats = {
             FLAGS.category:cats[FLAGS.category]
@@ -477,8 +577,8 @@ if __name__ == "__main__":
     #                 cats_limit[cat_id] += 1
     #                 TEST_LISTINFO += [(cat_id, line.strip(), render)]
     cats_limit = {"03001627":99999}
-    # TEST_LISTINFO += [("03001627", "17e916fc863540ee3def89b32cef8e45", 11)]
-    TEST_LISTINFO += [("03001627", "1be38f2624022098f71e06115e9c3b3e", 0)]
+    TEST_LISTINFO += [("03001627", "17e916fc863540ee3def89b32cef8e45", 11)]
+    # TEST_LISTINFO += [("03001627", "1be38f2624022098f71e06115e9c3b3e", 0)]
 
     info = {'rendered_dir': raw_dirs["renderedh5_dir"],
             'ivt_dir': raw_dirs["ivt_dir"]}
@@ -497,6 +597,9 @@ if __name__ == "__main__":
     model_file = os.path.join(raw_dirs['norm_mesh_dir'], batch_data["cat_id"][0], batch_data["obj_nm"][0], "pc_norm.obj")
     batch_data["model_file"] = model_file
     os.makedirs(FLAGS.outdir, exist_ok=True)
-    test(batch_data)
+    if FLAGS.gt:
+        gt_test(batch_data)
+    else:
+        test(batch_data)
     print("done!")
     LOG_FOUT.close()

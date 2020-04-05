@@ -9,7 +9,7 @@ import pycuda.driver as drv
 
 
 def pnts_tries_ivts(pnts, tries, gpu=0):
-    print("gpu",gpu)
+    # print("gpu",gpu)
     # os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     # os.environ["CUDA_VISIBLE_DEVICES"]=str(gpu)
     if gpu < 0:
@@ -218,7 +218,7 @@ def pnts_tries_ivts(pnts, tries, gpu=0):
     pnts_tries_ivt(
         drv.Out(ivt), drv.Out(dist), drv.In(np.float32(pnts)), drv.In(np.float32(tries)), np.int32(pnt_num), np.int32(tries_num),
         block=(kMaxThreadsPerBlock,1,1), grid=(gridSize,1))
-    print("ivt[0,0,:]", ivt[0,0,:])
+    # print("ivt[0,0,:]", ivt[0,0,:])
     if gpu >= 0: 
         ctx1.pop()
     # print("ivt", ivt[0,0,:],ivt[0,1,:])

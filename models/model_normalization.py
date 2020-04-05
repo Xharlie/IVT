@@ -209,18 +209,24 @@ def get_loss(end_points, regularization=True, FLAGS=None):
     ivts_dist_avg_diff = tf.reduce_mean(ivts_dist_diff)
     ivts_direction_diff = tf.reduce_sum(tf.multiply(gt_ivts_direction, end_points['pred_ivts_direction']), axis=2, keepdims=True)
     ivts_direction_avg_diff = tf.reduce_mean(ivts_direction_diff)
+    ivts_direction_abs_diff = tf.abs(ivts_direction_diff)
+    ivts_direction_abs_avg_diff = tf.reduce_mean(ivts_direction_abs_diff)
+
+    ivts_xyz_loss, ivts_dist_loss, ivts_direction_loss, ivts_direction_abs_loss = 0., 0., 0., 0.
     
-    ivts_xyz_loss, ivts_dist_loss, ivts_direction_loss = 0, 0, 0 
-    
-    if FLAGS.XYZ:
+    if FLAGS.lossw[0] !=0:
         ivts_xyz_loss = tf.reduce_mean(ivts_xyz_diff * weight_mask)
         end_points['losses']['ivts_xyz_loss'] = ivts_xyz_loss
-
-    else:
+    if FLAGS.lossw[1] != 0:
         ivts_dist_loss = tf.reduce_mean(ivts_dist_diff * weight_mask)
-        ivts_direction_loss = tf.reduce_mean((1.0-ivts_direction_diff))
         end_points['losses']['ivts_dist_loss'] = ivts_dist_loss
-        end_points['losses']['ivts_direction_loss'] = ivts_direction_loss  
+    if FLAGS.lossw[2] != 0:
+        ivts_direction_loss = tf.reduce_mean((1.0-ivts_direction_diff))
+        end_points['losses']['ivts_direction_loss'] = ivts_direction_loss
+    if FLAGS.lossw[3] != 0:
+        ivts_direction_abs_loss = tf.reduce_mean((1.0-ivts_direction_abs_diff))
+        end_points['losses']['ivts_direction_abs_loss'] = ivts_direction_abs_loss
+
     print("weight_mask.get_shape().as_list(): ", weight_mask.get_shape().as_list())
     print("ivts_xyz_diff.get_shape().as_list(): ", ivts_xyz_diff.get_shape().as_list())
     print("ivts_xyz_avg_diff.get_shape().as_list(): ", ivts_xyz_avg_diff.get_shape().as_list())
@@ -229,10 +235,11 @@ def get_loss(end_points, regularization=True, FLAGS=None):
     print("ivts_direction_diff.get_shape().as_list(): ", ivts_direction_diff.get_shape().as_list())
     print("ivts_direction_avg_diff.get_shape().as_list(): ", ivts_direction_diff.get_shape().as_list())
 
-    loss = ivts_xyz_loss + ivts_dist_loss + ivts_direction_loss * FLAGS.dir_loss_weight
+    loss = FLAGS.lossw[0] * ivts_xyz_loss + FLAGS.lossw[1] * ivts_dist_loss + FLAGS.lossw[2] * ivts_direction_loss + FLAGS.lossw[3] * ivts_direction_abs_loss
     end_points['losses']['ivts_xyz_avg_diff'] = ivts_xyz_avg_diff
     end_points['losses']['ivts_dist_avg_diff'] = ivts_dist_avg_diff
     end_points['losses']['ivts_direction_avg_diff'] = ivts_direction_avg_diff
+    end_points['losses']['ivts_direction_abs_avg_diff'] = ivts_direction_abs_avg_diff
     end_points['losses']['loss'] = loss
     ############### weight decay
     if regularization:

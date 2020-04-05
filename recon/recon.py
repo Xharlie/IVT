@@ -22,15 +22,33 @@ def poissonSingle(normloc, binloc, trimloc, infile, normfile, recfile, finalfile
 normloc = "./../pointcloudToMesh/build/bin/caln"
 binloc = "./../PoissonRecon/Bin/Linux/PoissonRecon"
 trimloc = "./../PoissonRecon/Bin/Linux/SurfaceTrimmer"
+
+# infile = "uni_loc.xyz"
+# normfile = "uni_l_rand.ply"
+# recfile = "uni_rec.ply"
+# finalfile = "uni_final_rand.ply"
+
+# infile = "uni_loc.xyz"
+# normfile = "uni_l.ply"
+# recfile = "uni_rec.ply"
+# finalfile = "uni_final.ply"
+
+# infile = "uni_loc.xyz"
+# normfile = "surf_loc0.ply"
+# recfile = "surf_loc0rec.ply"
+# finalfile = "surf_loc0_final.ply"
+
 infile = "uni_loc.xyz"
-normfile = "uni_l.ply"
-recfile = "uni_rec.ply"
-finalfile = "uni_final.ply"
-trimD = 7
-depth = 12
+normfile = "surf_face_norm.ply"
+recfile = "surf_face_normrec.ply"
+finalfile = "surf_face_norm_final.ply"
+
+
+trimD = 6
+depth = 7
 ksearch = 5
-samplesPerNode = 3.0
-confidence = 2.0
+samplesPerNode = 1.0
+confidence = 1.0
 infnorm = True
 
 poissonSingle(normloc, binloc, trimloc, infile, normfile, recfile, finalfile, confidence, ksearch=ksearch, samplesPerNode=samplesPerNode, depth=depth, trimD=trimD, infnorm=infnorm)
