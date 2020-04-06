@@ -32,8 +32,7 @@ parser.add_argument('--log_dir', default='checkpoint', help='Log dir [default: l
 parser.add_argument('--num_pnts', type=int, default=2048, help='Point Number [default: 2048]')
 parser.add_argument('--uni_num', type=int, default=512, help='Point Number [default: 2048]')
 parser.add_argument('--num_classes', type=int, default=1024, help='vgg dim')
-parser.add_argument("--beta1", type=float, dest="beta1",
-                    default=0.5, help="beta1 of adams")
+parser.add_argument("--beta1", type=float, dest="beta1", default=0.5, help="beta1 of adams")
 # parser.add_argument('--sdf_points_num', type=int, default=32, help='Sample Point Number [default: 2048]')
 parser.add_argument('--max_epoch', type=int, default=200, help='Epoch to run [default: 201]')
 parser.add_argument('--batch_size', type=int, default=32, help='Batch Size during training [default: 32]')
@@ -46,7 +45,7 @@ parser.add_argument('--restore_model', default='', help='restore_model') #checkp
 parser.add_argument('--restore_modelcnn', default='', help='restore_model')#../models/CNN/pretrained_model/vgg_16.ckpt
 
 parser.add_argument('--train_lst_dir', default=lst_dir, help='train mesh data list')
-parser.add_argument('--valid_lst_dir', default=lst_dir, help='test mesh data list')
+parser.add_argument('--test_lst_dir', default=lst_dir, help='test mesh data list')
 parser.add_argument('--decay_step', type=int, default=200000, help='Decay step for lr decay [default: 200000]')
 parser.add_argument('--decay_rate', type=float, default=0.9, help='Decay rate for lr decay [default: 0.7]')
 parser.add_argument('--weight_type', type=str, default="ntanh")
@@ -64,6 +63,7 @@ parser.add_argument('--cat_limit', type=int, default=168000, help="balance each 
 parser.add_argument('--multi_view', action='store_true')
 parser.add_argument('--bn', action='store_true')
 parser.add_argument('--lossw', nargs='+', action='append', default=[1.0, 0.0, 0.0, 1.0])
+parser.add_argument('--distlimit', nargs='+', action='append', default=[1.0, 0.05, 0.05, 0.04, 0.04, 0.03, 0.03, 0.02, 0.02, 0.01, 0.01, -0.01])
 
 FLAGS = parser.parse_args()
 print(FLAGS)
@@ -71,25 +71,16 @@ print(FLAGS)
 
 os.environ["CUDA_VISIBLE_DEVICES"] = FLAGS.gpu
 
-if not os.path.exists(FLAGS.log_dir): os.makedirs(FLAGS.log_dir)
+assert os.path.exists(FLAGS.log_dir), "{} does not exist".format(FLAGS.log_dir)
 
-RESULT_PATH = os.path.join(FLAGS.log_dir, 'train_results')
+RESULT_PATH = os.path.join(FLAGS.log_dir, 'test_results')
 if not os.path.exists(RESULT_PATH): os.mkdir(RESULT_PATH)
 
-VALID_RESULT_PATH = os.path.join(FLAGS.log_dir, 'valid_results')
-if not os.path.exists(VALID_RESULT_PATH): os.mkdir(VALID_RESULT_PATH)
 
-os.system('cp %s.py %s' % (os.path.splitext(model.__file__)[0], FLAGS.log_dir))
-os.system('cp train_ivt.py %s' % (FLAGS.log_dir))
-LOG_FOUT = open(os.path.join(FLAGS.log_dir, 'log_train.txt'), 'w')
+LOG_FOUT = open(os.path.join(FLAGS.log_dir, 'log_test.txt'), 'w')
 LOG_FOUT.write(str(FLAGS)+'\n')
 
-BN_INIT_DECAY = 0.5
-BN_DECAY_DECAY_RATE = 0.5
-BN_DECAY_DECAY_STEP = float(FLAGS.decay_step)
-BN_DECAY_CLIP = 0.99
-
-TRAIN_LISTINFO = []
+TEST_LISTINFO = []
 cats_limit = {}
 
 cat_ids = []
@@ -102,13 +93,13 @@ else:
     cats_limit[cats[FLAGS.category]] = 0
 
 for cat_id in cat_ids:
-    train_lst = os.path.join(FLAGS.train_lst_dir, cat_id+"_train.lst")
-    with open(train_lst, 'r') as f:
+    test_lst = os.path.join(FLAGS.test_lst_dir, cat_id+"_test.lst")
+    with open(test_lst, 'r') as f:
         lines = f.read().splitlines()
         for line in lines:
             for render in range(24):
                 cats_limit[cat_id]+=1
-                TRAIN_LISTINFO += [(cat_id, line.strip(), render)]
+                TEST_LISTINFO += [(cat_id, line.strip(), render)]
 
 info = {'rendered_dir': raw_dirs["renderedh5_dir"],
             'ivt_dir': raw_dirs["ivt_dir"]}
@@ -117,7 +108,7 @@ if FLAGS.cam_est:
 
 print(info)
 
-TRAIN_DATASET = data_ivt_h5_queue.Pt_sdf_img(FLAGS, listinfo=TRAIN_LISTINFO, info=info, cats_limit=cats_limit)
+TEST_DATASET = data_ivt_h5_queue.Pt_sdf_img(FLAGS, listinfo=TEST_LISTINFO, info=info, cats_limit=cats_limit)
 
 def log_string(out_str):
     LOG_FOUT.write(out_str+'\n')
@@ -134,15 +125,6 @@ def get_learning_rate(batch):
     learning_rate = tf.maximum(learning_rate, 1e-6, name='lr') # CLIP THE LEARNING RATE!
     return learning_rate
 
-def get_bn_decay(batch):
-    bn_momentum = tf.compat.v1.train.exponential_decay(
-                      BN_INIT_DECAY,
-                      batch*FLAGS.batch_size,
-                      BN_DECAY_DECAY_STEP,
-                      BN_DECAY_DECAY_RATE,
-                      staircase=True)
-    bn_decay = tf.minimum(BN_DECAY_CLIP, 1 - bn_momentum)
-    return bn_decay
 
 class NoStdStreams(object):
     def __init__(self,stdout = None, stderr = None):
@@ -192,7 +174,7 @@ def load_model(sess, LOAD_MODEL_FILE, prefixs, strict=False):
 
     return True
 
-def train():
+def test():
     log_string(FLAGS.log_dir)
     with tf.Graph().as_default():
         with tf.device('/gpu:0'):
@@ -203,23 +185,16 @@ def train():
             # Note the global_step=batch parameter to minimize.
             # That tells the optimizer to helpfully increment the 'batch' parameter for you every time it trains.
             batch = tf.Variable(0, name='batch')
-            bn_decay = get_bn_decay(batch)
-            # tf.summary.scalar('bn_decay', bn_decay)
 
             print("--- Get model and loss")
             # Get model and loss
 
-            end_points = model.get_model(input_pls, is_training_pl, bn=FLAGS.bn, bn_decay=bn_decay, FLAGS=FLAGS)
+            end_points = model.get_model(input_pls, is_training_pl, bn=False, bn_decay=None, FLAGS=FLAGS)
             loss, end_points = model.get_loss(end_points, FLAGS=FLAGS)
             # tf.summary.scalar('loss', loss)
 
             print("--- Get training operator")
             # Get training operator
-            learning_rate = get_learning_rate(batch)
-            if FLAGS.optimizer == 'momentum':
-                optimizer = tf.compat.v1.train.MomentumOptimizer(learning_rate, momentum=FLAGS.momentum)
-            elif FLAGS.optimizer == 'adam':
-                optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate, beta1=FLAGS.beta1)
 
             # Create a session
             gpu_options = tf.compat.v1.GPUOptions()#(per_process_gpu_memory_fraction=0.99)
@@ -229,13 +204,9 @@ def train():
             config.log_device_placement = False
             sess = tf.compat.v1.Session(config=config)
 
-            merged = None
-            train_writer = None
-
             ##### all
             update_variables = [x for x in tf.compat.v1.get_collection_ref(tf.compat.v1.GraphKeys.GLOBAL_VARIABLES)]
 
-            train_op = optimizer.minimize(loss, global_step=batch, var_list=update_variables)
 
             # Init variables
             init = tf.compat.v1.global_variables_initializer()
@@ -243,10 +214,7 @@ def train():
 
             ######### Loading Checkpoint ###############
             # CNN(Pretrained from ImageNet)
-            if FLAGS.restore_modelcnn is not '':
-                if not load_model(sess, FLAGS.restore_modelcnn, 'vgg_16', strict=True):
-                    return
-                # Overall
+
             saver = tf.compat.v1.train.Saver([v for v in tf.compat.v1.get_collection_ref(tf.compat.v1.GraphKeys.GLOBAL_VARIABLES) if
                                     ('lr' not in v.name) and ('batch' not in v.name)])
             ckptstate = tf.train.get_checkpoint_state(FLAGS.restore_model)
@@ -262,44 +230,19 @@ def train():
                     print("Model loaded in file: %s" % LOAD_MODEL_FILE)
                 except:
                     print("Fail to load overall modelfile: %s" % FLAGS.restore_model)
-
+                    exit()
             ###########################################
 
             ops = {'input_pls': input_pls,
                    'is_training_pl': is_training_pl,
                    'loss': loss,
-                   'train_op': train_op,
-                   'merged': merged,
-                   'step': batch,
-                   'lr': learning_rate,
                    'end_points': end_points}
 
-            TRAIN_DATASET.start()
-            best_xyz_diff, best_dist_diff, best_dir_diff = 10000, 10000, 10000
-            for epoch in range(FLAGS.max_epoch):
-                log_string('**** EPOCH %03d ****' % (epoch))
-                sys.stdout.flush()
-
-                xyz_avg_diff, dist_avg_diff, direction_avg_diff = train_one_epoch(sess, ops, epoch)
-
-                # Save the variables to disk.
-                if xyz_avg_diff < best_xyz_diff:
-                    best_xyz_diff = xyz_avg_diff
-                    save_path = saver.save(sess, os.path.join(FLAGS.log_dir, "model.ckpt"))
-                    log_string("best xyz Model saved in file: %s" % save_path)
-                elif dist_avg_diff < best_dist_diff:
-                    best_dist_diff = dist_avg_diff
-                    save_path = saver.save(sess, os.path.join(FLAGS.log_dir, "model.ckpt"))
-                    log_string("best dist Model saved in file: %s" % save_path)
-                elif direction_avg_diff < best_dir_diff:
-                    best_dir_diff = direction_avg_diff
-                    save_path = saver.save(sess, os.path.join(FLAGS.log_dir, "model.ckpt"))
-                    log_string("best direction Model saved in file: %s" % save_path)
-                if epoch % 30 == 0 and epoch > 1:
-                    save_path = saver.save(sess, os.path.join(FLAGS.log_dir, "model_epoch_%03d.ckpt"%(epoch)))
-                    log_string("Model saved in file: %s" % save_path)
-
-            TRAIN_DATASET.shutdown()
+            TEST_DATASET.start()
+            log_string('**** TESTING  ****')
+            sys.stdout.flush()
+            test_one_epoch(sess, ops)
+            TEST_DATASET.shutdown()
 
 
 # def pc_normalize(pc, centroid=None):
@@ -318,11 +261,11 @@ def train():
 
 #     return pc
 
-def train_one_epoch(sess, ops, epoch):
+def test_one_epoch(sess, ops):
     """ ops: dict mapping from string to tf ops """
-    is_training = True
+    is_training = False
 
-    num_batches = int(len(TRAIN_DATASET) / FLAGS.batch_size)
+    num_batches = int(len(TEST_DATASET) / FLAGS.batch_size)
 
     print('num_batches', num_batches)
 
@@ -338,9 +281,16 @@ def train_one_epoch(sess, ops, epoch):
     dist_avg_diff_epoch = 0
     direction_avg_diff_epoch = 0
     direction_abs_avg_diff_epoch = 0
+    lvlnum_epoch = 0
+
+    xyz_lvl_diff_epoch = 0
+    dist_lvl_diff_epoch = 0
+    direction_lvl_diff_epoch = 0
+    direction_abs_lvl_diff_epoch = 0
+
     for batch_idx in range(num_batches):
         start_fetch_tic = time.time()
-        batch_data = TRAIN_DATASET.fetch()
+        batch_data = TEST_DATASET.fetch()
         fetch_time += (time.time() - start_fetch_tic)
         feed_dict = {ops['is_training_pl']: is_training,
                      ops['input_pls']['pnts']: batch_data['pnts'],
@@ -348,16 +298,20 @@ def train_one_epoch(sess, ops, epoch):
                      ops['input_pls']['imgs']: batch_data['imgs'],
                      ops['input_pls']['obj_rot_mats']: batch_data['obj_rot_mats'],
                      ops['input_pls']['trans_mats']: batch_data['trans_mats']}
-        output_list = [ops['train_op'], ops['step'], ops['lr'],  ops['end_points']['pnts_rot'], ops['end_points']['gt_ivts_xyz'], ops['end_points']['gt_ivts_dist'], ops['end_points']['gt_ivts_direction'], ops['end_points']['pred_ivts_xyz'], ops['end_points']['pred_ivts_dist'],ops['end_points']['pred_ivts_direction'], ops['end_points']['sample_img_points'], ops['end_points']['imgs'], ops['end_points']['weighed_mask']]
+        output_list = [ops['end_points']['pnts_rot'], ops['end_points']['gt_ivts_xyz'], ops['end_points']['gt_ivts_dist'], ops['end_points']['gt_ivts_direction'], ops['end_points']['pred_ivts_xyz'], ops['end_points']['pred_ivts_dist'],ops['end_points']['pred_ivts_direction'], ops['end_points']['sample_img_points'], ops['end_points']['imgs'], ops['end_points']['weighed_mask']]
 
         loss_list = []
+        lvl_list = []
         for il, lossname in enumerate(losses.keys()):
             loss_list += [ops['end_points']['losses'][lossname]]
 
-        outputs = sess.run(output_list + loss_list, feed_dict=feed_dict)
+        for il, diffname in enumerate(ops['end_points']['lvl'].keys()):
+            lvl_list += [ops['end_points']['lvl'][diffname]]
 
-        _, step, lr_val, gt_rot_pnts_val, gt_ivts_xyz_val, gt_ivts_dist_val, gt_direction_val, \
-        pred_xyz_val, pred_dist_val, pred_direction_val, sample_img_points_val, imgs_val, weighed_mask_val = outputs[:-len(losses)]
+        outputs = sess.run(output_list + loss_list+lvl_list, feed_dict=feed_dict)
+
+        gt_rot_pnts_val, gt_ivts_xyz_val, gt_ivts_dist_val, gt_direction_val, \
+        pred_xyz_val, pred_dist_val, pred_direction_val, sample_img_points_val, imgs_val, weighed_mask_val = outputs[:-len(losses)-len(lvl_list)]
 
         for il, lossname in enumerate(losses.keys()):
             if lossname == "ivts_xyz_avg_diff":
@@ -370,12 +324,18 @@ def train_one_epoch(sess, ops, epoch):
                 direction_abs_avg_diff_epoch += outputs[len(output_list)+il]
             losses[lossname] += outputs[len(output_list)+il]
 
-        # outstr = "   "
-        # for il, lossname in enumerate(losses.keys()):
-        #         outstr += '%s: %f, ' % (lossname, outputs[len(output_list)+il])
-        # # outstr += " weight mask =" + str(weighed_mask_val)
-        # # outstr += " gt_ivts_xyz_val =" + str(batch_data['ivts'])
-        # log_string(outstr)
+        for il, diffname in enumerate(ops['end_points']['lvl'].keys()):
+            if diffname == "xyz_lvl_diff":
+                xyz_lvl_diff_epoch += outputs[len(output_list)+len(loss_list)+il]
+            if diffname == "dist_lvl_diff":
+                dist_lvl_diff_epoch += outputs[len(output_list)+len(loss_list)+il]
+            if diffname == "direction_lvl_diff":
+                direction_lvl_diff_epoch += outputs[len(output_list)+len(loss_list)+il]
+            if diffname == "direction_abs_lvl_diff":
+                direction_abs_lvl_diff_epoch += outputs[len(output_list)+len(loss_list)+il]
+            if diffname == "num":
+                lvlnum_epoch += outputs[len(output_list)+len(loss_list)+il]
+
                 
         verbose_freq = 100.
         if (batch_idx + 1) % verbose_freq == 0:
@@ -385,7 +345,6 @@ def train_one_epoch(sess, ops, epoch):
             for lossname in losses.keys():
                 outstr += '%s: %f, ' % (lossname, losses[lossname] / verbose_freq)
                 losses[lossname] = 0
-            outstr += "lr: %f" % (lr_val)
             outstr += ' time per b: %.02f, ' % ((time.time() - tic)/verbose_freq)
             outstr += ' fetch time per b: %.02f, ' % (fetch_time/verbose_freq)
             tic = time.time()
@@ -402,24 +361,41 @@ def train_one_epoch(sess, ops, epoch):
                 x = int(samplept_img[j, 0])
                 y = int(samplept_img[j, 1])
                 cv2.circle(saveimg, (x, y), 3, (0, 0, 255, 255), -1)
-            cv2.imwrite(os.path.join(RESULT_PATH, '%d_img_pnts_%d.png' % (batch_idx,epoch)), saveimg)
+            cv2.imwrite(os.path.join(RESULT_PATH, '%d_img_pnts.png' % (batch_idx)), saveimg)
 
-            np.savetxt(os.path.join(RESULT_PATH, '%d_input_pnts_%d.txt' % (batch_idx,epoch)), gt_rot_pnts_val[bid, :, :], delimiter=';')
+            np.savetxt(os.path.join(RESULT_PATH, '%d_input_pnts.txt' % (batch_idx)), gt_rot_pnts_val[bid, :, :], delimiter=';')
 
-            np.savetxt(os.path.join(RESULT_PATH, '%d_ivts_pred_%d.txt' % (batch_idx,epoch)), np.concatenate((gt_rot_pnts_val[bid, :, :] + pred_xyz_val[bid, :, :], np.expand_dims(pred_dist_val[bid, :, 0], 1)), axis=1), delimiter=';')
-            np.savetxt(os.path.join(RESULT_PATH, '%d_ivts_gt_%d.txt' % (batch_idx,epoch)), np.concatenate((gt_rot_pnts_val[bid, :, :] + gt_ivts_xyz_val[bid, :, :], np.expand_dims(gt_ivts_dist_val[bid, :, 0], 1)), axis=1), delimiter=';')
+            np.savetxt(os.path.join(RESULT_PATH, '%d_ivts_pred.txt' % (batch_idx)), np.concatenate((gt_rot_pnts_val[bid, :, :] + pred_xyz_val[bid, :, :], np.expand_dims(pred_dist_val[bid, :, 0], 1)), axis=1), delimiter=';')
+            np.savetxt(os.path.join(RESULT_PATH, '%d_ivts_gt.txt' % (batch_idx)), np.concatenate((gt_rot_pnts_val[bid, :, :] + gt_ivts_xyz_val[bid, :, :], np.expand_dims(gt_ivts_dist_val[bid, :, 0], 1)), axis=1), delimiter=';')
+
+    if FLAGS.distlimit is not None:
+        print(
+            '{:^10s}{:^10s}{:^8s}{:^8s}{:^8s}{:^15s}{:^8s}'.format("upper", "lower", "xyz", "dist", "drct", "drct_abs",
+                                                                   "count"))
+        for i in range(len(FLAGS.distlimit) // 2):
+            upper = FLAGS.distlimit[i * 2]
+            lower = FLAGS.distlimit[i * 2 + 1]
+            count = max(1, int(lvlnum_epoch[i]))
+            xyz = xyz_lvl_diff_epoch[i] / count
+            dist = dist_lvl_diff_epoch[i] / count
+            drct = direction_lvl_diff_epoch[i] / count
+            drct_avg = direction_abs_lvl_diff_epoch[i] / count
+            # print(upper, lower, xyz, dist, drct,drct_avg, count,xyz_lvl_diff_epoch.shape)
+            print('{:^10.3f}{:^10.3f}{:^8.4f}{:^8.4f}{:^8.4f}{:^15.4f}{:^8d}'.format(upper, lower, xyz, dist, drct,
+                                                                                     drct_avg, count))
 
     print("avg xyz_avg_diff:", xyz_avg_diff_epoch / num_batches)
     print("avg dist_avg_diff:", dist_avg_diff_epoch / num_batches)
     print("avg direction_avg_diff:", direction_avg_diff_epoch / num_batches)
     print("avg direction_abs_avg_diff:", direction_abs_avg_diff_epoch / num_batches)
+
     return xyz_avg_diff_epoch / num_batches, dist_avg_diff_epoch / num_batches, direction_avg_diff_epoch / num_batches
 
 if __name__ == "__main__":
     log_string('pid: %s'%(str(os.getpid())))
     try:
-        train()
+        test()
     finally:
         print("finally")
-        TRAIN_DATASET.shutdown()
+        TEST_DATASET.shutdown()
         LOG_FOUT.close()

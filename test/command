@@ -1,0 +1,4 @@
+
+
+---- onestream surface only
+nohup python -u test_ivt.py --gpu 0  --img_feat_onestream --restore_model ../train/checkpoint/onestream_direct_surfaceonly/chair_evenweight_dw1/ --log_dir ../train/checkpoint/onestream_direct_surfaceonly/chair_evenweight_dw1 --category chair --uni_num 0 --num_pnts 4096 --batch_size 32 --weight_type non  &> onestream_direct_surfaceonly_chair_evenweight_dw1.log &

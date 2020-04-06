@@ -211,6 +211,9 @@ def get_loss(end_points, regularization=True, FLAGS=None):
     ivts_direction_avg_diff = tf.reduce_mean(ivts_direction_diff)
     ivts_direction_abs_diff = tf.abs(ivts_direction_diff)
     ivts_direction_abs_avg_diff = tf.reduce_mean(ivts_direction_abs_diff)
+    end_points['lvl'] = {}
+    if FLAGS.distlimit is not None:
+        end_points['lvl']["xyz_lvl_diff"], end_points['lvl']["dist_lvl_diff"], end_points['lvl']["direction_lvl_diff"], end_points['lvl']["direction_abs_lvl_diff"], end_points['lvl']["num"] = gen_lvl_diff(ivts_xyz_diff, ivts_dist_diff, ivts_direction_diff, ivts_direction_abs_diff, FLAGS.distlimit, gt_ivts_dist)
 
     ivts_xyz_loss, ivts_dist_loss, ivts_direction_loss, ivts_direction_abs_loss = 0., 0., 0., 0.
     
@@ -249,3 +252,24 @@ def get_loss(end_points, regularization=True, FLAGS=None):
         loss += (vgg_regularization_loss + decoder_regularization_loss)
     end_points['losses']['overall_loss'] = loss
     return loss, end_points
+
+
+def gen_lvl_diff(ivts_xyz_diff, ivts_dist_diff, ivts_direction_diff, ivts_direction_abs_diff, distlimit, gt_ivts_dist):
+    xyz_lvl_diff, dist_lvl_diff, direction_lvl_diff, direction_abs_lvl_diff = [],[],[],[]
+    lvl_num = []
+    ones = tf.ones_like(gt_ivts_dist, dtype=tf.float32)
+    for i in range(len(distlimit)//2):
+        upper = distlimit[i*2] * ones
+        lower = distlimit[i*2+1] * ones
+        floatmask = tf.cast(tf.compat.v1.logical_and(tf.compat.v1.less_equal(gt_ivts_dist, upper), tf.compat.v1.greater(gt_ivts_dist,lower)), dtype=tf.float32)
+        lvl_num.append(tf.reduce_sum(floatmask))
+        xyz_lvl_diff.append(tf.reduce_sum(floatmask*ivts_xyz_diff))
+        dist_lvl_diff.append(tf.reduce_sum(floatmask*ivts_dist_diff))
+        direction_lvl_diff.append(tf.reduce_sum(floatmask*ivts_direction_diff))
+        direction_abs_lvl_diff.append(tf.reduce_sum(floatmask*ivts_direction_abs_diff))
+    lvl_num = tf.convert_to_tensor(lvl_num)
+    xyz_lvl_diff = tf.convert_to_tensor(xyz_lvl_diff)
+    dist_lvl_diff = tf.convert_to_tensor(dist_lvl_diff)
+    direction_lvl_diff = tf.convert_to_tensor(direction_lvl_diff)
+    direction_abs_lvl_diff = tf.convert_to_tensor(direction_abs_lvl_diff)
+    return xyz_lvl_diff, dist_lvl_diff, direction_lvl_diff, direction_abs_lvl_diff, lvl_num
