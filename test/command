@@ -33,40 +33,78 @@ avg direction_abs_avg_diff: 0.7836211124247476
 
 
 ----- global all direct   batch 199
-nohup python -u test_ivt.py --gpu 0 --restore_model ../train/checkpoint/global_direct/chair_evenweight_dw1 --log_dir ../train/checkpoint/global_direct/chair_evenweight_dw1 --category chair --uni_num 2048 --num_pnts 4096 --batch_size 32 --weight_type non --distlimit 1.0 0.9 0.9 0.8 0.8 0.7 0.7 0.6 0.6 0.5 0.5 0.4 0.4 0.3 0.3 0.2 0.2 0.1 0.1 0.05 0.05 0.05 0.04 0.04 0.03 0.03 0.02 0.02 0.01 0.01 -0.01 &> global_direct_chair_all_evenweight_dw1.log &
+nohup python -u test_ivt.py --gpu 0 --restore_model ../train/checkpoint/global_direct/chair_evenweight_dw1 --log_dir ../train/checkpoint/global_direct/chair_evenweight_dw1 --category chair --uni_num 2048 --num_pnts 4096 --batch_size 32 --weight_type non --distlimit 1.0 0.9 0.9 0.8 0.8 0.7 0.7 0.6 0.6 0.5 0.5 0.4 0.4 0.3 0.3 0.2 0.2 0.1 0.1 0.05 0.05 0.04 0.04 0.03 0.03 0.02 0.02 0.01 0.01 -0.01 &> global_direct_chair_all_evenweight_dw1.log &
 
   upper     lower     xyz     dist    drct     drct_abs     count
-  1.000     0.050    0.1409  0.0424  0.9309     0.9451     61673664
-  0.050     0.040    0.0451  0.0240  0.5893     0.8390     7573385
-  0.040     0.030    0.0393  0.0180  0.4976     0.8174     10282670
-  0.030     0.020    0.0336  0.0128  0.3892     0.7947     12915704
-  0.020     0.010    0.0293  0.0115  0.2516     0.7700     15959121
-  0.010     -0.010   0.0269  0.0168  0.0839     0.7490     19888856
-avg xyz_avg_diff: 0.028588279903632337
-avg dist_avg_diff: 0.028617527970659525
-avg direction_avg_diff: 0.6072096930151675
-avg direction_abs_avg_diff: 0.8617182859084128
+  1.000     0.900    0.2525  0.0434  0.9692     0.9692     1013744
+  0.900     0.800    0.2135  0.0426  0.9727     0.9727     2110834
+  0.800     0.700    0.1853  0.0402  0.9747     0.9747     4094266
+  0.700     0.600    0.1655  0.0381  0.9747     0.9747     6835910
+  0.600     0.500    0.1535  0.0378  0.9716     0.9717     8890916
+  0.500     0.400    0.1448  0.0392  0.9641     0.9647     9573159
+  0.400     0.300    0.1364  0.0422  0.9492     0.9519     9330778
+  0.300     0.200    0.1237  0.0480  0.9243     0.9316     8511110
+  0.200     0.100    0.1030  0.0536  0.8696     0.8985     7031061
+  0.100     0.050    0.0683  0.0387  0.7059     0.8404     4288013
+  0.050     0.050    0.0000  0.0000  0.0000     0.0000        1
+  0.040     0.040    0.0000  0.0000  0.0000     0.0000        1
+  0.030     0.030    0.0000  0.0000  0.0000     0.0000        1
+  0.020     0.020    0.0000  0.0000  0.0000     0.0000        1
+  0.010     0.010    0.0000  0.0000  0.0000     0.0000        1
+avg xyz_avg_diff: 0.028588088308882615
+avg dist_avg_diff: 0.028616854922878174
+avg direction_avg_diff: 0.6072560409927175
+avg direction_abs_avg_diff: 0.8616857024199601
 
 
 
 --- onestream all direct   batch 199
 
-nohup python -u test_ivt.py --gpu 2 --img_feat_onestream --restore_model ../train/checkpoint/onestream_direct_all/chair_dw1 --log_dir ../train/checkpoint/onestream_direct_all/chair_dw1 --category chair --uni_num 2048 --num_pnts 4096 --batch_size 32 --weight_type non --distlimit 1.0 0.9 0.9 0.8 0.8 0.7 0.7 0.6 0.6 0.5 0.5 0.4 0.4 0.3 0.3 0.2 0.2 0.1 0.1 0.05 0.05 0.05 0.04 0.04 0.03 0.03 0.02 0.02 0.01 0.01 -0.01 &> onestream_direct_all_chair_dw1.log &
+nohup python -u test_ivt.py --gpu 2 --img_feat_onestream --restore_model ../train/checkpoint/onestream_direct_all/chair_dw1 --log_dir ../train/checkpoint/onestream_direct_all/chair_dw1 --category chair --uni_num 2048 --num_pnts 4096 --batch_size 32 --weight_type non --distlimit 1.0 0.9 0.9 0.8 0.8 0.7 0.7 0.6 0.6 0.5 0.5 0.4 0.4 0.3 0.3 0.2 0.2 0.1 0.1 0.05 0.05 0.04 0.04 0.03 0.03 0.02 0.02 0.01 0.01 -0.01 &> onestream_direct_all_chair_dw1.log &
 
   upper     lower     xyz     dist    drct     drct_abs     count
-  1.000     0.050    0.1290  0.0353  0.9384     0.9509     61678636
-  0.050     0.040    0.0435  0.0219  0.6335     0.8583     7576599
-  0.040     0.030    0.0392  0.0178  0.5484     0.8376     10284164
-  0.030     0.020    0.0343  0.0142  0.4457     0.8150     12919793
-  0.020     0.010    0.0304  0.0133  0.3058     0.7875     15952500
-  0.010     -0.010   0.0282  0.0181  0.1096     0.7600     19883072
-avg xyz_avg_diff: 0.026760883752487804
-avg dist_avg_diff: 0.025651784085063217
-avg direction_avg_diff: 0.633838737180735
-avg direction_abs_avg_diff: 0.8731508315033976
-
+  1.000     0.900    0.2351  0.0406  0.9704     0.9704     1013045
+  0.900     0.800    0.1998  0.0394  0.9740     0.9740     2111006
+  0.800     0.700    0.1728  0.0368  0.9762     0.9762     4098546
+  0.700     0.600    0.1533  0.0343  0.9765     0.9765     6838325
+  0.600     0.500    0.1419  0.0338  0.9737     0.9738     8884091
+  0.500     0.400    0.1335  0.0344  0.9668     0.9675     9576504
+  0.400     0.300    0.1249  0.0351  0.9536     0.9563     9328198
+  0.300     0.200    0.1108  0.0363  0.9328     0.9398     8504843
+  0.200     0.100    0.0895  0.0381  0.8870     0.9115     7034155
+  0.100     0.050    0.0623  0.0312  0.7429     0.8602     4290613
+  0.050     0.040    0.0435  0.0218  0.6338     0.8583     7576476
+  0.040     0.030    0.0392  0.0178  0.5480     0.8374     10291479
+  0.030     0.020    0.0343  0.0142  0.4455     0.8149     12915852
+  0.020     0.010    0.0304  0.0133  0.3057     0.7874     15949320
+  0.010     -0.010   0.0282  0.0181  0.1094     0.7599     19882316
+avg xyz_avg_diff: 0.026765240369590108
+avg dist_avg_diff: 0.025650143776835527
+avg direction_avg_diff: 0.6337926607287184
+avg direction_abs_avg_diff: 0.8731192337654129
 
 
 --- onestream union only direct   batch 199
 
-nohup python -u test_ivt.py --gpu 3 --img_feat_onestream --restore_model ../train/checkpoint/onestream_direct_unionly/chair_evenweight_dw1/ --log_dir ../train/checkpoint/onestream_direct_unionly/chair_evenweight_dw1/ --category chair --uni_num 4096 --num_pnts 4096 --batch_size 32 --weight_type non --distlimit 1.0 0.9 0.9 0.8 0.8 0.7 0.7 0.6 0.6 0.5 0.5 0.4 0.4 0.3 0.3 0.2 0.2 0.1 0.1 0.05 0.05 0.05 0.04 0.04 0.03 0.03 0.02 0.02 0.01 0.01 -0.01 &> onestream_direct_unionly_chair_evenweight_dw1.log &
+nohup python -u test_ivt.py --gpu 3 --img_feat_onestream --restore_model ../train/checkpoint/onestream_direct_unionly/chair_evenweight_dw1/ --log_dir ../train/checkpoint/onestream_direct_unionly/chair_evenweight_dw1/ --category chair --uni_num 4096 --num_pnts 4096 --batch_size 32 --weight_type non --distlimit 1.0 0.9 0.9 0.8 0.8 0.7 0.7 0.6 0.6 0.5 0.5 0.4 0.4 0.3 0.3 0.2 0.2 0.1 0.1 0.05 0.05 0.04 0.04 0.03 0.03 0.02 0.02 0.01 0.01 -0.01 &> onestream_direct_unionly_chair_evenweight_dw1.log &
+
+  upper     lower     xyz     dist    drct     drct_abs     count
+  1.000     0.900    0.2203  0.0399  0.9699     0.9699     2024876
+  0.900     0.800    0.1883  0.0389  0.9737     0.9737     4221612
+  0.800     0.700    0.1630  0.0364  0.9763     0.9763     8186633
+  0.700     0.600    0.1444  0.0338  0.9770     0.9770     13666185
+  0.600     0.500    0.1336  0.0333  0.9744     0.9747     17772842
+  0.500     0.400    0.1258  0.0339  0.9679     0.9691     19155906
+  0.400     0.300    0.1176  0.0344  0.9555     0.9593     18664636
+  0.300     0.200    0.1050  0.0347  0.9360     0.9443     17010028
+  0.200     0.100    0.0874  0.0349  0.8907     0.9156     14074186
+  0.100     0.050    0.0691  0.0326  0.7528     0.8647     6150356
+  0.050     0.050    0.0000  0.0000  0.0000     0.0000        1
+  0.040     0.040    0.0000  0.0000  0.0000     0.0000        1
+  0.030     0.030    0.0000  0.0000  0.0000     0.0000        1
+  0.020     0.020    0.0000  0.0000  0.0000     0.0000        1
+  0.010     0.010    0.0000  0.0000  0.0000     0.0000        1
+avg xyz_avg_diff: 0.04041082344168564
+avg dist_avg_diff: 0.03422840433583679
+avg direction_avg_diff: 0.9139251168722539
+avg direction_abs_avg_diff: 0.946179406325184

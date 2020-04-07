@@ -62,8 +62,8 @@ parser.add_argument('--cam_est', action='store_true')
 parser.add_argument('--cat_limit', type=int, default=168000, help="balance each category, 1500 * 24 = 36000")
 parser.add_argument('--multi_view', action='store_true')
 parser.add_argument('--bn', action='store_true')
-parser.add_argument('--lossw', nargs='+', action='append', default=[1.0, 0.0, 0.0, 1.0])
-parser.add_argument('--distlimit', nargs='+', action='store', type=str, default=[1.0, 0.05, 0.05, 0.04, 0.04, 0.03, 0.03, 0.02, 0.02, 0.01, 0.01])
+parser.add_argument('--lossw', nargs='+', action='append', default=[1.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+parser.add_argument('--distlimit', nargs='+', action='store', type=str, default=[1.0, 0.05, 0.05, 0.04, 0.04, 0.03, 0.03, 0.02, 0.02, 0.01, 0.01, -0.01])
 
 FLAGS = parser.parse_args()
 FLAGS.distlimit = [float(i) for i in FLAGS.distlimit]
@@ -279,12 +279,16 @@ def test_one_epoch(sess, ops):
     tic = time.time()
     fetch_time = 0
     xyz_avg_diff_epoch = 0
+    locnorm_avg_diff_epoch = 0
+    locsqrnorm_avg_diff_epoch = 0
     dist_avg_diff_epoch = 0
     direction_avg_diff_epoch = 0
     direction_abs_avg_diff_epoch = 0
     lvlnum_epoch = 0
 
     xyz_lvl_diff_epoch = 0
+    locnorm_lvl_diff_epoch = 0
+    locsqrnorm_lvl_diff_epoch = 0
     dist_lvl_diff_epoch = 0
     direction_lvl_diff_epoch = 0
     direction_abs_lvl_diff_epoch = 0
@@ -323,6 +327,10 @@ def test_one_epoch(sess, ops):
                 direction_avg_diff_epoch += outputs[len(output_list)+il]
             if lossname == "ivts_direction_abs_avg_diff":
                 direction_abs_avg_diff_epoch += outputs[len(output_list)+il]
+            if lossname == "ivts_locnorm_avg_diff":
+                locnorm_avg_diff_epoch += outputs[len(output_list)+il]
+            if lossname == "ivts_locsqrnorm_avg_diff":
+                locsqrnorm_avg_diff_epoch += outputs[len(output_list)+il]
             losses[lossname] += outputs[len(output_list)+il]
 
         for il, diffname in enumerate(ops['end_points']['lvl'].keys()):
@@ -336,6 +344,10 @@ def test_one_epoch(sess, ops):
                 direction_abs_lvl_diff_epoch += outputs[len(output_list)+len(loss_list)+il]
             if diffname == "num":
                 lvlnum_epoch += outputs[len(output_list)+len(loss_list)+il]
+            if diffname == "locnorm_lvl_diff":
+                locnorm_lvl_diff_epoch += outputs[len(output_list)+len(loss_list)+il]
+            if diffname == "locsqrnorm_lvl_diff":
+                locsqrnorm_lvl_diff_epoch += outputs[len(output_list) + len(loss_list) + il]
 
                 
         verbose_freq = 100.
@@ -371,21 +383,24 @@ def test_one_epoch(sess, ops):
 
     if FLAGS.distlimit is not None:
         print(
-            '{:^10s}{:^10s}{:^8s}{:^8s}{:^8s}{:^15s}{:^8s}'.format("upper", "lower", "xyz", "dist", "drct", "drct_abs",
+            '{:^10s}{:^10s}{:^10s}{:^10s}{:^10s}{:^10s}{:^10s}{:^15s}{:^8s}'.format("upper", "lower", "locnorm", "locsqrnorm", "xyz", "dist", "drct", "drct_abs",
                                                                    "count"))
         for i in range(len(FLAGS.distlimit) // 2):
             upper = FLAGS.distlimit[i * 2]
             lower = FLAGS.distlimit[i * 2 + 1]
             count = max(1, int(lvlnum_epoch[i]))
             xyz = xyz_lvl_diff_epoch[i] / count
+            locnorm = locnorm_lvl_diff_epoch[i] / count
+            locsqrnorm = locsqrnorm_lvl_diff_epoch[i] / count
             dist = dist_lvl_diff_epoch[i] / count
             drct = direction_lvl_diff_epoch[i] / count
             drct_avg = direction_abs_lvl_diff_epoch[i] / count
             # print(upper, lower, xyz, dist, drct,drct_avg, count,xyz_lvl_diff_epoch.shape)
-            print('{:^10.3f}{:^10.3f}{:^8.4f}{:^8.4f}{:^8.4f}{:^15.4f}{:^8d}'.format(upper, lower, xyz, dist, drct,
-                                                                                     drct_avg, count))
+            print('{:^10.3f}{:^10.3f}{:^10.4f}{:^10.4f}{:^10.4f}{:^10.4f}{:^10.4f}{:^15.4f}{:^8d}'.format(upper, lower, locnorm, locsqrnorm, xyz, dist, drct, drct_avg, count))
 
     print("avg xyz_avg_diff:", xyz_avg_diff_epoch / num_batches)
+    print("avg locnorm_avg_diff:", locnorm_avg_diff_epoch / num_batches)
+    print("avg locsqrnorm_avg_diff:", locsqrnorm_avg_diff_epoch / num_batches)
     print("avg dist_avg_diff:", dist_avg_diff_epoch / num_batches)
     print("avg direction_avg_diff:", direction_avg_diff_epoch / num_batches)
     print("avg direction_abs_avg_diff:", direction_abs_avg_diff_epoch / num_batches)

@@ -207,7 +207,7 @@ def get_loss(end_points, regularization=True, FLAGS=None):
     ivts_xyz_avg_diff = tf.reduce_mean(ivts_xyz_diff)
 
     ivts_locnorm_diff = tf.norm(ivts_xyz_diff, ord='euclidean', axis=-1, keepdims=True)
-    ivts_locnorm_avg_diff = tf.reduce_mean(ivts_locnorm1_diff)
+    ivts_locnorm_avg_diff = tf.reduce_mean(ivts_locnorm_diff)
 
     ivts_locsqrnorm_diff = tf.square(ivts_locnorm_diff)
     ivts_locsqrnorm_avg_diff = tf.reduce_mean(ivts_locsqrnorm_diff)
@@ -220,15 +220,22 @@ def get_loss(end_points, regularization=True, FLAGS=None):
     ivts_direction_abs_avg_diff = tf.reduce_mean(ivts_direction_abs_diff)
     end_points['lvl'] = {}
     if FLAGS.distlimit is not None:
-        end_points['lvl']["xyz_lvl_diff"], end_points['lvl']["dist_lvl_diff"], end_points['lvl']["direction_lvl_diff"], end_points['lvl']["direction_abs_lvl_diff"], end_points['lvl']["num"] = gen_lvl_diff(ivts_xyz_diff, ivts_dist_diff, ivts_direction_diff, ivts_direction_abs_diff, FLAGS.distlimit, gt_ivts_dist)
+        end_points['lvl']["xyz_lvl_diff"], end_points['lvl']["locnorm_lvl_diff"], end_points['lvl']["locsqrnorm_lvl_diff"], end_points['lvl']["dist_lvl_diff"], end_points['lvl']["direction_lvl_diff"], end_points['lvl']["direction_abs_lvl_diff"], end_points['lvl']["num"] \
+            = gen_lvl_diff(ivts_xyz_diff, ivts_locnorm_avg_diff, ivts_locsqrnorm_avg_diff, ivts_dist_diff, ivts_direction_diff, ivts_direction_abs_diff, FLAGS.distlimit, gt_ivts_dist)
 
-    ivts_xyz_loss, ivts_dist_loss, ivts_direction_loss, ivts_direction_abs_loss = 0., 0., 0., 0.
+    ivts_xyz_loss, ivts_dist_loss, ivts_direction_loss, ivts_direction_abs_loss, ivts_locnorm_loss, ivts_locsqrnorm_loss = 0., 0., 0., 0., 0., 0.
     
     if FLAGS.lossw[0] !=0:
-        ivts_xyz_loss = tf.reduce_mean(ivts_xyz_diff * weight_mask)
+        if FLAGS.weight_type == "non":
+            ivts_xyz_loss = ivts_xyz_avg_diff
+        else:
+            ivts_xyz_loss = tf.reduce_mean(ivts_xyz_diff * weight_mask)
         end_points['losses']['ivts_xyz_loss'] = ivts_xyz_loss
     if FLAGS.lossw[1] != 0:
-        ivts_dist_loss = tf.reduce_mean(ivts_dist_diff * weight_mask)
+        if FLAGS.weight_type == "non":
+            ivts_dist_loss = ivts_dist_avg_diff
+        else:
+            ivts_dist_loss = tf.reduce_mean(ivts_dist_diff * weight_mask)
         end_points['losses']['ivts_dist_loss'] = ivts_dist_loss
     if FLAGS.lossw[2] != 0:
         ivts_direction_loss = tf.reduce_mean((1.0-ivts_direction_diff))
@@ -236,20 +243,34 @@ def get_loss(end_points, regularization=True, FLAGS=None):
     if FLAGS.lossw[3] != 0:
         ivts_direction_abs_loss = tf.reduce_mean((1.0-ivts_direction_abs_diff))
         end_points['losses']['ivts_direction_abs_loss'] = ivts_direction_abs_loss
+    if FLAGS.lossw[4] != 0:
+        if FLAGS.weight_type == "non":
+            ivts_locnorm_loss = ivts_locnorm_avg_diff
+        else:
+            ivts_locnorm_loss = tf.reduce_mean(ivts_locnorm_diff * weight_mask)
+        end_points['losses']['ivts_locnorm_loss'] = ivts_locnorm_loss
+    if FLAGS.lossw[5] != 0:
+        if FLAGS.weight_type == "non":
+            ivts_locsqrnorm_loss = ivts_locsqrnorm_avg_diff
+        else:
+            ivts_locsqrnorm_loss = tf.reduce_mean(ivts_locsqrnorm_diff * weight_mask)
+        end_points['losses']['ivts_locsqrnorm_loss'] = ivts_locsqrnorm_loss
 
-    print("weight_mask.get_shape().as_list(): ", weight_mask.get_shape().as_list())
-    print("ivts_xyz_diff.get_shape().as_list(): ", ivts_xyz_diff.get_shape().as_list())
-    print("ivts_xyz_avg_diff.get_shape().as_list(): ", ivts_xyz_avg_diff.get_shape().as_list())
-    print("ivts_dist_diff.get_shape().as_list(): ", ivts_dist_diff.get_shape().as_list())
-    print("ivts_dist_avg_diff.get_shape().as_list(): ", ivts_dist_avg_diff.get_shape().as_list())
-    print("ivts_direction_diff.get_shape().as_list(): ", ivts_direction_diff.get_shape().as_list())
-    print("ivts_direction_avg_diff.get_shape().as_list(): ", ivts_direction_diff.get_shape().as_list())
+    # print("weight_mask.get_shape().as_list(): ", weight_mask.get_shape().as_list())
+    # print("ivts_xyz_diff.get_shape().as_list(): ", ivts_xyz_diff.get_shape().as_list())
+    # print("ivts_xyz_avg_diff.get_shape().as_list(): ", ivts_xyz_avg_diff.get_shape().as_list())
+    # print("ivts_dist_diff.get_shape().as_list(): ", ivts_dist_diff.get_shape().as_list())
+    # print("ivts_dist_avg_diff.get_shape().as_list(): ", ivts_dist_avg_diff.get_shape().as_list())
+    # print("ivts_direction_diff.get_shape().as_list(): ", ivts_direction_diff.get_shape().as_list())
+    # print("ivts_direction_avg_diff.get_shape().as_list(): ", ivts_direction_diff.get_shape().as_list())
 
     loss = FLAGS.lossw[0] * ivts_xyz_loss + FLAGS.lossw[1] * ivts_dist_loss + FLAGS.lossw[2] * ivts_direction_loss + FLAGS.lossw[3] * ivts_direction_abs_loss
     end_points['losses']['ivts_xyz_avg_diff'] = ivts_xyz_avg_diff
     end_points['losses']['ivts_dist_avg_diff'] = ivts_dist_avg_diff
     end_points['losses']['ivts_direction_avg_diff'] = ivts_direction_avg_diff
     end_points['losses']['ivts_direction_abs_avg_diff'] = ivts_direction_abs_avg_diff
+    end_points['losses']['ivts_locnorm_avg_diff'] = ivts_locnorm_avg_diff
+    end_points['losses']['ivts_locsqrnorm_avg_diff'] = ivts_locsqrnorm_avg_diff
     end_points['losses']['loss'] = loss
     ############### weight decay
     if regularization:
@@ -261,8 +282,8 @@ def get_loss(end_points, regularization=True, FLAGS=None):
     return loss, end_points
 
 
-def gen_lvl_diff(ivts_xyz_diff, ivts_dist_diff, ivts_direction_diff, ivts_direction_abs_diff, distlimit, gt_ivts_dist):
-    xyz_lvl_diff, dist_lvl_diff, direction_lvl_diff, direction_abs_lvl_diff = [],[],[],[]
+def gen_lvl_diff(ivts_xyz_diff, ivts_locnorm_avg_diff, ivts_locsqrnorm_avg_diff, ivts_dist_diff, ivts_direction_diff, ivts_direction_abs_diff, distlimit, gt_ivts_dist):
+    xyz_lvl_diff, locnorm_lvl_diff, locsqrnorm_lvl_diff, dist_lvl_diff, direction_lvl_diff, direction_abs_lvl_diff = [],[],[],[],[],[]
     lvl_num = []
     ones = tf.ones_like(gt_ivts_dist, dtype=tf.float32)
     for i in range(len(distlimit)//2):
@@ -271,12 +292,16 @@ def gen_lvl_diff(ivts_xyz_diff, ivts_dist_diff, ivts_direction_diff, ivts_direct
         floatmask = tf.cast(tf.compat.v1.logical_and(tf.compat.v1.less_equal(gt_ivts_dist, upper), tf.compat.v1.greater(gt_ivts_dist,lower)), dtype=tf.float32)
         lvl_num.append(tf.reduce_sum(floatmask))
         xyz_lvl_diff.append(tf.reduce_sum(floatmask*ivts_xyz_diff))
+        locnorm_lvl_diff.append(tf.reduce_sum(floatmask*ivts_locnorm_avg_diff))
+        locsqrnorm_lvl_diff.append(tf.reduce_sum(floatmask*ivts_locsqrnorm_avg_diff))
         dist_lvl_diff.append(tf.reduce_sum(floatmask*ivts_dist_diff))
         direction_lvl_diff.append(tf.reduce_sum(floatmask*ivts_direction_diff))
         direction_abs_lvl_diff.append(tf.reduce_sum(floatmask*ivts_direction_abs_diff))
     lvl_num = tf.convert_to_tensor(lvl_num)
     xyz_lvl_diff = tf.convert_to_tensor(xyz_lvl_diff)
+    locnorm_lvl_diff = tf.convert_to_tensor(locnorm_lvl_diff)
+    locsqrnorm_lvl_diff = tf.convert_to_tensor(locsqrnorm_lvl_diff)
     dist_lvl_diff = tf.convert_to_tensor(dist_lvl_diff)
     direction_lvl_diff = tf.convert_to_tensor(direction_lvl_diff)
     direction_abs_lvl_diff = tf.convert_to_tensor(direction_abs_lvl_diff)
-    return xyz_lvl_diff, dist_lvl_diff, direction_lvl_diff, direction_abs_lvl_diff, lvl_num
+    return xyz_lvl_diff, locnorm_lvl_diff, locsqrnorm_lvl_diff, dist_lvl_diff, direction_lvl_diff, direction_abs_lvl_diff, lvl_num
