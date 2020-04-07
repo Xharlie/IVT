@@ -392,7 +392,7 @@ def train_one_epoch(sess, ops, epoch):
             fetch_time = 0
             log_string(outstr)
 
-        if batch_idx % 100 == 0:
+        if batch_idx % 1000 == 0:
             bid = 0
             saveimg = (imgs_val[bid, :, :, :] * 255).astype(np.uint8)
             samplept_img = sample_img_points_val[bid, ...]

@@ -205,6 +205,13 @@ def get_loss(end_points, regularization=True, FLAGS=None):
     ############### accuracy
     ivts_xyz_diff = tf.abs(gt_ivts_xyz - end_points['pred_ivts_xyz'])
     ivts_xyz_avg_diff = tf.reduce_mean(ivts_xyz_diff)
+
+    ivts_locnorm_diff = tf.norm(ivts_xyz_diff, ord='euclidean', axis=-1, keepdims=True)
+    ivts_locnorm_avg_diff = tf.reduce_mean(ivts_locnorm1_diff)
+
+    ivts_locsqrnorm_diff = tf.square(ivts_locnorm_diff)
+    ivts_locsqrnorm_avg_diff = tf.reduce_mean(ivts_locsqrnorm_diff)
+
     ivts_dist_diff = tf.abs(gt_ivts_dist - end_points['pred_ivts_dist'])
     ivts_dist_avg_diff = tf.reduce_mean(ivts_dist_diff)
     ivts_direction_diff = tf.reduce_sum(tf.multiply(gt_ivts_direction, end_points['pred_ivts_direction']), axis=2, keepdims=True)

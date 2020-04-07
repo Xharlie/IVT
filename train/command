@@ -14,12 +14,13 @@ nohup python -u train_ivt.py --gpu 2 --restore_modelcnn ../models/CNN/pretrained
 poor
 
 
+----- global all direct
 dw1
-nohup python -u train_ivt.py --gpu 3 --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/global_direct/chair_evenweight_dw1 --category chair --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 1 --weight_type non  &> global_direct_chair_evenweight_dw1.log &
+nohup python -u train_ivt.py --gpu 3 --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/global_direct/chair_evenweight_dw1 --category chair --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 1 --weight_type non  &> global_direct_chair_all_evenweight_dw1.log &
 result:
-    avg xyz_avg_diff: 0.014767606056628574
-    avg dist_avg_diff: 0.014873905941536454
-    avg direction_avg_diff: 0.6899501082111715
+    avg xyz_avg_diff: 0.014857650706183686
+    avg dist_avg_diff: 0.015723772370793015
+    avg direction_avg_diff: 0.6930801875985523
 
 
 dw1 with bn:
@@ -32,10 +33,13 @@ result: poor
 --- onestream all
 
 dw1
-nohup python -u train_ivt.py --gpu 2 --img_feat_onestream --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/onestream_direct_all/chair_dw1 --category chair --uni_num 1024 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 1 --weight_type non &> onestream_direct_all_chair_evenweight_dw1.log &
+nohup python -u train_ivt.py --gpu 2 --img_feat_onestream --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/onestream_direct_all/chair_dw1 --category chair --uni_num 1024 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 1 --weight_type non &> onestream_direct_all_chair_dw1.log &
 
 
+--- onestream union only direct
 
+dw1
+nohup python -u train_ivt.py --gpu 2 --img_feat_onestream --restore_model checkpoint/onestream_direct_unionly/chair_evenweight_dw1/ --log_dir checkpoint/onestream_direct_unionly/chair_evenweight_dw1/ --category chair --uni_num 2048 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 1 --weight_type non &> onestream_direct_unionly_chair_evenweight_dw1.log &
 
 
 
@@ -64,6 +68,7 @@ result:
     avg xyz_avg_diff: 0.010745914002503586
     avg dist_avg_diff: 0.011969977314118177
     avg direction_avg_diff: 0.1736399324110382
+
 
 
  -- onestream surface only

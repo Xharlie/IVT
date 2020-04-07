@@ -63,9 +63,10 @@ parser.add_argument('--cat_limit', type=int, default=168000, help="balance each 
 parser.add_argument('--multi_view', action='store_true')
 parser.add_argument('--bn', action='store_true')
 parser.add_argument('--lossw', nargs='+', action='append', default=[1.0, 0.0, 0.0, 1.0])
-parser.add_argument('--distlimit', nargs='+', action='append', default=[1.0, 0.05, 0.05, 0.04, 0.04, 0.03, 0.03, 0.02, 0.02, 0.01, 0.01, -0.01])
+parser.add_argument('--distlimit', nargs='+', action='store', type=str, default=[1.0, 0.05, 0.05, 0.04, 0.04, 0.03, 0.03, 0.02, 0.02, 0.01, 0.01])
 
 FLAGS = parser.parse_args()
+FLAGS.distlimit = [float(i) for i in FLAGS.distlimit]
 print(FLAGS)
 
 
