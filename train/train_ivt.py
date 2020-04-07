@@ -27,6 +27,7 @@ slim = tf.contrib.slim
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--gpu', type=str, default='1', help='GPU to use [default: GPU 0]')
+parser.add_argument('--encoder', type=str, default='vgg', help='encoder model: vgg_16, resnet_v1_50, resnet_v1_101, resnet_v2_50, resnet_v2_101')
 parser.add_argument('--category', type=str, default="all", help='Which single class to train on [default: None]')
 parser.add_argument('--log_dir', default='checkpoint', help='Log dir [default: log]')
 parser.add_argument('--num_pnts', type=int, default=2048, help='Point Number [default: 2048]')
@@ -40,6 +41,7 @@ parser.add_argument('--batch_size', type=int, default=32, help='Batch Size durin
 parser.add_argument('--img_h', type=int, default=137, help='Image Height')
 parser.add_argument('--img_w', type=int, default=137, help='Image Width')
 parser.add_argument('--learning_rate', type=float, default=1e-5, help='Initial learning rate [default: 0.001]')
+parser.add_argument('--wd', type=float, default=1e-5, help='Initial learning rate [default: 0.001]')
 parser.add_argument('--momentum', type=float, default=0.9, help='Initial learning rate [default: 0.9]')
 parser.add_argument('--optimizer', default='adam', help='adam or momentum [default: adam]')
 parser.add_argument('--restore_model', default='', help='restore_model') #checkpoint/sdf_2d3d_sdfbasic2_nowd
@@ -244,7 +246,7 @@ def train():
             ######### Loading Checkpoint ###############
             # CNN(Pretrained from ImageNet)
             if FLAGS.restore_modelcnn is not '':
-                if not load_model(sess, FLAGS.restore_modelcnn, 'vgg_16', strict=True):
+                if not load_model(sess, FLAGS.restore_modelcnn, FLAGS.encoder, strict=True):
                     return
                 # Overall
             saver = tf.compat.v1.train.Saver([v for v in tf.compat.v1.get_collection_ref(tf.compat.v1.GraphKeys.GLOBAL_VARIABLES) if

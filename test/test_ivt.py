@@ -396,7 +396,7 @@ def test_one_epoch(sess, ops):
             drct = direction_lvl_diff_epoch[i] / count
             drct_avg = direction_abs_lvl_diff_epoch[i] / count
             # print(upper, lower, xyz, dist, drct,drct_avg, count,xyz_lvl_diff_epoch.shape)
-            print('{:^10.3f}{:^10.3f}{:^10.4f}{:^10.4f}{:^10.4f}{:^10.4f}{:^10.4f}{:^15.4f}{:^8d}'.format(upper, lower, locnorm, locsqrnorm, xyz, dist, drct, drct_avg, count))
+            print('{:^10.3f}{:^10.3f}{:^10.5f}{:^10.5f}{:^10.5f}{:^10.5f}{:^10.5f}{:^15.5f}{:^8d}'.format(upper, lower, locnorm, locsqrnorm, xyz, dist, drct, drct_avg, count))
 
     print("avg xyz_avg_diff:", xyz_avg_diff_epoch / num_batches)
     print("avg locnorm_avg_diff:", locnorm_avg_diff_epoch / num_batches)
