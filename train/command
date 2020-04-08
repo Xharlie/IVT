@@ -103,14 +103,21 @@ avg direction_avg_diff: 0.9741547924713353
 
 --- res50v2 onestream all
 
-nohup python -u train_ivt.py --gpu 0 --img_feat_onestream --encoder vgg_16 --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/onestream_all/chair_vgg_16_010000 --category chair --uni_num 1024 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ &> onestream_all_chair_vgg_010000.log &
+
+nohup python -u train_ivt.py --gpu 2 --img_feat_onestream --encoder vgg_16 --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/onestream_small_all/chair_vgg_16_010000 --category chair --uni_num 1024 --num_pnts 2048 --batch_size 20 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ &> onestream_small_all_chair_vgg_010000.log &
 
 
 
-nohup python -u train_ivt.py --gpu 1 --img_feat_onestream --encoder resnet_v2_50 --restore_modelcnn ../models/CNN/pretrained_model/resnet_v2_50.ckpt --log_dir checkpoint/onestream_all/chair_res50v2_010000 --category chair --uni_num 1024 --num_pnts 2048 --batch_size 20 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ &> onestream_all_chair_res_010000.log &
+nohup python -u train_ivt.py --gpu 0 --img_feat_onestream --encoder vgg_16 --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/onestream_all/chair_vgg_16_010000 --category chair --uni_num 1024 --num_pnts 2048 --batch_size 20 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ &> onestream_all_chair_vgg_010000.log &
 
 
+nohup python -u train_ivt.py --gpu 1 --img_feat_onestream --encoder resnet_v2_50 --restore_modelcnn ../models/CNN/pretrained_model/resnet_v2_50.ckpt --log_dir checkpoint/onestream_all/chair_res50v2_010000 --category chair --uni_num 1024 --num_pnts 2048 --batch_size 20 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ &> onestream_all_chair_res50v2_010000.log &
 
+
+nohup python -u train_ivt.py --gpu 3 --encoder resnet_v2_50 --restore_modelcnn ../models/CNN/pretrained_model/resnet_v2_50.ckpt --log_dir checkpoint/global_all/chair_res50v2_010000 --category chair --uni_num 1024 --num_pnts 2048 --batch_size 20 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ &> global_all_chair_res50v2_010000.log &
+
+
+nohup python -u train_ivt.py --gpu 2 --img_feat_onestream --encoder resnet_v2_101 --restore_modelcnn ../models/CNN/pretrained_model/resnet_v2_101.ckpt --log_dir checkpoint/onestream_all/chair_res101v2_010000 --category chair --uni_num 1024 --num_pnts 2048 --batch_size 16 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ &> onestream_all_chair_res101v2_010000.log &
 
 
 

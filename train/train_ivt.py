@@ -48,7 +48,7 @@ parser.add_argument('--restore_model', default='', help='restore_model') #checkp
 parser.add_argument('--restore_modelcnn', default='', help='restore_model')#../models/CNN/pretrained_model/vgg_16.ckpt
 
 parser.add_argument('--train_lst_dir', default=lst_dir, help='train mesh data list')
-parser.add_argument('--valid_lst_dir', default=lst_dir, help='test mesh data list')
+parser.add_argument('--test_lst_dir', default=lst_dir, help='test mesh data list')
 parser.add_argument('--decay_step', type=int, default=200000, help='Decay step for lr decay [default: 200000]')
 parser.add_argument('--decay_rate', type=float, default=0.9, help='Decay rate for lr decay [default: 0.7]')
 parser.add_argument('--weight_type', type=str, default="ntanh")
@@ -66,10 +66,11 @@ parser.add_argument('--cat_limit', type=int, default=168000, help="balance each 
 parser.add_argument('--multi_view', action='store_true')
 parser.add_argument('--bn', action='store_true')
 parser.add_argument('--lossw', nargs='+', action='store', default=[0.0, 1.0, 0.0, 0.0, 0.0, 0.0])
-parser.add_argument('--distlimit', nargs='+', action='store', type=str, default=None)
+parser.add_argument('--distlimit', nargs='+', action='store', type=str, default=[1.0, 0.9, 0.9, 0.8, 0.8, 0.7, 0.7, 0.6, 0.6, 0.5, 0.5, 0.4, 0.4, 0.3, 0.3, 0.2, 0.2, 0.1, 0.1, 0.05, 0.05, 0.04, 0.04, 0.03, 0.03, 0.02, 0.02, 0.01, 0.01, -0.01])
 
 FLAGS = parser.parse_args()
 FLAGS.lossw = [float(i) for i in FLAGS.lossw]
+FLAGS.distlimit = [float(i) for i in FLAGS.distlimit]
 
 print(FLAGS)
 
@@ -81,8 +82,8 @@ if not os.path.exists(FLAGS.log_dir): os.makedirs(FLAGS.log_dir)
 RESULT_PATH = os.path.join(FLAGS.log_dir, 'train_results')
 if not os.path.exists(RESULT_PATH): os.mkdir(RESULT_PATH)
 
-VALID_RESULT_PATH = os.path.join(FLAGS.log_dir, 'valid_results')
-if not os.path.exists(VALID_RESULT_PATH): os.mkdir(VALID_RESULT_PATH)
+TEST_RESULT_PATH = os.path.join(FLAGS.log_dir, 'test_results')
+if not os.path.exists(TEST_RESULT_PATH): os.mkdir(TEST_RESULT_PATH)
 
 os.system('cp %s.py %s' % (os.path.splitext(model.__file__)[0], FLAGS.log_dir))
 os.system('cp train_ivt.py %s' % (FLAGS.log_dir))
@@ -95,25 +96,36 @@ BN_DECAY_DECAY_STEP = float(FLAGS.decay_step)
 BN_DECAY_CLIP = 0.99
 
 TRAIN_LISTINFO = []
+TEST_LISTINFO = []
 cats_limit = {}
+test_cats_limit = {}
 
 cat_ids = []
 if FLAGS.category == "all":
     for key, value in cats.items():
         cat_ids.append(value)
         cats_limit[value] = 0
+        test_cats_limit[value] = 0
 else:
     cat_ids.append(cats[FLAGS.category])
     cats_limit[cats[FLAGS.category]] = 0
+    test_cats_limit[cats[FLAGS.category]] = 0
 
 for cat_id in cat_ids:
     train_lst = os.path.join(FLAGS.train_lst_dir, cat_id+"_train.lst")
+    test_lst = os.path.join(FLAGS.test_lst_dir, cat_id+"_test.lst")
     with open(train_lst, 'r') as f:
         lines = f.read().splitlines()
         for line in lines:
             for render in range(24):
                 cats_limit[cat_id]+=1
                 TRAIN_LISTINFO += [(cat_id, line.strip(), render)]
+    with open(test_lst, 'r') as f:
+        lines = f.read().splitlines()
+        for line in lines:
+            for render in range(24):
+                test_cats_limit[cat_id] += 1
+                TEST_LISTINFO += [(cat_id, line.strip(), render)]
 
 info = {'rendered_dir': raw_dirs["renderedh5_dir"],
             'ivt_dir': raw_dirs["ivt_dir"]}
@@ -123,6 +135,7 @@ if FLAGS.cam_est:
 print(info)
 
 TRAIN_DATASET = data_ivt_h5_queue.Pt_sdf_img(FLAGS, listinfo=TRAIN_LISTINFO, info=info, cats_limit=cats_limit)
+TEST_DATASET = data_ivt_h5_queue.Pt_sdf_img(FLAGS, listinfo=TEST_LISTINFO, info=info, cats_limit=test_cats_limit)
 
 def log_string(out_str):
     LOG_FOUT.write(out_str+'\n')
@@ -288,31 +301,29 @@ def train():
                    'end_points': end_points}
 
             TRAIN_DATASET.start()
-            best_xyz_diff, best_dist_diff, best_dir_diff = 10000, 10000, 10000
+            TEST_DATASET.start()
+            best_locnorm_diff, best_dir_diff = 10000, 10000
             for epoch in range(FLAGS.max_epoch):
                 log_string('**** EPOCH %03d ****' % (epoch))
                 sys.stdout.flush()
-
-                xyz_avg_diff, dist_avg_diff, direction_avg_diff = train_one_epoch(sess, ops, epoch)
-
+                xyz_avg_diff, _, _ = train_one_epoch(sess, ops, epoch)
+                if epoch % 10 == 0 and epoch > 1:
+                    locnorm_avg_diff, direction_avg_diff = test_one_epoch(sess, ops, epoch)
                 # Save the variables to disk.
-                if xyz_avg_diff < best_xyz_diff:
-                    best_xyz_diff = xyz_avg_diff
+                if locnorm_avg_diff < best_locnorm_diff:
+                    best_locnorm_diff = locnorm_avg_diff
                     save_path = saver.save(sess, os.path.join(FLAGS.log_dir, "model.ckpt"))
-                    log_string("best xyz Model saved in file: %s" % save_path)
-                elif dist_avg_diff < best_dist_diff:
-                    best_dist_diff = dist_avg_diff
-                    save_path = saver.save(sess, os.path.join(FLAGS.log_dir, "model.ckpt"))
-                    log_string("best dist Model saved in file: %s" % save_path)
+                    log_string("best locnorm_avg_diff Model saved in file: %s" % save_path)
                 elif direction_avg_diff < best_dir_diff:
                     best_dir_diff = direction_avg_diff
-                    save_path = saver.save(sess, os.path.join(FLAGS.log_dir, "model.ckpt"))
+                    save_path = saver.save(sess, os.path.join(FLAGS.log_dir, "dir_model.ckpt"))
                     log_string("best direction Model saved in file: %s" % save_path)
                 if epoch % 30 == 0 and epoch > 1:
                     save_path = saver.save(sess, os.path.join(FLAGS.log_dir, "model_epoch_%03d.ckpt"%(epoch)))
                     log_string("Model saved in file: %s" % save_path)
 
             TRAIN_DATASET.shutdown()
+            TEST_DATASET.shutdown()
 
 
 # def pc_normalize(pc, centroid=None):
@@ -348,9 +359,12 @@ def train_one_epoch(sess, ops, epoch):
     tic = time.time()
     fetch_time = 0
     xyz_avg_diff_epoch = 0
+    locnorm_avg_diff_epoch = 0
+    locsqrnorm_avg_diff_epoch = 0
     dist_avg_diff_epoch = 0
     direction_avg_diff_epoch = 0
     direction_abs_avg_diff_epoch = 0
+
     for batch_idx in range(num_batches):
         start_fetch_tic = time.time()
         batch_data = TRAIN_DATASET.fetch()
@@ -374,14 +388,18 @@ def train_one_epoch(sess, ops, epoch):
 
         for il, lossname in enumerate(losses.keys()):
             if lossname == "ivts_xyz_avg_diff":
-                xyz_avg_diff_epoch += outputs[len(output_list)+il]
+                xyz_avg_diff_epoch += outputs[len(output_list) + il]
             if lossname == "ivts_dist_avg_diff":
-                dist_avg_diff_epoch += outputs[len(output_list)+il]
+                dist_avg_diff_epoch += outputs[len(output_list) + il]
             if lossname == "ivts_direction_avg_diff":
-                direction_avg_diff_epoch += outputs[len(output_list)+il]
+                direction_avg_diff_epoch += outputs[len(output_list) + il]
             if lossname == "ivts_direction_abs_avg_diff":
-                direction_abs_avg_diff_epoch += outputs[len(output_list)+il]
-            losses[lossname] += outputs[len(output_list)+il]
+                direction_abs_avg_diff_epoch += outputs[len(output_list) + il]
+            if lossname == "ivts_locnorm_avg_diff":
+                locnorm_avg_diff_epoch += outputs[len(output_list) + il]
+            if lossname == "ivts_locsqrnorm_avg_diff":
+                locsqrnorm_avg_diff_epoch += outputs[len(output_list) + il]
+            losses[lossname] += outputs[len(output_list) + il]
 
         # outstr = "   "
         # for il, lossname in enumerate(losses.keys()):
@@ -423,10 +441,161 @@ def train_one_epoch(sess, ops, epoch):
             np.savetxt(os.path.join(RESULT_PATH, '%d_ivts_gt_%d.txt' % (batch_idx,epoch)), np.concatenate((gt_rot_pnts_val[bid, :, :] + gt_ivts_xyz_val[bid, :, :], np.expand_dims(gt_ivts_dist_val[bid, :, 0], 1)), axis=1), delimiter=';')
 
     print("avg xyz_avg_diff:", xyz_avg_diff_epoch / num_batches)
+    print("avg locnorm_avg_diff:", locnorm_avg_diff_epoch / num_batches)
+    print("avg locsqrnorm_avg_diff:", locsqrnorm_avg_diff_epoch / num_batches)
     print("avg dist_avg_diff:", dist_avg_diff_epoch / num_batches)
     print("avg direction_avg_diff:", direction_avg_diff_epoch / num_batches)
     print("avg direction_abs_avg_diff:", direction_abs_avg_diff_epoch / num_batches)
     return xyz_avg_diff_epoch / num_batches, dist_avg_diff_epoch / num_batches, direction_avg_diff_epoch / num_batches
+
+
+def test_one_epoch(sess, ops, epoch):
+    """ ops: dict mapping from string to tf ops """
+    is_training = False
+
+    num_batches = int(len(TEST_DATASET) / FLAGS.batch_size)
+
+    print('num_batches', num_batches)
+
+    log_string(str(datetime.now()))
+
+    losses = {}
+    for lossname in ops['end_points']['losses'].keys():
+        losses[lossname] = 0
+
+    tic = time.time()
+    fetch_time = 0
+    xyz_avg_diff_epoch = 0
+    locnorm_avg_diff_epoch = 0
+    locsqrnorm_avg_diff_epoch = 0
+    dist_avg_diff_epoch = 0
+    direction_avg_diff_epoch = 0
+    direction_abs_avg_diff_epoch = 0
+
+    lvlnum_epoch = 0
+    xyz_lvl_diff_epoch = 0
+    locnorm_lvl_diff_epoch = 0
+    locsqrnorm_lvl_diff_epoch = 0
+    dist_lvl_diff_epoch = 0
+    direction_lvl_diff_epoch = 0
+    direction_abs_lvl_diff_epoch = 0
+
+    for batch_idx in range(num_batches):
+        start_fetch_tic = time.time()
+        batch_data = TEST_DATASET.fetch()
+        fetch_time += (time.time() - start_fetch_tic)
+        feed_dict = {ops['is_training_pl']: is_training,
+                     ops['input_pls']['pnts']: batch_data['pnts'],
+                     ops['input_pls']['ivts']: batch_data['ivts'],
+                     ops['input_pls']['imgs']: batch_data['imgs'],
+                     ops['input_pls']['obj_rot_mats']: batch_data['obj_rot_mats'],
+                     ops['input_pls']['trans_mats']: batch_data['trans_mats']}
+        output_list = [ops['end_points']['pnts_rot'], ops['end_points']['gt_ivts_xyz'],
+                       ops['end_points']['gt_ivts_dist'], ops['end_points']['gt_ivts_direction'],
+                       ops['end_points']['pred_ivts_xyz'], ops['end_points']['pred_ivts_dist'],
+                       ops['end_points']['pred_ivts_direction'], ops['end_points']['sample_img_points'],
+                       ops['end_points']['imgs'], ops['end_points']['weighed_mask']]
+
+        loss_list = []
+        lvl_list = []
+        for il, lossname in enumerate(losses.keys()):
+            loss_list += [ops['end_points']['losses'][lossname]]
+
+        for il, diffname in enumerate(ops['end_points']['lvl'].keys()):
+            lvl_list += [ops['end_points']['lvl'][diffname]]
+
+        outputs = sess.run(output_list + loss_list + lvl_list, feed_dict=feed_dict)
+
+        gt_rot_pnts_val, gt_ivts_xyz_val, gt_ivts_dist_val, gt_direction_val, \
+        pred_xyz_val, pred_dist_val, pred_direction_val, sample_img_points_val, imgs_val, weighed_mask_val = outputs[:-len(losses) - len(lvl_list)]
+
+        for il, lossname in enumerate(losses.keys()):
+            if lossname == "ivts_xyz_avg_diff":
+                xyz_avg_diff_epoch += outputs[len(output_list) + il]
+            if lossname == "ivts_dist_avg_diff":
+                dist_avg_diff_epoch += outputs[len(output_list) + il]
+            if lossname == "ivts_direction_avg_diff":
+                direction_avg_diff_epoch += outputs[len(output_list) + il]
+            if lossname == "ivts_direction_abs_avg_diff":
+                direction_abs_avg_diff_epoch += outputs[len(output_list) + il]
+            if lossname == "ivts_locnorm_avg_diff":
+                locnorm_avg_diff_epoch += outputs[len(output_list) + il]
+            if lossname == "ivts_locsqrnorm_avg_diff":
+                locsqrnorm_avg_diff_epoch += outputs[len(output_list) + il]
+            losses[lossname] += outputs[len(output_list) + il]
+
+        for il, diffname in enumerate(ops['end_points']['lvl'].keys()):
+            if diffname == "xyz_lvl_diff":
+                xyz_lvl_diff_epoch += outputs[len(output_list) + len(loss_list) + il]
+            if diffname == "dist_lvl_diff":
+                dist_lvl_diff_epoch += outputs[len(output_list) + len(loss_list) + il]
+            if diffname == "direction_lvl_diff":
+                direction_lvl_diff_epoch += outputs[len(output_list) + len(loss_list) + il]
+            if diffname == "direction_abs_lvl_diff":
+                direction_abs_lvl_diff_epoch += outputs[len(output_list) + len(loss_list) + il]
+            if diffname == "num":
+                lvlnum_epoch += outputs[len(output_list) + len(loss_list) + il]
+            if diffname == "locnorm_lvl_diff":
+                locnorm_lvl_diff_epoch += outputs[len(output_list) + len(loss_list) + il]
+            if diffname == "locsqrnorm_lvl_diff":
+                locsqrnorm_lvl_diff_epoch += outputs[len(output_list) + len(loss_list) + il]
+
+        verbose_freq = 100.
+        if (batch_idx + 1) % verbose_freq == 0:
+            bid = 0
+            # sampling
+            outstr = 'TEST epoch %d -- %03d / %03d -- ' % (epoch, batch_idx + 1, num_batches)
+            for lossname in losses.keys():
+                outstr += '%s: %f, ' % (lossname, losses[lossname] / verbose_freq)
+                losses[lossname] = 0
+            outstr += ' time per b: %.02f, ' % ((time.time() - tic) / verbose_freq)
+            outstr += ' fetch time per b: %.02f, ' % (fetch_time / verbose_freq)
+            tic = time.time()
+            fetch_time = 0
+            log_string(outstr)
+
+        if batch_idx % 100 == 0:
+            bid = 0
+            saveimg = (imgs_val[bid, :, :, :] * 255).astype(np.uint8)
+            samplept_img = sample_img_points_val[bid, ...]
+            choice = np.random.randint(samplept_img.shape[0], size=100)
+            samplept_img = samplept_img[choice, ...]
+            for j in range(samplept_img.shape[0]):
+                x = int(samplept_img[j, 0])
+                y = int(samplept_img[j, 1])
+                cv2.circle(saveimg, (x, y), 3, (0, 0, 255, 255), -1)
+            cv2.imwrite(os.path.join(TEST_RESULT_PATH, '%d_img_pnts.png' % (batch_idx)), saveimg)
+
+            np.savetxt(os.path.join(TEST_RESULT_PATH, '%d_input_pnts.txt' % (batch_idx)), gt_rot_pnts_val[bid, :, :], delimiter=';')
+
+            np.savetxt(os.path.join(TEST_RESULT_PATH, '%d_ivts_pred.txt' % (batch_idx)), np.concatenate((gt_rot_pnts_val[bid, :, :] + pred_xyz_val[bid, :, :], np.expand_dims(pred_dist_val[bid, :, 0], 1)),axis=1), delimiter=';')
+            np.savetxt(os.path.join(TEST_RESULT_PATH, '%d_ivts_gt.txt' % (batch_idx)), np.concatenate((gt_rot_pnts_val[bid, :, :] + gt_ivts_xyz_val[bid, :, :],np.expand_dims(gt_ivts_dist_val[bid, :, 0], 1)),axis=1), delimiter=';')
+
+    if FLAGS.distlimit is not None:
+        print(
+            '{:^10s}{:^10s}{:^10s}{:^10s}{:^10s}{:^10s}{:^10s}{:^15s}{:^8s}'.format("upper", "lower", "locnorm", "locsqrnorm", "xyz", "dist", "drct", "drct_abs", "count"))
+        for i in range(len(FLAGS.distlimit) // 2):
+            upper = FLAGS.distlimit[i * 2]
+            lower = FLAGS.distlimit[i * 2 + 1]
+            count = max(1, int(lvlnum_epoch[i]))
+            xyz = xyz_lvl_diff_epoch[i] / count
+            locnorm = locnorm_lvl_diff_epoch[i] / count
+            locsqrnorm = locsqrnorm_lvl_diff_epoch[i] / count
+            dist = dist_lvl_diff_epoch[i] / count
+            drct = direction_lvl_diff_epoch[i] / count
+            drct_avg = direction_abs_lvl_diff_epoch[i] / count
+            # print(upper, lower, xyz, dist, drct,drct_avg, count,xyz_lvl_diff_epoch.shape)
+            print('{:^10.3f}{:^10.3f}{:^10.5f}{:^10.5f}{:^10.5f}{:^10.5f}{:^10.5f}{:^15.5f}{:^8d}'.format(upper, lower, locnorm, locsqrnorm, xyz, dist, drct, drct_avg, count))
+
+    print("TEST avg xyz_avg_diff:", xyz_avg_diff_epoch / num_batches)
+    print("TEST avg locnorm_avg_diff:", locnorm_avg_diff_epoch / num_batches)
+    print("TEST avg locsqrnorm_avg_diff:", locsqrnorm_avg_diff_epoch / num_batches)
+    print("TEST avg dist_avg_diff:", dist_avg_diff_epoch / num_batches)
+    print("TEST avg direction_avg_diff:", direction_avg_diff_epoch / num_batches)
+    print("TEST avg direction_abs_avg_diff:", direction_abs_avg_diff_epoch / num_batches)
+
+    return locnorm_avg_diff_epoch / num_batches, direction_avg_diff_epoch/num_batches
+
 
 if __name__ == "__main__":
     log_string('pid: %s'%(str(os.getpid())))
@@ -435,4 +604,5 @@ if __name__ == "__main__":
     finally:
         print("finally")
         TRAIN_DATASET.shutdown()
+        TEST_DATASET.shutdown()
         LOG_FOUT.close()
