@@ -310,14 +310,14 @@ def train():
                 if epoch % 10 == 0 and epoch > 1:
                     locnorm_avg_diff, direction_avg_diff = test_one_epoch(sess, ops, epoch)
                 # Save the variables to disk.
-                if locnorm_avg_diff < best_locnorm_diff:
-                    best_locnorm_diff = locnorm_avg_diff
-                    save_path = saver.save(sess, os.path.join(FLAGS.log_dir, "model.ckpt"))
-                    log_string("best locnorm_avg_diff Model saved in file: %s" % save_path)
-                elif direction_avg_diff < best_dir_diff:
-                    best_dir_diff = direction_avg_diff
-                    save_path = saver.save(sess, os.path.join(FLAGS.log_dir, "dir_model.ckpt"))
-                    log_string("best direction Model saved in file: %s" % save_path)
+                    if locnorm_avg_diff < best_locnorm_diff:
+                        best_locnorm_diff = locnorm_avg_diff
+                        save_path = saver.save(sess, os.path.join(FLAGS.log_dir, "model.ckpt"))
+                        log_string("best locnorm_avg_diff Model saved in file: %s" % save_path)
+                    elif direction_avg_diff < best_dir_diff:
+                        best_dir_diff = direction_avg_diff
+                        save_path = saver.save(sess, os.path.join(FLAGS.log_dir, "dir_model.ckpt"))
+                        log_string("best direction Model saved in file: %s" % save_path)
                 if epoch % 30 == 0 and epoch > 1:
                     save_path = saver.save(sess, os.path.join(FLAGS.log_dir, "model_epoch_%03d.ckpt"%(epoch)))
                     log_string("Model saved in file: %s" % save_path)
