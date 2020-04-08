@@ -1,3 +1,4 @@
+train/preL2
 train/gau*
 inference/render*
 *.DS_Store

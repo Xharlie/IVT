@@ -27,7 +27,7 @@ slim = tf.contrib.slim
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--gpu', type=str, default='1', help='GPU to use [default: GPU 0]')
-parser.add_argument('--encoder', type=str, default='vgg', help='encoder model: vgg_16, resnet_v1_50, resnet_v1_101, resnet_v2_50, resnet_v2_101')
+parser.add_argument('--encoder', type=str, default='vgg_16', help='encoder model: vgg_16, resnet_v1_50, resnet_v1_101, resnet_v2_50, resnet_v2_101')
 parser.add_argument('--category', type=str, default="all", help='Which single class to train on [default: None]')
 parser.add_argument('--log_dir', default='checkpoint', help='Log dir [default: log]')
 parser.add_argument('--num_pnts', type=int, default=2048, help='Point Number [default: 2048]')
@@ -65,9 +65,12 @@ parser.add_argument('--cam_est', action='store_true')
 parser.add_argument('--cat_limit', type=int, default=168000, help="balance each category, 1500 * 24 = 36000")
 parser.add_argument('--multi_view', action='store_true')
 parser.add_argument('--bn', action='store_true')
-parser.add_argument('--lossw', nargs='+', action='append', default=[1.0, 0.0, 0.0, 1.0])
+parser.add_argument('--lossw', nargs='+', action='store', default=[0.0, 1.0, 0.0, 0.0, 0.0, 0.0])
+parser.add_argument('--distlimit', nargs='+', action='store', type=str, default=None)
 
 FLAGS = parser.parse_args()
+FLAGS.lossw = [float(i) for i in FLAGS.lossw]
+
 print(FLAGS)
 
 
@@ -163,6 +166,13 @@ class NoStdStreams(object):
         sys.stderr = self.old_stderr
         self.devnull.close()
 
+def load_model_all(saver, sess, LOAD_MODEL_FILE):
+    vars_in_pretrained_model = dict(checkpoint_utils.list_variables(LOAD_MODEL_FILE))
+    # print(vars_in_pretrained_model)
+    saver.restore(sess, LOAD_MODEL_FILE)
+
+
+
 def load_model(sess, LOAD_MODEL_FILE, prefixs, strict=False):
 
     vars_in_pretrained_model = dict(checkpoint_utils.list_variables(LOAD_MODEL_FILE))
@@ -255,15 +265,16 @@ def train():
 
             if ckptstate is not None:
                 LOAD_MODEL_FILE = os.path.join(FLAGS.restore_model, os.path.basename(ckptstate.model_checkpoint_path))
-                try:
-                    load_model(sess, LOAD_MODEL_FILE, ['sdfprediction/fold1', 'sdfprediction/fold2', 'vgg_16'],
-                               strict=True)
-                    # load_model(sess, LOAD_MODEL_FILE, ['sdfprediction','vgg_16'], strict=True)
-                    with NoStdStreams():
-                        saver.restore(sess, LOAD_MODEL_FILE)
-                    print("Model loaded in file: %s" % LOAD_MODEL_FILE)
-                except:
-                    print("Fail to load overall modelfile: %s" % FLAGS.restore_model)
+                load_model_all(saver,sess, LOAD_MODEL_FILE)
+                # try:
+                #     load_model(sess, LOAD_MODEL_FILE, ['sdfprediction/fold1', 'sdfprediction/fold2', FLAGS.encoder],
+                #                strict=True)
+                #     # load_model(sess, LOAD_MODEL_FILE, ['sdfprediction','vgg_16'], strict=True)
+                #     with NoStdStreams():
+                #         saver.restore(sess, LOAD_MODEL_FILE)
+                #     print("Model loaded in file: %s" % LOAD_MODEL_FILE)
+                # except:
+                #     print("Fail to load overall modelfile: %s" % FLAGS.restore_model)
 
             ###########################################
 

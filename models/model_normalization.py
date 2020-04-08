@@ -82,23 +82,23 @@ def get_model(input_pls, is_training, bn=False, bn_decay=None, img_size = 224, F
     elif FLAGS.encoder == "resnet_v1_50":
         resnet_v1.default_image_size = img_size
         with slim.arg_scope(resnet_v1.resnet_arg_scope()):
-            ref_feats_embedding, encdr_end_points = resnet_v1.resnet_v1_50(inputs, FLAGS.num_classes, is_training=is_training, scope='resnet_v1_50')
-        scopelst = ["resnet_v1_50/block1/unit_3","resnet_v1_50/block2/unit_4","resnet_v1_50/block3/unit_6",'resnet_v1_50/block3/unit_3']
+            ref_feats_embedding, encdr_end_points = resnet_v1.resnet_v1_50(ref_img, FLAGS.num_classes, is_training=is_training, scope='resnet_v1_50')
+        scopelst = ["resnet_v1_50/block1","resnet_v1_50/block2","resnet_v1_50/block3",'resnet_v1_50/block4']
     elif FLAGS.encoder == "resnet_v1_101":
         resnet_v1.default_image_size = img_size
         with slim.arg_scope(resnet_v1.resnet_arg_scope()):
-            ref_feats_embedding, encdr_end_points = resnet_v1.resnet_v1_101(inputs, FLAGS.num_classes, is_training=is_training, scope='resnet_v1_101')
-        scopelst = ["resnet_v1_101/block1/unit_3", "resnet_v1_101/block2/unit_4", "resnet_v1_101/block3/unit_23", 'resnet_v1_101/block3/unit_3']
+            ref_feats_embedding, encdr_end_points = resnet_v1.resnet_v1_101(ref_img, FLAGS.num_classes, is_training=is_training, scope='resnet_v1_101')
+        scopelst = ["resnet_v1_101/block1", "resnet_v1_101/block2", "resnet_v1_101/block3", 'resnet_v1_101/block4']
     elif FLAGS.encoder == "resnet_v2_50":
         resnet_v2.default_image_size = img_size
         with slim.arg_scope(resnet_v1.resnet_arg_scope()):
-            ref_feats_embedding, encdr_end_points = resnet_v2.resnet_v2_50(inputs, FLAGS.num_classes, is_training=is_training, scope='resnet_v2_50')
-        scopelst = ["resnet_v2_101/block1/unit_3", "resnet_v2_101/block2/unit_4", "resnet_v2_101/block3/unit_6", 'resnet_v2_101/block3/unit_3']
+            ref_feats_embedding, encdr_end_points = resnet_v2.resnet_v2_50(ref_img, FLAGS.num_classes, is_training=is_training, scope='resnet_v2_50')
+        scopelst = ["resnet_v2_50/block1", "resnet_v2_50/block2", "resnet_v2_50/block3", 'resnet_v2_50/block4']
     elif FLAGS.encoder == "resnet_v2_101":
         resnet_v2.default_image_size = img_size
         with slim.arg_scope(resnet_v1.resnet_arg_scope()):
-            ref_feats_embedding, encdr_end_points = resnet_v2.resnet_v2_101(inputs, FLAGS.num_classes, is_training=is_training, scope='resnet_v2_101')
-        scopelst = ["resnet_v2_101/block1/unit_3", "resnet_v2_101/block2/unit_4", "resnet_v2_101/block3/unit_23", 'resnet_v2_101/block3/unit_3']
+            ref_feats_embedding, encdr_end_points = resnet_v2.resnet_v2_101(ref_img, FLAGS.num_classes, is_training=is_training, scope='resnet_v2_101')
+        scopelst = ["resnet_v2_101/block1", "resnet_v2_101/block2", "resnet_v2_101/block3", 'resnet_v2_101/block4']
     ref_feats_embedding_cnn = tf.squeeze(ref_feats_embedding, axis=[1, 2])
     end_points['img_embedding'] = ref_feats_embedding_cnn
     point_img_feat=None
@@ -108,7 +108,7 @@ def get_model(input_pls, is_training, bn=False, bn_decay=None, img_size = 224, F
 
     if FLAGS.img_feat_onestream:
         with tf.compat.v1.variable_scope("sdfimgfeat") as scope:
-            if FLAGS.encoder == "vgg":
+            if FLAGS.encoder[:3] == "vgg":
                 conv1 = tf.compat.v1.image.resize_bilinear(encdr_end_points['vgg_16/conv1/conv1_2'], (FLAGS.img_h, FLAGS.img_w))
                 point_conv1 = tf.contrib.resampler.resampler(conv1, sample_img_points)
                 conv2 = tf.compat.v1.image.resize_bilinear(encdr_end_points['vgg_16/conv2/conv2_2'], (FLAGS.img_h, FLAGS.img_w))
@@ -121,18 +121,19 @@ def get_model(input_pls, is_training, bn=False, bn_decay=None, img_size = 224, F
                 point_conv5 = tf.contrib.resampler.resampler(conv5, sample_img_points)
                 point_img_feat = tf.concat(axis=2, values=[point_conv1, point_conv2, point_conv3, point_conv4, point_conv5])
             elif FLAGS.encoder[:3] == "res":
+                # print(encdr_end_points.keys())
                 conv1 = tf.compat.v1.image.resize_bilinear(encdr_end_points[scopelst[0]], (FLAGS.img_h, FLAGS.img_w))
                 point_conv1 = tf.contrib.resampler.resampler(conv1, sample_img_points)
                 conv2 = tf.compat.v1.image.resize_bilinear(encdr_end_points[scopelst[1]], (FLAGS.img_h, FLAGS.img_w))
                 point_conv2 = tf.contrib.resampler.resampler(conv2, sample_img_points)
                 conv3 = tf.compat.v1.image.resize_bilinear(encdr_end_points[scopelst[2]], (FLAGS.img_h, FLAGS.img_w))
                 point_conv3 = tf.contrib.resampler.resampler(conv3, sample_img_points)
-                conv4 = tf.compat.v1.image.resize_bilinear(encdr_end_points[scopelst[3]], (FLAGS.img_h, FLAGS.img_w))
-                point_conv4 = tf.contrib.resampler.resampler(conv4, sample_img_points)
-                point_img_feat = tf.concat(axis=2, values=[point_conv1, point_conv2, point_conv3, point_conv4])
+                # conv4 = tf.compat.v1.image.resize_bilinear(encdr_end_points[scopelst[3]], (FLAGS.img_h, FLAGS.img_w))
+                # point_conv4 = tf.contrib.resampler.resampler(conv4, sample_img_points)
+                point_img_feat = tf.concat(axis=2, values=[point_conv1, point_conv2, point_conv3])
             print("point_img_feat.shape", point_img_feat.get_shape())
             point_img_feat = tf.expand_dims(point_img_feat, axis=2)
-        ivts_feat = ivtnet.get_ivt_basic_imgfeat_onestream(input_pnts_rot, ref_feats_embedding_cnn, point_img_feat, is_training, batch_size, FLAGS.num_pnts, bn, bn_decay, wd=FLAGS.wd)
+            ivts_feat = ivtnet.get_ivt_basic_imgfeat_onestream(input_pnts_rot, ref_feats_embedding_cnn, point_img_feat, is_training, batch_size, FLAGS.num_pnts, bn, bn_decay, wd=FLAGS.wd)
 
     # elif FLAGS.img_feat_twostream:
     #     with tf.compat.v1.variable_scope("sdfimgtwofeat") as scope:
@@ -258,28 +259,29 @@ def get_loss(end_points, regularization=True, FLAGS=None):
         end_points['losses']['ivts_xyz_loss'] = ivts_xyz_loss
     if FLAGS.lossw[1] != 0:
         if FLAGS.weight_type == "non":
-            ivts_dist_loss = ivts_dist_avg_diff
-        else:
-            ivts_dist_loss = tf.reduce_mean(ivts_dist_diff * weight_mask)
-        end_points['losses']['ivts_dist_loss'] = ivts_dist_loss
-    if FLAGS.lossw[2] != 0:
-        ivts_direction_loss = tf.reduce_mean((1.0-ivts_direction_diff))
-        end_points['losses']['ivts_direction_loss'] = ivts_direction_loss
-    if FLAGS.lossw[3] != 0:
-        ivts_direction_abs_loss = tf.reduce_mean((1.0-ivts_direction_abs_diff))
-        end_points['losses']['ivts_direction_abs_loss'] = ivts_direction_abs_loss
-    if FLAGS.lossw[4] != 0:
-        if FLAGS.weight_type == "non":
             ivts_locnorm_loss = ivts_locnorm_avg_diff
         else:
             ivts_locnorm_loss = tf.reduce_mean(ivts_locnorm_diff * weight_mask)
         end_points['losses']['ivts_locnorm_loss'] = ivts_locnorm_loss
-    if FLAGS.lossw[5] != 0:
+    if FLAGS.lossw[2] != 0:
         if FLAGS.weight_type == "non":
             ivts_locsqrnorm_loss = ivts_locsqrnorm_avg_diff
         else:
             ivts_locsqrnorm_loss = tf.reduce_mean(ivts_locsqrnorm_diff * weight_mask)
         end_points['losses']['ivts_locsqrnorm_loss'] = ivts_locsqrnorm_loss
+    if FLAGS.lossw[3] != 0:
+        if FLAGS.weight_type == "non":
+            ivts_dist_loss = ivts_dist_avg_diff
+        else:
+            ivts_dist_loss = tf.reduce_mean(ivts_dist_diff * weight_mask)
+        end_points['losses']['ivts_dist_loss'] = ivts_dist_loss
+    if FLAGS.lossw[4] != 0:
+        ivts_direction_loss = tf.reduce_mean((1.0-ivts_direction_diff))
+        end_points['losses']['ivts_direction_loss'] = ivts_direction_loss
+    if FLAGS.lossw[5] != 0:
+        ivts_direction_abs_loss = tf.reduce_mean((1.0-ivts_direction_abs_diff))
+        end_points['losses']['ivts_direction_abs_loss'] = ivts_direction_abs_loss
+
 
     # print("weight_mask.get_shape().as_list(): ", weight_mask.get_shape().as_list())
     # print("ivts_xyz_diff.get_shape().as_list(): ", ivts_xyz_diff.get_shape().as_list())
@@ -289,7 +291,7 @@ def get_loss(end_points, regularization=True, FLAGS=None):
     # print("ivts_direction_diff.get_shape().as_list(): ", ivts_direction_diff.get_shape().as_list())
     # print("ivts_direction_avg_diff.get_shape().as_list(): ", ivts_direction_diff.get_shape().as_list())
 
-    loss = FLAGS.lossw[0] * ivts_xyz_loss + FLAGS.lossw[1] * ivts_dist_loss + FLAGS.lossw[2] * ivts_direction_loss + FLAGS.lossw[3] * ivts_direction_abs_loss
+    loss = FLAGS.lossw[0] * ivts_xyz_loss + FLAGS.lossw[1] * ivts_locnorm_loss + FLAGS.lossw[2] * ivts_locsqrnorm_loss + FLAGS.lossw[3] * ivts_dist_loss + FLAGS.lossw[4] * ivts_direction_loss + FLAGS.lossw[5] * ivts_direction_abs_loss
     end_points['losses']['ivts_xyz_avg_diff'] = ivts_xyz_avg_diff
     end_points['losses']['ivts_dist_avg_diff'] = ivts_dist_avg_diff
     end_points['losses']['ivts_direction_avg_diff'] = ivts_direction_avg_diff

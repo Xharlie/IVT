@@ -78,6 +78,7 @@ nohup python -u train_ivt.py --gpu 1  --img_feat_onestream --restore_model check
 
 
 ----onestream surface only XYZ 1001
+Poor
 nohup python -u train_ivt.py --gpu 1  --img_feat_onestream --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/onestream_XYZ_surfaceonly/chair_evenweight_1001 --category chair --uni_num 0 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --weight_type non --XYZ &> onestream_XYZ_surfaceonly_chair_evenweight_1001.log &
 
 
@@ -85,7 +86,6 @@ nohup python -u train_ivt.py --gpu 1  --img_feat_onestream --restore_modelcnn ..
 dw1 propor
 nohup python -u train_ivt.py --gpu 1  --img_feat_onestream --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/onestream_direct_surfaceonly/chair_evenweight_dw1_propor --category chair --uni_num 0 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --dir_loss_weight 1 --weight_type propor  &> onestream_direct_surfaceonly_chair_evenweight_dw1_propor.log &
 result: poor
-
 
 
 
@@ -97,6 +97,31 @@ result:
 avg xyz_avg_diff: 0.01959535391248006
 avg dist_avg_diff: 0.008822792168413274
 avg direction_avg_diff: 0.9741547924713353
+
+
+----------------------------------------------------------- new model -------------------------------------------------------------------
+
+--- res50v2 onestream all
+
+nohup python -u train_ivt.py --gpu 0 --img_feat_onestream --encoder vgg_16 --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/onestream_all/chair_vgg_16_010000 --category chair --uni_num 1024 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ &> onestream_all_chair_vgg_010000.log &
+
+
+
+nohup python -u train_ivt.py --gpu 1 --img_feat_onestream --encoder resnet_v2_50 --restore_modelcnn ../models/CNN/pretrained_model/resnet_v2_50.ckpt --log_dir checkpoint/onestream_all/chair_res50v2_010000 --category chair --uni_num 1024 --num_pnts 2048 --batch_size 20 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ &> onestream_all_chair_res_010000.log &
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

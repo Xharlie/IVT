@@ -27,6 +27,7 @@ slim = tf.contrib.slim
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--gpu', type=str, default='1', help='GPU to use [default: GPU 0]')
+parser.add_argument('--encoder', type=str, default='vgg_16', help='encoder model: vgg_16, resnet_v1_50, resnet_v1_101, resnet_v2_50, resnet_v2_101')
 parser.add_argument('--category', type=str, default="all", help='Which single class to train on [default: None]')
 parser.add_argument('--log_dir', default='checkpoint', help='Log dir [default: log]')
 parser.add_argument('--num_pnts', type=int, default=2048, help='Point Number [default: 2048]')
@@ -43,6 +44,7 @@ parser.add_argument('--momentum', type=float, default=0.9, help='Initial learnin
 parser.add_argument('--optimizer', default='adam', help='adam or momentum [default: adam]')
 parser.add_argument('--restore_model', default='', help='restore_model') #checkpoint/sdf_2d3d_sdfbasic2_nowd
 parser.add_argument('--restore_modelcnn', default='', help='restore_model')#../models/CNN/pretrained_model/vgg_16.ckpt
+parser.add_argument('--wd', type=float, default=1e-5, help='Initial learning rate [default: 0.001]')
 
 parser.add_argument('--train_lst_dir', default=lst_dir, help='train mesh data list')
 parser.add_argument('--test_lst_dir', default=lst_dir, help='test mesh data list')
@@ -222,12 +224,14 @@ def test():
 
             if ckptstate is not None:
                 LOAD_MODEL_FILE = os.path.join(FLAGS.restore_model, os.path.basename(ckptstate.model_checkpoint_path))
+                saver.restore(sess, LOAD_MODEL_FILE)
+
                 try:
-                    load_model(sess, LOAD_MODEL_FILE, ['sdfprediction/fold1', 'sdfprediction/fold2', 'vgg_16'],
-                               strict=True)
-                    # load_model(sess, LOAD_MODEL_FILE, ['sdfprediction','vgg_16'], strict=True)
-                    with NoStdStreams():
-                        saver.restore(sess, LOAD_MODEL_FILE)
+                    # load_model(sess, LOAD_MODEL_FILE, ['sdfprediction/fold1', 'sdfprediction/fold2', FLAGS.encoder],
+                    #            strict=True)
+                    # # load_model(sess, LOAD_MODEL_FILE, ['sdfprediction','vgg_16'], strict=True)
+                    # with NoStdStreams():
+                    #     print("NoStdStreams-----------------------------")
                     print("Model loaded in file: %s" % LOAD_MODEL_FILE)
                 except:
                     print("Fail to load overall modelfile: %s" % FLAGS.restore_model)
