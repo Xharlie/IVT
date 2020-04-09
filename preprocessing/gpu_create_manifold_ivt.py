@@ -214,9 +214,9 @@ def create_h5_ivt_pt(gpu, cat_id, h5_file, verts, faces, surfpoints_sample, surf
     # f1.create_dataset('surf_normals', data=surfnormals_sample.astype(np.float32), compression='gzip', compression_opts=4)
     f1.create_dataset('norm_params', data=norm_params, compression='gzip', compression_opts=4)
     f1.close()
-    np.savetxt(h5_file[:-3]+"ball_samples.txt",ball_samples)
-    np.savetxt(h5_file[:-3]+"ungridsamples.txt",ungridsamples)
-    np.savetxt(h5_file[:-3]+"surfpoints_sample.txt",surfpoints_sample)
+    # np.savetxt(h5_file[:-3]+"ball_samples.txt",ball_samples, delimiter=';')
+    # np.savetxt(h5_file[:-3]+"ungridsamples.txt",ungridsamples, delimiter=';')
+    # np.savetxt(h5_file[:-3]+"surfpoints_sample.txt",surfpoints_sample, delimiter=';')
 
 
 
@@ -227,6 +227,7 @@ def get_normalize_mesh(model_file, norm_mesh_sub_dir, ref_sub_dir, pntnum):
     mesh_list = trimesh.load_mesh(model_file, process=False)
     if not isinstance(mesh_list, list):
         mesh_list = [mesh_list]
+
     area_sum = 0
     area_lst = []
     for idx, mesh in enumerate(mesh_list):
@@ -288,7 +289,7 @@ def get_normalize_mesh(model_file, norm_mesh_sub_dir, ref_sub_dir, pntnum):
     verts = (ori_mesh.vertices - centroid) / float(m)
     pymesh.save_mesh_raw(obj_file, verts, ori_mesh.faces)
     pntchoice = np.random.randint(surfpoints.shape[0], size=pntnum)
-    np.savetxt(pnt_file, np.concatenate([surfpoints[pntchoice], face_norm_all[pntchoice]], axis=1))
+    np.savetxt(pnt_file, np.concatenate([surfpoints[pntchoice], face_norm_all[pntchoice]], axis=1), delimiter=';')
     print("export_pntnorm", pnt_file)
     return verts, ori_mesh.faces, params, surfpoints, face_norm_all
 
@@ -417,7 +418,7 @@ if __name__ == "__main__":
                         help='Which single class to generate on [default: all, can be chair or plane, etc.]')
     FLAGS = parser.parse_args()
 
-    # nohup python -u gpu_create_ivt.py --thread_num 3 --shuffle --category up &> create_ivt.log &
+    # nohup python -u gpu_create_manifold_ivt.py --thread_num 3 --shuffle --category up &> create_ivt.log &
 
     #  full set
     lst_dir, cats, all_cats, raw_dirs = create_file_lst.get_all_info()
