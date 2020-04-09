@@ -417,11 +417,11 @@ if __name__ == "__main__":
                         help='Which single class to generate on [default: all, can be chair or plane, etc.]')
     FLAGS = parser.parse_args()
 
-    # nohup python -u gpu_create_ivt.py &> create_sdf.log &
+    # nohup python -u gpu_create_ivt.py --thread_num 3 --shuffle --category up &> create_ivt.log &
 
     #  full set
     lst_dir, cats, all_cats, raw_dirs = create_file_lst.get_all_info()
-    if FLAGS.category != "up":
+    if FLAGS.category == "up":
         cats = {
             "chair": "03001627",
             "airplane": "02691156",
@@ -430,7 +430,7 @@ if __name__ == "__main__":
             "display": "03211117",
             "lamp": "03636649"
         }
-    elif FLAGS.category != "lower":
+    elif FLAGS.category == "lower":
         cats = {
             "speaker": "03691459",
             "cabinet": "02933112",
