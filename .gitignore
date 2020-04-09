@@ -1,3 +1,5 @@
+preprocessing/*.obj
+preprocessing/test
 train/preL2
 train/gau*
 inference/render*

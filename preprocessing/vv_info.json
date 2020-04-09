@@ -35,6 +35,7 @@
         "norm_mesh_dir":"/media/ssd/xharlie/ShapeNet/ShapeNetCore_v1_norm/",
         "ivt_dir": "/media/ssd/xharlie/ShapeNet/IVT_v1_biguni/",
         "ivt_mani_dir": "/media/ssd/xharlie/ShapeNet/IVT_mani_v1/",
+        "ref_mani_dir": "/media/hdd2/data/ShapeNet/march_cube_objs_v1",
         "rendered_dir": "/media/ssd/xharlie/ShapeNet/ShapeNetRendering/",
         "renderedh5_dir": "/media/ssd/xharlie/ShapeNet/ShapeNetRenderingh5_v1_all/",
         "renderedh5_dir_est": "/media/ssd/xharlie/ShapeNet/ShapeNetRenderingh5_v1_all_pred_3d/"

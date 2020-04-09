@@ -34,8 +34,8 @@
         "mesh_dir": "/ssd1/datasets/ShapeNet/ShapeNetCore.v1/",
         "norm_mesh_dir":"/ssd1/datasets/ShapeNet/ShapeNetCore_v1_norm/",
         "ivt_dir": "/ssd1/datasets/ShapeNet/IVT_v1_biguni/",
-        "ref_dir": "/ssd1/datasets/ShapeNet/IVT_v1_biguni/",
         "ivt_mani_dir": "/ssd1/datasets/ShapeNet/IVT_mani_v1/",
+        "ref_mani_dir": "/hdd_extra1/datasets/ShapeNet/march_cube_objs_v1/",
         "rendered_dir": "/ssd1/datasets/ShapeNet/ShapeNetRendering/",
         "renderedh5_dir": "/ssd1/datasets/ShapeNet/ShapeNetRenderingh5_v1_all/",
         "renderedh5_dir_est": "/ssd1/datasets/ShapeNet/ShapeNetRenderingh5_v1_all_pred_3d/"
