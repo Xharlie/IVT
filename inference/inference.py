@@ -214,10 +214,12 @@ def gt_test(batch_data):
     weightform = FLAGS.weightform
     distr = FLAGS.distr
 
-    loc, norm, std, weights, gt_pc, tries = unisample_pnts(None, None, -1, batch_data, FLAGS.res, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
-    # norm = randomneg(norm)
+    if FLAGS.unitype == "uni":
+        loc, norm, std, weights, gt_pc, tries = unisample_pnts(None, None, -1, batch_data, FLAGS.res, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
+    elif FLAGS.unitype == "ball":
+        loc, norm, std, weights, gt_pc, tries = ballsample_pnts(None, None, -1, batch_data, FLAGS.res, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
+
     save_norm(loc, norm, os.path.join(FLAGS.outdir, "uni_l.ply"))
-    save_norm(loc, linearRect(loc, randomneg(norm)), os.path.join(FLAGS.outdir, "uni_l_rect.ply"))
 
     for i in range(FLAGS.rounds):
         if FLAGS.rounds > 2 and i == (FLAGS.rounds - 2):
@@ -389,6 +391,37 @@ def unisample_pnts(sess, ops, roundnum, batch_data, res, num, threshold=0.1, std
     ivts = uni_drcts[ind]
     _, uni_place, std = cal_std_loc(unigrid[ind], uni_ivts[ind], stdratio, stdlwb=stdlwb, stdupb=stdupb)
     return uni_place, -ivts, std, np.full(std.shape[0], 1), gt_pnts, tries
+
+def get_ballgrid(angles_num):
+    phi = np.linspace(0, np.pi, num=angles_num)
+    theta = np.linspace(0, 2 * np.pi, num=2 * angles_num)
+    x = np.outer(np.sin(theta), np.cos(phi)).reshape(-1)
+    y = np.outer(np.sin(theta), np.sin(phi)).reshape(-1)
+    z = np.outer(np.cos(theta), np.ones_like(phi)).reshape(-1)
+    return np.stack([x, y, z], axis=1)
+
+def ballsample_pnts(sess, ops, roundnum, angles_num, num, threshold=0.1, stdratio=10, stdlwb=0.0, stdupb=0.1):
+    gt_pnts, tries = get_normalized_mesh(batch_data["model_file"])
+    ballgrid = get_ballgrid(angles_num)
+    if not FLAGS.unionly:
+        inds = np.random.choice(ballgrid.shape[0], num * 8)
+        ballgrid = ballgrid[inds]  # uni_ivts = ct.gpu_calculate_ivt(unigrid, tries, gpu)
+    batch_data["pnts"] = np.array([ballgrid])
+    if sess is None:
+        ball_ivts = ct.gpu_calculate_ivt(batch_data["pnts"][0], tries, int(FLAGS.gpu))
+        ball_dist = np.linalg.norm(ball_ivts, axis=1, keepdims=True)
+        ball_drcts = ball_ivts / ball_dist
+        ball_dist = ball_dist.reshape((-1))
+        print("ball_ivts.shape, ball_drcts.shape", ball_ivts.shape, ball_drcts.shape)
+    else:
+        ball_ivts, ball_drcts = inference_batch(sess, ops, roundnum, batch_data)
+        ball_dist = np.linalg.norm(uni_ivts, axis=1)
+    ind = ball_dist <= threshold
+    # if FLAGS.unionly:
+    #     return unigrid[ind]+uni_ivts[ind], None, None, None, None
+    ivts = ball_drcts[ind]
+    _, ball_place, std = cal_std_loc(ballgrid[ind], ball_ivts[ind], stdratio, stdlwb=stdlwb, stdupb=stdupb)
+    return ball_place, -ivts, std, np.full(std.shape[0], 1), gt_pnts, tries
 
 
 def cal_std_loc(pnts, ivts, stdratio, stdlwb=0.0, stdupb=0.1):

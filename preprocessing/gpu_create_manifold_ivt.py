@@ -88,7 +88,7 @@ def gpu_calculate_ivt(points, tries, gpu, from_marchingcube):
         vcts_part = ptdcuda.closet(ivt, dist)
         vcts.append(vcts_part)
     else:
-        times = points.shape[0] * num_tries // (25000 * 6553 * 3) + 1
+        times = points.shape[0] * num_tries // (25000 * 6553) + 1
         span = points.shape[0] // times + 1
         vcts = []
         for i in range(times):
@@ -328,10 +328,11 @@ def create_ivt_obj(gpu, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_ref_di
             model_file = os.path.join(cat_mesh_dir, obj, "model.obj")
         else:
             model_file = os.path.join(cat_mesh_dir, obj, "models", "model_normalized.obj")
-        if normalize and (not os.path.exists(os.path.join(norm_mesh_sub_dir, "pc_norm.obj")) or not os.path.exists(os.path.join(norm_mesh_sub_dir, "pc_norm.txt"))):
+        if normalize and (not os.path.exists(os.path.join(norm_mesh_sub_dir, "pc_norm.obj")) or not os.path.exists(os.path.join(norm_mesh_sub_dir, "pc_norm.txt")) or not os.path.exists(os.path.join(norm_mesh_sub_dir, "pnt_{}.txt".format(pntnum)))):
             verts, faces, params, surfpoints, surfnormals, from_marchingcube = get_normalize_mesh(model_file, norm_mesh_sub_dir, ref_sub_dir, pntnum)
         else:
             verts, faces, surfpoints, surfnormals = get_mesh(norm_mesh_sub_dir)
+            from_marchingcube = os.path.exists(os.path.join(ref_sub_dir, "isosurf.obj"))
             params = np.loadtxt(os.path.join(norm_mesh_sub_dir, "pc_norm.txt"))
         surfchoice = np.random.randint(surfpoints.shape[0], size = int(surf_ratio*num_sample))
         surfpoints_sample = surfpoints[surfchoice,:]
@@ -393,7 +394,7 @@ def create_ivt(num_sample, pntnum, res, angles_num, cats, raw_dirs, lst_dir, uni
 
 def create_ivt_distribute(gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_ref_dir, list_obj, res, normalize, num_sample, pntnum, cat_id, version, unigrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist):
     for i in range(len(list_obj)):
-        create_ivt_obj(gpu, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_ref_dir, list_obj[i],
+        create_ivt_obj(gpu%4, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_ref_dir, list_obj[i],
             res, normalize, num_sample, pntnum, cat_id, version, unigrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist)
         print("finish {}/{} for {}".format(i,len(list_obj),catnm))
 
