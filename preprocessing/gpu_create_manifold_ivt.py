@@ -103,7 +103,7 @@ def gpu_calculate_ivt(points, tries, gpu, from_marchingcube):
             vcts.append(vcts_part)
             print("end ptdcuda: {}/{}".format(i+1, times))
     ivt_closest = vcts[0] if len(vcts) == 0 else np.concatenate(vcts, axis=0)
-    print("times", times, "ivt_closest.shape", ivt_closest.shape, "time diff:", time.time() - start)
+    print("ivt_closest.shape", ivt_closest.shape, "time diff:", time.time() - start)
     return ivt_closest
 
 # def closest_dist(points, tries, gpu):
