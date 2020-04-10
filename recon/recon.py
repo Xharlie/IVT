@@ -33,15 +33,15 @@ trimloc = "./../PoissonRecon/Bin/Linux/SurfaceTrimmer"
 # recfile = "uni_rec.ply"
 # finalfile = "uni_final.ply"
 
-# infile = "uni_loc.xyz"
-# normfile = "surf_loc0.ply"
-# recfile = "surf_loc0rec.ply"
-# finalfile = "surf_loc0_final.ply"
-
 infile = "uni_loc.xyz"
-normfile = "surf_face_norm.ply"
-recfile = "surf_face_normrec.ply"
-finalfile = "surf_face_norm_final.ply"
+normfile = "surf_loc3.ply"
+recfile = "surf_loc3rec.ply"
+finalfile = "surf_loc3_final.ply"
+
+# infile = "uni_loc.xyz"
+# normfile = "surf_face_norm.ply"
+# recfile = "surf_face_normrec.ply"
+# finalfile = "surf_face_norm_final.ply"
 
 
 trimD = 6

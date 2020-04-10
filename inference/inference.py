@@ -233,6 +233,7 @@ def gt_test(batch_data):
         # print("batch_data['pnts'].shape", batch_data['pnts'].shape)
         loc, norm, std, weights = nearsample_pnts(None, None, i, batch_data, tries, stdratio=FLAGS.stdratio, weightform=weightform, stdlwb=FLAGS.stdlwb[i+1], stdupb=FLAGS.stdupb[i+1])
         # print("pc.shape", pc.shape, "loc.shape", loc.shape, "std.shape", std.shape, "weights.shape", weights.shape)
+        np.savetxt(os.path.join(FLAGS.outdir, "surf_samp{}.txt".format(i)), pc, delimiter=";")
         save_norm(loc, norm, os.path.join(FLAGS.outdir, "surf_loc{}.ply".format(i)))
     sys.stdout.flush()
 
@@ -424,9 +425,10 @@ def cal_std_loc(pnts, ivts, stdratio, stdlwb=0.0, stdupb=0.1):
     loc = pnts + ivts
     # print("ivts.shape",ivts.shape)
     dist = np.linalg.norm(ivts, axis=1)
-
+    print("stdupb,stdlwb",stdupb,stdlwb)
     std = np.minimum(stdupb, np.maximum(stdlwb, dist / stdratio))
-    return dist, loc, np.tile(np.expand_dims(std, axis=1), (1, 3))
+    # print("np.amax(std)",np.amax(std))
+    return dist, loc, std
 
 
 def sample_from_MM(locs, norm, std, weights, nums, distr="gaussian", gridsize=-1.0):
@@ -443,6 +445,7 @@ def sample_from_MM(locs, norm, std, weights, nums, distr="gaussian", gridsize=-1
         inds = np.random.choice(weights.shape[0], nums, p=weights)
         sampled_pnts = np.zeros((nums, 3))
         if distr == "gaussian" or distr == "ball":
+            std = np.tile(np.expand_dims(std, axis=1), (1, 3))
             for i in range(nums):
                 ind = inds[i]
                 if distr == "gaussian":
@@ -452,7 +455,7 @@ def sample_from_MM(locs, norm, std, weights, nums, distr="gaussian", gridsize=-1
                 sampled_pnts[i, :] = p_loc
         else:
             back = float(distr)
-            sampled_pnts[:,:] = normback_sample(locs[inds], norm[inds], back, 0.05)
+            sampled_pnts[:,:] = normback_sample(locs[inds], norm[inds], std[inds], std[inds]*0.8)
         return sampled_pnts
     else:
         print("std == 0, no samples")
@@ -477,9 +480,9 @@ def ball_sample(xyzmean, radius):
     return xyzmean + uvw / denom * radius
 
 def normback_sample(xyzmean, norm, back, radius):
-    xyzmean = xyzmean + norm*back
+    xyzmean = xyzmean + np.multiply(norm,np.expand_dims(back, axis=1))
     num = xyzmean.shape[0]
-    r = radius * np.sqrt(np.random.uniform(0, 1, size=num))
+    r = np.multiply(radius, np.sqrt(np.random.uniform(0, 1, size=num)))
     a = np.random.uniform(0, np.pi * 2, size=num)
     xyzround = np.expand_dims(np.stack([np.multiply(r, np.cos(a)), np.multiply(r, np.sin(a)), np.zeros_like(r)], axis=1), axis=2)
     R = z_norm_matrix(norm)
@@ -531,7 +534,7 @@ def save_norm(loc, norm, outfile):
 if __name__ == "__main__":
     # nohup python -u inference.py --restore_model ../train/checkpoint/global_direct_surfaceonly/chair_evenweight --outdir  chair_drct_even_surfonly_uni --unionly &> global_direct_chair_surf_evenweight_uni.log &
 
-    # nohup python -u inference.py --gt --outdir  gt_noerrBall --unionly &> gt_uni.log &
+    # nohup python -u inference.py --gt --outdir  gt_noerrBall --unionly --stdupb 1.0 1.0 1.0 0.1 0 --stdlwb 0.08 0.04 0.003 0.001 0 &> gt_uni.log &
      # full set
 
     parser = argparse.ArgumentParser()
@@ -576,8 +579,8 @@ if __name__ == "__main__":
     parser.add_argument('--initnums', type=int, default=8096, help='initial sampled uni point numbers')
     parser.add_argument('--num_ratio', type=int, default=4, help='point numbers expansion each round')
     parser.add_argument('--stdratio', type=int, default=2, help='')
-    parser.add_argument('--stdupb', nargs='+', action='append', default=[0.1, 0.1, 0.03, 0.01, 0])
-    parser.add_argument('--stdlwb', nargs='+', action='append', default=[0.08, 0.04, 0.003, 0.001, 0])
+    parser.add_argument('--stdupb', nargs='+', action='store', default=[0.1, 0.1, 0.03, 0.01, 0])
+    parser.add_argument('--stdlwb', nargs='+', action='store', default=[0.08, 0.04, 0.003, 0.001, 0])
     # parser.add_argument('--stdupb', nargs='+', action='append', default=[0, 0])
     # parser.add_argument('--stdlwb', nargs='+', action='append', default=[0, 0])
     parser.add_argument('--distr', type=str, default="0.1", help='local points sampling: gaussian or ball')
@@ -589,6 +592,9 @@ if __name__ == "__main__":
     parser.add_argument('--gt', action='store_true')
 
     FLAGS = parser.parse_args()
+    FLAGS.stdupb = [float(i) for i in FLAGS.stdupb]
+    FLAGS.stdlwb = [float(i) for i in FLAGS.stdlwb]
+
     print(FLAGS)
 
     os.environ["CUDA_VISIBLE_DEVICES"] = FLAGS.gpu
