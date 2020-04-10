@@ -8,7 +8,8 @@ from mpl_toolkits.mplot3d import Axes3D
 import pycuda.driver as drv
 
 
-def pnts_tries_ivts(pnts, tries, gpu=0):
+
+def pnts_tries_ivts(pnts, tries, topk_tries=None, gpu=0):
     # print("gpu",gpu)
     # os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     # os.environ["CUDA_VISIBLE_DEVICES"]=str(gpu)
@@ -205,19 +206,41 @@ def pnts_tries_ivts(pnts, tries, gpu=0):
             dist[i] = ivt[3];
         }
     }
+    
+    __global__ void p2ttop(float *ivts, float *dist, float *pnts, float *tries, int pnt_num, int top_num)
+    {
+        int t_id = blockIdx.x * blockDim.x + threadIdx.x;
+        int p_id = t_id / top_num;
+        if (p_id < pnt_num) {
+            float triangle[9] = {tries[t_id*9], tries[t_id*9+1], tries[t_id*9+2],tries[t_id*9+3], tries[t_id*9+4], tries[t_id*9+5],tries[t_id*9+6], tries[t_id*9+7], tries[t_id*9+8]};
+            float point[3] = {pnts[p_id*3], pnts[p_id*3+1], pnts[p_id*3+2]};
+            float ivt[4];
+            closesPointOnTriangle(triangle, point, ivt);
+            ivts[t_id*3] = ivt[0];
+            ivts[t_id*3+1] = ivt[1];
+            ivts[t_id*3+2] = ivt[2];
+            dist[t_id] = ivt[3];
+        }
+    }
     """)
-    pnts_tries_ivt = mod.get_function("p2t")
+
     kMaxThreadsPerBlock = 1024
     pnt_num = pnts.shape[0]
-    tries_num = tries.shape[0]
-    gridSize = int((pnt_num * tries_num + kMaxThreadsPerBlock - 1) / kMaxThreadsPerBlock)
-    # print(gridSize*1024, np.int32(pnt_num)*tries_num)
-    ivt = np.zeros((pnt_num, tries_num, 3)).astype(np.float32)
-    dist = np.zeros((pnt_num, tries_num)).astype(np.float32)
-    # print(pnts[0],pnts[1],tries[0],tries[1])
-    pnts_tries_ivt(
-        drv.Out(ivt), drv.Out(dist), drv.In(np.float32(pnts)), drv.In(np.float32(tries)), np.int32(pnt_num), np.int32(tries_num),
-        block=(kMaxThreadsPerBlock,1,1), grid=(gridSize,1))
+
+    if topk_tries is not None:
+        top_num = topk_tries.shape[1]
+        ivt = np.zeros((pnt_num, top_num, 3)).astype(np.float32)
+        dist = 10.0 * np.ones((pnt_num, top_num)).astype(np.float32)
+        gridSize = int((pnt_num * top_num + kMaxThreadsPerBlock - 1) / kMaxThreadsPerBlock)
+        pnts_tries_ivt = mod.get_function("p2ttop")
+        pnts_tries_ivt(drv.Out(ivt), drv.Out(dist), drv.In(np.float32(pnts)), drv.In(np.float32(topk_tries)),np.int32(pnt_num), np.int32(top_num), block=(kMaxThreadsPerBlock, 1, 1), grid=(gridSize, 1))
+    else:
+        tries_num = tries.shape[0]
+        ivt = np.zeros((pnt_num, tries_num, 3)).astype(np.float32)
+        dist = 10.0 * np.ones((pnt_num, tries_num)).astype(np.float32)
+        gridSize = int((pnt_num * tries_num + kMaxThreadsPerBlock - 1) / kMaxThreadsPerBlock)
+        pnts_tries_ivt = mod.get_function("p2t")
+        pnts_tries_ivt(drv.Out(ivt), drv.Out(dist), drv.In(np.float32(pnts)), drv.In(np.float32(tries)), np.int32(pnt_num), np.int32(tries_num), block=(kMaxThreadsPerBlock,1,1), grid=(gridSize,1))
     # print("ivt[0,0,:]", ivt[0,0,:])
     if gpu >= 0: 
         ctx1.pop()
@@ -232,6 +255,60 @@ def pnts_tries_ivts(pnts, tries, gpu=0):
     # print("PP2", PP2)
     # print("PP3", PP3)
     return ivt, dist
+
+def cal_topkind(pnts, avg_points, gpu=0):
+    if gpu < 0:
+        import pycuda.autoinit
+    else:
+        drv.init()
+        dev1 = drv.Device(gpu)
+        ctx1 = dev1.make_context()
+
+    mod = SourceModule("""
+    __global__ void topk(int *topk_ind, float *pnts, float *avg_points, int pnt_num, int tries_num)
+    {
+        int p_id = blockIdx.x * blockDim.x + threadIdx.x;
+        if (p_id < pnt_num) {
+            float topv[10]={10.0,10.0,10.0,10.0,10.0,10.0,10.0,10.0,10.0,10.0}; 
+            float topi[10]={INT_MAX,INT_MAX,INT_MAX,INT_MAX,INT_MAX,INT_MAX,INT_MAX,INT_MAX,INT_MAX,INT_MAX}; 
+            float x_dist, y_dist, z_dist, dist, exchangedist;
+            int distind, exchangeind; 
+            for (int t_id=0; t_id<tries_num; t_id++){
+                x_dist = pnts[p_id*3] - avg_points[t_id*3];
+                y_dist = pnts[p_id*3+1] - avg_points[t_id*3+1];
+                z_dist = pnts[p_id*3+2] - avg_points[t_id*3+2];
+                dist = sqrt(x_dist*x_dist + y_dist*y_dist + z_dist*z_dist);
+                distind = t_id;
+                for (int ind=0; ind<10; ind++){
+                    if (topv[ind] > dist){
+                        exchangedist = topv[ind];
+                        topv[ind] = dist;
+                        dist = exchangedist;
+                        exchangeind = topi[ind];
+                        topi[ind] = distind;
+                        distind = exchangeind;
+                    }
+                    if (t_id==tries_num-1){
+                        topk_ind[p_id*5+ind] = topi[ind];
+                    }
+                }
+            }
+        }
+    }
+    """)
+    kMaxThreadsPerBlock = 1024
+    pnt_num = pnts.shape[0]
+    tries_num = avg_points.shape[0]
+    print(avg_points.shape)
+    gridSize = int((pnt_num + kMaxThreadsPerBlock - 1) / kMaxThreadsPerBlock)
+    topk_ind = np.zeros((pnt_num, 10)).astype(np.int32)
+    pnts_tries_ivt = mod.get_function("topk")
+    print(np.int32(tries_num))
+    pnts_tries_ivt(drv.Out(topk_ind), drv.In(np.float32(pnts)), drv.In(np.float32(avg_points)), np.int32(pnt_num),
+                   np.int32(tries_num), block=(kMaxThreadsPerBlock, 1, 1), grid=(gridSize, 1))
+    if gpu >= 0:
+        ctx1.pop()
+    return topk_ind
 
 def closet(ivt, dist):
     # index = (np.arange(ivt.shape[0]) * dist.shape[1] + np.argmin(dist, axis=1))[:,np.newaxis]

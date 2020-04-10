@@ -72,59 +72,44 @@ def thresh_edge_tries(tries, edge_thresh=0.02):
     largetries = tries[edgetries>edge_thresh]
     return largetries
 
-def rank_dist_tries(points, tries, rank_thresh=100):
-    avg_points = np.mean(tries, axis=1)
-    span = 5000 * 26500 // points.shape[0]
-    ind_lst=[]
-    points_tries = np.tile(np.expand_dims(points, axis=1),(1,span,1))
-    part_thresh = rank_thresh
-    if tries.shape[0] > 800000:
-        print("tries.shape[0] > 800000:",tries.shape[0])
-        part_thresh = rank_thresh // 10
-    for i in range(avg_points.shape[0]//span+1):
-        avg_point = avg_points[span*i:min((i+1)*span,avg_points.shape[0])]
-        if avg_point.shape[0] != span:
-            points_tries = np.tile(np.expand_dims(points, axis=1),(1,avg_point.shape[0],1))
-        dist = np.linalg.norm(points_tries - np.expand_dims(avg_point, axis=0), axis=2)
-        if dist.shape[1] > part_thresh:
-            ind_close = np.argpartition(dist, part_thresh)
-            ind_close = ind_close[:,:part_thresh]
-        else:
-            ind_close = np.tile(np.expand_dims(np.arange(dist.shape[1]), axis=0),(dist.shape[0],1))
-        # print(ind_close.shape)
-        ind_close = ind_close+span*i
-        ind_lst.append(ind_close)
-    inds = np.concatenate(ind_lst,axis=1)    
-    close_tries = tries[inds]
-    avg_point = np.mean(close_tries, axis=2)
-    points_tries = np.tile(np.expand_dims(points, axis=1),(1,close_tries.shape[1],1))
-    dist = np.linalg.norm(points_tries - avg_point, axis=2)
-    if dist.shape[1] > rank_thresh:
-        ind_close = np.argpartition(dist, rank_thresh)
-        ind_close = ind_close[:,:rank_thresh]
-    else:
-        ind_close = np.tile(np.expand_dims(np.arange(dist.shape[1]), axis=0),(dist.shape[0],1))
-    first_index = np.tile(np.expand_dims(np.arange(ind_close.shape[0]), axis=1),(1,rank_thresh))
-    close_tries=close_tries[first_index,ind_close]
-    return close_tries
-
-def gpu_calculate_ivt(points, tries, gpu):
+def gpu_calculate_ivt(points, tries, gpu, from_marchingcube):
     start = time.time()
     num_tries = tries.shape[0]
-    times = points.shape[0] * num_tries // (25000 * 6553 * 4) + 1
-    span = points.shape[0] // times + 1
     vcts = []
-    for i in range(times):
-        smindx = i * span
-        lgindx = min(points.shape[0], (i+1) * span)
-        pnts = points[smindx:lgindx,:]
-        ivt, dist = ptdcuda.pnts_tries_ivts(pnts, tries, gpu=gpu)
+    if from_marchingcube:
+        ind_start = time.time()
+        avg_points = np.mean(tries, axis=1)
+        topk_ind = ptdcuda.cal_topkind(points, avg_points, gpu=gpu)
+        topk_tries = np.take(tries, topk_ind, axis=0)
+        print("finish, pick top5_ind", topk_ind.shape, topk_tries.shape, "time diff:", time.time() - ind_start)
+        ivtround_start = time.time()
+        ivt, dist = ptdcuda.pnts_tries_ivts(points, None, topk_tries=topk_tries, gpu=gpu)
+        print("finish ptdcuda ivt, dist:", ivt.shape, dist.shape, "time diff:", time.time() - ivtround_start)
         vcts_part = ptdcuda.closet(ivt, dist)
         vcts.append(vcts_part)
-        print("ptdcuda: {}/{}".format(i+1, times))
+    else:
+        times = points.shape[0] * num_tries // (25000 * 6553 * 3) + 1
+        span = points.shape[0] // times + 1
+        vcts = []
+        for i in range(times):
+            print("start ptdcuda: {}/{}".format(i + 1, times))
+            smindx = i * span
+            lgindx = min(points.shape[0], (i+1) * span)
+            pnts = points[smindx:lgindx,:]
+            ivtround_start = time.time()
+            ivt, dist = ptdcuda.pnts_tries_ivts(pnts, tries, gpu=gpu)
+            print("finish, ivt, dist", ivt.shape, dist.shape, "time diff:", time.time() - ivtround_start)
+            vcts_part = ptdcuda.closet(ivt, dist)
+            vcts.append(vcts_part)
+            print("end ptdcuda: {}/{}".format(i+1, times))
     ivt_closest = vcts[0] if len(vcts) == 0 else np.concatenate(vcts, axis=0)
     print("times", times, "ivt_closest.shape", ivt_closest.shape, "time diff:", time.time() - start)
     return ivt_closest
+
+# def closest_dist(points, tries, gpu):
+#     min_dists = ptdcuda.cal_dist(points, avg_points, gpu=gpu)
+#     return min_dists
+
 
 def get_plane_abcd(tries):
     v1 = tries[:,2,:] - tries[:,0,:]
@@ -190,7 +175,7 @@ def calculate_ivt_single(planes, e, point, tries):
 #         return False
 
 
-def create_h5_ivt_pt(gpu, cat_id, h5_file, verts, faces, surfpoints_sample, surfnormals_sample, ball_samples, ungridsamples, norm_params, ivt_res, num_sample, uni_ratio):
+def create_h5_ivt_pt(gpu, cat_id, h5_file, verts, faces, surfpoints_sample, surfnormals_sample, ball_samples, ungridsamples, norm_params, ivt_res, num_sample, uni_ratio, from_marchingcube):
     if faces.shape[0] > 2000000:
         print(cat_id,h5_file,"is too big!!! faces_size", faces.shape[0])
         return
@@ -200,9 +185,9 @@ def create_h5_ivt_pt(gpu, cat_id, h5_file, verts, faces, surfpoints_sample, surf
     ball_samples = add_jitters(ball_samples, std=0.01, type="uniform")
     ungridsamples = add_jitters(ungridsamples, std=0.005, type="uniform")
     surfpoints_sample = add_normal_jitters(surfpoints_sample, surfnormals_sample, height=0.1)
-    uni_ivts = gpu_calculate_ivt(ungridsamples, tries,gpu)  # (N*8)x4 (x,y,z)
-    sphere_ivts = gpu_calculate_ivt(ball_samples, tries,gpu)  # (N*8)x4 (x,y,z)
-    surf_ivts = gpu_calculate_ivt(surfpoints_sample, tries, gpu)  # (N*8)x4 (x,y,z)
+    sphere_ivts = gpu_calculate_ivt(ball_samples, tries,gpu,from_marchingcube)  # (N*8)x4 (x,y,z)
+    uni_ivts = gpu_calculate_ivt(ungridsamples, tries,gpu,from_marchingcube)  # (N*8)x4 (x,y,z)
+    surf_ivts = gpu_calculate_ivt(surfpoints_sample, tries, gpu,from_marchingcube)  # (N*8)x4 (x,y,z)
     print("start to write", h5_file)
     f1 = h5py.File(h5_file, 'w')
     f1.create_dataset('uni_pnts', data=ungridsamples.astype(np.float32), compression='gzip', compression_opts=4)
@@ -227,7 +212,6 @@ def get_normalize_mesh(model_file, norm_mesh_sub_dir, ref_sub_dir, pntnum):
     mesh_list = trimesh.load_mesh(model_file, process=False)
     if not isinstance(mesh_list, list):
         mesh_list = [mesh_list]
-
     area_sum = 0
     area_lst = []
     for idx, mesh in enumerate(mesh_list):
@@ -256,11 +240,14 @@ def get_normalize_mesh(model_file, norm_mesh_sub_dir, ref_sub_dir, pntnum):
     params = np.concatenate([centroid, np.expand_dims(m, axis=0)])
     np.savetxt(param_file, params)
     print("export_mesh", obj_file)
+    from_marchingcube = False
     if not os.path.exists(ref_file):
         ori_mesh = pymesh.load_mesh(model_file)
         print("centroid, m", centroid, m)
     else:
+        from_marchingcube = True
         mesh_list = trimesh.load_mesh(ref_file, process=False)
+        print("trimesh_load ref_file:", ref_file)
         if not isinstance(mesh_list, list):
             mesh_list = [mesh_list]
         area_sum = 0
@@ -291,7 +278,7 @@ def get_normalize_mesh(model_file, norm_mesh_sub_dir, ref_sub_dir, pntnum):
     pntchoice = np.random.randint(surfpoints.shape[0], size=pntnum)
     np.savetxt(pnt_file, np.concatenate([surfpoints[pntchoice], face_norm_all[pntchoice]], axis=1), delimiter=';')
     print("export_pntnorm", pnt_file)
-    return verts, ori_mesh.faces, params, surfpoints, face_norm_all
+    return verts, ori_mesh.faces, params, surfpoints, face_norm_all, from_marchingcube
 
 def find_normal(index, mesh):
     all_face_normals = mesh.face_normals
@@ -342,7 +329,7 @@ def create_ivt_obj(gpu, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_ref_di
         else:
             model_file = os.path.join(cat_mesh_dir, obj, "models", "model_normalized.obj")
         if normalize and (not os.path.exists(os.path.join(norm_mesh_sub_dir, "pc_norm.obj")) or not os.path.exists(os.path.join(norm_mesh_sub_dir, "pc_norm.txt"))):
-            verts, faces, params, surfpoints, surfnormals = get_normalize_mesh(model_file, norm_mesh_sub_dir, ref_sub_dir, pntnum)
+            verts, faces, params, surfpoints, surfnormals, from_marchingcube = get_normalize_mesh(model_file, norm_mesh_sub_dir, ref_sub_dir, pntnum)
         else:
             verts, faces, surfpoints, surfnormals = get_mesh(norm_mesh_sub_dir)
             params = np.loadtxt(os.path.join(norm_mesh_sub_dir, "pc_norm.txt"))
@@ -351,7 +338,7 @@ def create_ivt_obj(gpu, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_ref_di
         surfnormals_sample = surfnormals[surfchoice,:]
         ungridsamples = sample_uni(ungrid, int(uni_ratio*num_sample))
         ball_samples = sample_balluni(ballgrid, int((1.0-uni_ratio-surf_ratio)*num_sample))
-        create_h5_ivt_pt(gpu, cat_id, h5_file, verts, faces, surfpoints_sample, surfnormals_sample, ball_samples, ungridsamples, params, res, num_sample, uni_ratio)
+        create_h5_ivt_pt(gpu, cat_id, h5_file, verts, faces, surfpoints_sample, surfnormals_sample, ball_samples, ungridsamples, params, res, num_sample, uni_ratio, from_marchingcube)
 
 def create_ivt(num_sample, pntnum, res, angles_num, cats, raw_dirs, lst_dir, uni_ratio=0.3, surf_ratio=0.4, normalize=True, version=1, skip_all_exist=False):
 
@@ -401,7 +388,7 @@ def create_ivt(num_sample, pntnum, res, angles_num, cats, raw_dirs, lst_dir, uni
                 vcts_part = parallel(delayed(create_ivt_distribute)
                     (gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_ref_dir, list_obj, res, normalize, num_sample, pntnum, cat_id, version, unigrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist) for gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_ref_dir, list_obj, res, normalize, num_sample, pntnum, cat_id, version, unigrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist in zip(gpu_lst, catnm_lst, cat_mesh_dir_lst, cat_norm_mesh_dir_lst, cat_ivt_dir_lst, cat_ref_dir_lst, list_objs, res_lst, normalize_lst, num_sample_lst, pntnum_lst, cat_id_lst, version_lst, unigrid_lst, ballgrid_lst, uni_ratio_lst, surf_ratio_lst, skip_all_exist_lst))
         else:
-            vcts_part = create_ivt_distribute(-1, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, list_objs[0], res, normalize, num_sample, cat_id, version, unigrid, uni_ratio, skip_all_exist)
+            vcts_part = create_ivt_distribute(-1, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_ref_dir, list_objs[0], res, normalize, num_sample, pntnum, cat_id, version, unigrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist)
     print("finish all")
 
 def create_ivt_distribute(gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_ref_dir, list_obj, res, normalize, num_sample, pntnum, cat_id, version, unigrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist):
