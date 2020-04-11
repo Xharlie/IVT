@@ -236,7 +236,7 @@ def get_normalize_mesh(model_file, norm_mesh_sub_dir, ref_sub_dir, pntnum):
     m = np.max(np.sqrt(np.sum(points_all ** 2, axis=1)))
     obj_file = os.path.join(norm_mesh_sub_dir, "pc_norm.obj")
     param_file = os.path.join(norm_mesh_sub_dir, "pc_norm.txt")
-    pnt_file = os.path.join(norm_mesh_sub_dir, "pnt_{}.txt".format(pntnum))
+    pnt_file = os.path.join(norm_mesh_sub_dir, "pnt_{}.h5".format(pntnum))
     params = np.concatenate([centroid, np.expand_dims(m, axis=0)])
     np.savetxt(param_file, params)
     print("export_mesh", obj_file)
@@ -276,7 +276,9 @@ def get_normalize_mesh(model_file, norm_mesh_sub_dir, ref_sub_dir, pntnum):
     verts = (ori_mesh.vertices - centroid) / float(m)
     pymesh.save_mesh_raw(obj_file, verts, ori_mesh.faces)
     pntchoice = np.random.randint(surfpoints.shape[0], size=pntnum)
-    np.savetxt(pnt_file, np.concatenate([surfpoints[pntchoice], face_norm_all[pntchoice]], axis=1), delimiter=';')
+    with h5py.File(pnt_file, 'w') as f1:
+        f1.create_dataset('pnt', data=surfpoints[pntchoice].astype(np.float32), compression='gzip', compression_opts=4)
+        f1.create_dataset('normal', data=face_norm_all[pntchoice].astype(np.float32), compression='gzip', compression_opts=4)
     print("export_pntnorm", pnt_file)
     return verts, ori_mesh.faces, params, surfpoints, face_norm_all, from_marchingcube
 
@@ -328,7 +330,7 @@ def create_ivt_obj(gpu, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_ref_di
             model_file = os.path.join(cat_mesh_dir, obj, "model.obj")
         else:
             model_file = os.path.join(cat_mesh_dir, obj, "models", "model_normalized.obj")
-        if normalize and (not os.path.exists(os.path.join(norm_mesh_sub_dir, "pc_norm.obj")) or not os.path.exists(os.path.join(norm_mesh_sub_dir, "pc_norm.txt")) or not os.path.exists(os.path.join(norm_mesh_sub_dir, "pnt_{}.txt".format(pntnum)))):
+        if normalize and (not os.path.exists(os.path.join(norm_mesh_sub_dir, "pc_norm.obj")) or not os.path.exists(os.path.join(norm_mesh_sub_dir, "pc_norm.txt")) or not os.path.exists(os.path.join(norm_mesh_sub_dir, "pnt_{}.h5".format(pntnum)))):
             verts, faces, params, surfpoints, surfnormals, from_marchingcube = get_normalize_mesh(model_file, norm_mesh_sub_dir, ref_sub_dir, pntnum)
         else:
             verts, faces, surfpoints, surfnormals = get_mesh(norm_mesh_sub_dir)
@@ -434,15 +436,15 @@ if __name__ == "__main__":
             FLAGS.category:cats[FLAGS.category]
         }
 
-    create_ivt(32768*3, 8192, 0.01, 100, cats, raw_dirs, lst_dir, uni_ratio=0.3, surf_ratio=0.4, normalize=True, version=1, skip_all_exist=True)
+    # create_ivt(32768*3, 163840, 0.01, 100, cats, raw_dirs, lst_dir, uni_ratio=0.3, surf_ratio=0.4, normalize=True, version=1, skip_all_exist=True)
 
-    # unigrid = get_unigrid(0.01)
-    # ballgrid = get_ballgrid(100)
-    #
-    # print("unigrid.shape, ballgrid.shape", unigrid.shape, ballgrid.shape)
-    #
-    # create_ivt_obj(0, "/ssd1/datasets/ShapeNet/ShapeNetCore.v1/03001627", "./test/1/", "./test/1/", "/hdd_extra1/datasets/ShapeNet/march_cube_objs_v1/03001627", "17e916fc863540ee3def89b32cef8e45", 0.01, True, 32768*3, 8192, "03001627", 1, unigrid, ballgrid, 0.3, 0.4, True)
-    #
+    unigrid = get_unigrid(0.01)
+    ballgrid = get_ballgrid(100)
+
+    print("unigrid.shape, ballgrid.shape", unigrid.shape, ballgrid.shape)
+
+    create_ivt_obj(0, "/ssd1/datasets/ShapeNet/ShapeNetCore.v1/03001627", "./test/1/", "./test/1/", "/hdd_extra1/datasets/ShapeNet/march_cube_objs_v1/03001627", "17e916fc863540ee3def89b32cef8e45", 0.01, True, 32768*3, 163840, "03001627", 1, unigrid, ballgrid, 0.3, 0.4, True)
+
     # create_ivt_obj(1, "/ssd1/datasets/ShapeNet/ShapeNetCore.v1/02958343",
     #                "./test/2/", "./test/2/",
     #                "/hdd_extra1/datasets/ShapeNet/march_cube_objs_v1/02958343", "1a7125aefa9af6b6597505fd7d99b613", 0.01, True,
