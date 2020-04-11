@@ -436,14 +436,14 @@ if __name__ == "__main__":
             FLAGS.category:cats[FLAGS.category]
         }
 
-    # create_ivt(32768*3, 163840, 0.01, 100, cats, raw_dirs, lst_dir, uni_ratio=0.3, surf_ratio=0.4, normalize=True, version=1, skip_all_exist=True)
+    create_ivt(32768*3, 163840, 0.01, 100, cats, raw_dirs, lst_dir, uni_ratio=0.4, surf_ratio=0.4, normalize=True, version=1, skip_all_exist=True)
 
-    unigrid = get_unigrid(0.01)
-    ballgrid = get_ballgrid(100)
-
-    print("unigrid.shape, ballgrid.shape", unigrid.shape, ballgrid.shape)
-
-    create_ivt_obj(0, "/ssd1/datasets/ShapeNet/ShapeNetCore.v1/03001627", "./test/1/", "./test/1/", "/hdd_extra1/datasets/ShapeNet/march_cube_objs_v1/03001627", "17e916fc863540ee3def89b32cef8e45", 0.01, True, 32768*3, 163840, "03001627", 1, unigrid, ballgrid, 0.3, 0.4, True)
+    # unigrid = get_unigrid(0.01)
+    # ballgrid = get_ballgrid(100)
+    #
+    # print("unigrid.shape, ballgrid.shape", unigrid.shape, ballgrid.shape)
+    #
+    # create_ivt_obj(0, "/ssd1/datasets/ShapeNet/ShapeNetCore.v1/03001627", "./test/1/", "./test/1/", "/hdd_extra1/datasets/ShapeNet/march_cube_objs_v1/03001627", "17e916fc863540ee3def89b32cef8e45", 0.01, True, 32768*3, 163840, "03001627", 1, unigrid, ballgrid, 0.3, 0.4, True)
 
     # create_ivt_obj(1, "/ssd1/datasets/ShapeNet/ShapeNetCore.v1/02958343",
     #                "./test/2/", "./test/2/",
