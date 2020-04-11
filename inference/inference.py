@@ -424,7 +424,7 @@ def cal_std_loc(pnts, ivts, stdratio, stdlwb=0.0, stdupb=0.1):
     # print("ivts.shape",ivts.shape)
     dist = np.linalg.norm(ivts, axis=1)
     print("stdupb,stdlwb",stdupb,stdlwb)
-    std = np.minimum(stdupb, np.maximum(stdlwb, dist / stdratio))
+    std = np.minimum(stdupb, np.maximum(np.minimum(stdlwb, dist), dist / stdratio))
     # print("np.amax(std)",np.amax(std))
     return dist, loc, std
 
@@ -544,7 +544,7 @@ def save_norm(loc, norm, outfile):
 if __name__ == "__main__":
     # nohup python -u inference.py --restore_model ../train/checkpoint/global_direct_surfaceonly/chair_evenweight --outdir  chair_drct_even_surfonly_uni --unionly &> global_direct_chair_surf_evenweight_uni.log &
 
-    # nohup python -u inference.py --gt --outdir  gt_noerrBall --unionly --stdupb 0.3 0.3 0.2 0.1 0.05 --stdlwb 0.01 0.01 0.01 0.00 0.00 &> gt_uni.log &
+    # nohup python -u inference.py --gt --outdir  gt_noerrBall --unionly --stdupb 0.3 0.3 0.2 0.1 0.05 --stdlwb 0.01 0.01 0.01 0.01 0.01 &> gt_uni.log &
      # full set
 
     parser = argparse.ArgumentParser()
@@ -587,7 +587,7 @@ if __name__ == "__main__":
     parser.add_argument('--res', type=float, default=0.01, help='cube resolution')
     parser.add_argument('--anglenums', type=int, default=400, help='angle resolution')
     parser.add_argument('--initnums', type=int, default=8096, help='initial sampled uni point numbers')
-    parser.add_argument('--num_ratio', type=int, default=4, help='point numbers expansion each round')
+    parser.add_argument('--num_ratio', type=int, default=8, help='point numbers expansion each round')
     parser.add_argument('--stdratio', type=int, default=4, help='')
     parser.add_argument('--stdupb', nargs='+', action='store', default=[0.1, 0.1, 0.03, 0.01, 0])
     parser.add_argument('--stdlwb', nargs='+', action='store', default=[0.08, 0.04, 0.003, 0.001, 0])
