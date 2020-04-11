@@ -81,7 +81,7 @@ def gpu_calculate_ivt(points, tries, gpu, from_marchingcube):
         avg_points = np.mean(tries, axis=1)
         topk_ind = ptdcuda.cal_topkind(points, avg_points, gpu=gpu)
         topk_tries = np.take(tries, topk_ind, axis=0)
-        print("finish, pick top5_ind", topk_ind.shape, topk_tries.shape, "time diff:", time.time() - ind_start)
+        print("finish, pick topk_ind", topk_ind.shape, topk_tries.shape, "time diff:", time.time() - ind_start)
         ivtround_start = time.time()
         ivt, dist = ptdcuda.pnts_tries_ivts(points, None, topk_tries=topk_tries, gpu=gpu)
         print("finish ptdcuda ivt, dist:", ivt.shape, dist.shape, "time diff:", time.time() - ivtround_start)

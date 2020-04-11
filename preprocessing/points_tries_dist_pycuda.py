@@ -272,11 +272,14 @@ def cal_topkind(pnts, avg_points, gpu=0):
             float topv[10]={10.0,10.0,10.0,10.0,10.0,10.0,10.0,10.0,10.0,10.0}; 
             float topi[10]={INT_MAX,INT_MAX,INT_MAX,INT_MAX,INT_MAX,INT_MAX,INT_MAX,INT_MAX,INT_MAX,INT_MAX}; 
             float x_dist, y_dist, z_dist, dist, exchangedist;
+            float px = pnts[p_id*3];
+            float py = pnts[p_id*3+1];
+            float pz = pnts[p_id*3+2];
             int distind, exchangeind; 
             for (int t_id=0; t_id<tries_num; t_id++){
-                x_dist = pnts[p_id*3] - avg_points[t_id*3];
-                y_dist = pnts[p_id*3+1] - avg_points[t_id*3+1];
-                z_dist = pnts[p_id*3+2] - avg_points[t_id*3+2];
+                x_dist = px - avg_points[t_id*3];
+                y_dist = py - avg_points[t_id*3+1];
+                z_dist = pz - avg_points[t_id*3+2];
                 dist = sqrt(x_dist*x_dist + y_dist*y_dist + z_dist*z_dist);
                 distind = t_id;
                 for (int ind=0; ind<10; ind++){
@@ -288,8 +291,8 @@ def cal_topkind(pnts, avg_points, gpu=0):
                         topi[ind] = distind;
                         distind = exchangeind;
                     }
-                    if (t_id==tries_num-1){
-                        topk_ind[p_id*5+ind] = topi[ind];
+                    if (t_id==(tries_num-1)){
+                        topk_ind[p_id*10+ind] = topi[ind];
                     }
                 }
             }
