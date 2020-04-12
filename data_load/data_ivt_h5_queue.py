@@ -105,29 +105,38 @@ class Pt_sdf_img(threading.Thread):
 
     def getitem(self, index):
         cat_id, obj, num = self.listinfo[index]
-        sdf_file = self.get_ivt_h5_filenm(cat_id, obj)
-        uni_pnts, surf_pnts, uni_ivts, surf_ivts, norm_params = self.get_ivt_h5(sdf_file, cat_id, obj)
+        ivt_file = self.get_ivt_h5_filenm(cat_id, obj)
+        uni_pnts, surf_pnts, sphere_pnts, uni_ivts, surf_ivts, sphere_ivts, norm_params = self.get_ivt_h5(ivt_file, cat_id, obj)
         img_dir, img_file_lst = self.get_img_dir(cat_id, obj)
-        return uni_pnts, surf_pnts, uni_ivts, surf_ivts, norm_params, img_dir, img_file_lst, cat_id, obj, num
+        return uni_pnts, surf_pnts, sphere_pnts, uni_ivts, surf_ivts, sphere_ivts, norm_params, img_dir, img_file_lst, cat_id, obj, num
 
     def get_ivt_h5(self, ivt_h5_file, cat_id, obj):
         # print(ivt_h5_file)
         h5_f = h5py.File(ivt_h5_file, 'r')
+        uni_pnts, surf_pnts, sphere_pnts, uni_ivts, surf_ivts, sphere_ivts = None, None, None, None, None, None
         try:
-            if ('uni_pnts' in h5_f.keys()
-                and 'uni_ivts' in h5_f.keys()
-                and 'surf_pnts' in h5_f.keys()
-                and 'surf_ivts' in h5_f.keys()):
-                uni_pnts = h5_f['uni_pnts'][:].astype(np.float32)
-                surf_pnts = h5_f['surf_pnts'][:].astype(np.float32)
-                uni_ivts = h5_f['uni_ivts'][:].astype(np.float32)
-                surf_ivts = h5_f['surf_ivts'][:].astype(np.float32)
-                norm_params = h5_f['norm_params'][:].astype(np.float32)
-            else:
-                raise Exception(cat_id, obj, "no ivt and sample")
+            norm_params = h5_f['norm_params'][:].astype(np.float32)
+            if self.FLAGS.uni_num >0:
+                if 'uni_pnts' in h5_f.keys() and 'uni_ivts' in h5_f.keys():
+                    uni_pnts = h5_f['uni_pnts'][:].astype(np.float32)
+                    uni_ivts = h5_f['uni_ivts'][:].astype(np.float32)
+                else:
+                    raise Exception(cat_id, obj, "no uni ivt and sample")
+            if self.FLAGS.num_pnts - self.FLAGS.uni_num - self.FLAGS.sphere_num >0:
+                if ('surf_pnts' in h5_f.keys() and 'surf_ivts' in h5_f.keys()):
+                    surf_pnts = h5_f['surf_pnts'][:].astype(np.float32)
+                    surf_ivts = h5_f['surf_ivts'][:].astype(np.float32)
+                else:
+                    raise Exception(cat_id, obj, "no surf ivt and sample")
+            if self.FLAGS.sphere_num > 0:
+                if ('sphere_pnts' in h5_f.keys() and 'sphere_ivts' in h5_f.keys()):
+                    sphere_pnts = h5_f['sphere_pnts'][:].astype(np.float32)
+                    sphere_ivts = h5_f['sphere_ivts'][:].astype(np.float32)
+                else:
+                    raise Exception(cat_id, obj, "no uni ivt and sample")
         finally:
             h5_f.close()
-        return uni_pnts, surf_pnts, uni_ivts, surf_ivts, norm_params
+        return uni_pnts, surf_pnts, sphere_pnts, uni_ivts, surf_ivts, sphere_ivts, norm_params
 
     # def get_img_old(self, img_dir, num, file_lst):
     #     params = np.loadtxt(img_dir + "/rendering_metadata.txt")
@@ -240,18 +249,33 @@ class Pt_sdf_img(threading.Thread):
             single_obj = self.getitem(self.order[i])
             if single_obj == None:
                 raise Exception("single mesh is None!")
-            uni_pnts, surf_pnts, uni_ivts, surf_ivts, norm_params, img_dir, img_file_lst, cat_id, obj, num = single_obj
+            uni_pnts, surf_pnts, sphere_pnts, uni_ivts, surf_ivts, sphere_ivts, norm_params, img_dir, img_file_lst, cat_id, obj, num = single_obj
             img, trans_mat, obj_rot_mat = self.get_img(img_dir, num)
-            if self.FLAGS.uni_num > uni_pnts.shape[0]:
-                uni_choice = np.random.randint(uni_pnts.shape[0], size=self.FLAGS.uni_num)
-            else:
-                uni_choice = np.asarray(random.sample(range(uni_pnts.shape[0]), self.FLAGS.uni_num), dtype=np.int32)
-            if (self.FLAGS.num_pnts - self.FLAGS.uni_num) > surf_pnts.shape[0]:
-                surf_choice = np.random.randint(surf_pnts.shape[0], size=self.FLAGS.num_pnts-self.FLAGS.uni_num)
-            else:
-                surf_choice = np.asarray(random.sample(range(surf_pnts.shape[0]), self.FLAGS.num_pnts-self.FLAGS.uni_num), dtype=np.int32)
-            batch_pnts[cnt, ...] = np.concatenate([uni_pnts[uni_choice, :], surf_pnts[surf_choice, :]],axis=0)
-            batch_ivts[cnt, ...] = np.concatenate([uni_ivts[uni_choice, :], surf_ivts[surf_choice, :]],axis=0)
+            pnts = np.zeros((0, 3))
+            ivts = np.zeros((0, 3))
+            if self.FLAGS.uni_num > 0:
+                if self.FLAGS.uni_num > uni_pnts.shape[0]:
+                    uni_choice = np.random.randint(uni_pnts.shape[0], size=self.FLAGS.uni_num)
+                else:
+                    uni_choice = np.asarray(random.sample(range(uni_pnts.shape[0]), self.FLAGS.uni_num), dtype=np.int32)
+                pnts = np.concatenate([pnts, uni_pnts[uni_choice, :]],axis=0)
+                ivts = np.concatenate([ivts, uni_ivts[uni_choice, :]],axis=0)
+            if self.FLAGS.sphere_num > 0:
+                if self.FLAGS.sphere_num > sphere_pnts.shape[0]:
+                    sphere_choice = np.random.randint(sphere_pnts.shape[0], size=self.FLAGS.sphere_num)
+                else:
+                    sphere_choice = np.asarray( random.sample(range(sphere_pnts.shape[0]), self.FLAGS.sphere_num), dtype=np.int32)
+                pnts = np.concatenate([pnts, sphere_pnts[sphere_choice, :]], axis=0)
+                ivts = np.concatenate([ivts, sphere_ivts[sphere_choice, :]], axis=0)
+            if (self.FLAGS.num_pnts - self.FLAGS.uni_num - self.FLAGS.sphere_num) > 0:
+                if (self.FLAGS.num_pnts - self.FLAGS.uni_num - self.FLAGS.sphere_num) > surf_pnts.shape[0]:
+                    surf_choice = np.random.randint(surf_pnts.shape[0], size=self.FLAGS.num_pnts-self.FLAGS.uni_num- self.FLAGS.sphere_num)
+                else:
+                    surf_choice = np.asarray(random.sample(range(surf_pnts.shape[0]), self.FLAGS.num_pnts-self.FLAGS.uni_num- self.FLAGS.sphere_num), dtype=np.int32)
+                pnts = np.concatenate([pnts, surf_pnts[surf_choice, :]], axis=0)
+                ivts = np.concatenate([ivts, surf_ivts[surf_choice, :]], axis=0)
+            batch_pnts[cnt, ...] = pnts
+            batch_ivts[cnt, ...] = ivts
             batch_norm_params[cnt, ...] = norm_params
             batch_img[cnt, ...] = img.astype(np.float32)
             batch_obj_rot_mat[cnt, ...] = obj_rot_mat
