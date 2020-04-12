@@ -102,35 +102,124 @@ avg direction_avg_diff: 0.9741547924713353
 ----------------------------------------------------------- new model -------------------------------------------------------------------
 
 
---- res50v2 onestream all 01000
+--- res50v2 onestream all 01010
 nohup python -u train_ivt.py --gpu 0 --img_feat_onestream --encoder resnet_v2_50 --restore_modelcnn ../models/CNN/pretrained_model/resnet_v2_50.ckpt --log_dir checkpoint/onestream_all/chair_res50v2_010010 --category chair --uni_num 1024 --num_pnts 2048 --batch_size 20 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 1.0 0.0 --XYZ &> onestream_all_chair_res50v2_010010.log &
 
---- res50v2 onestream all 01000
+ upper     lower    locnorm  locsqrnorm   xyz       dist      drct      drct_abs     count                                                                                               │·················································
+  1.000     0.900    0.13980   0.03659   0.43700   0.10483   0.92134      0.92134     505544                                                                                              │·················································
+  0.900     0.800    0.13995   0.03664   0.38956   0.09711   0.92358      0.92360    1055209                                                                                              │·················································
+  0.800     0.700    0.14004   0.03665   0.34829   0.08711   0.92404      0.92414    2048238                                                                                              │·················································
+  0.700     0.600    0.14017   0.03667   0.31932   0.08054   0.92074      0.92100    3417404                                                                                              │·················································
+  0.600     0.500    0.14048   0.03676   0.31211   0.08835   0.90846      0.90910    4444208                                                                                              │·················································
+  0.500     0.400    0.14082   0.03687   0.31080   0.10216   0.88410      0.88601    4790344                                                                                              │·················································
+  0.400     0.300    0.14098   0.03693   0.29949   0.11248   0.84365      0.85001    4667434                                                                                              │·················································
+  0.300     0.200    0.14095   0.03692   0.26927   0.11462   0.78019      0.80145    4252368                                                                                              │·················································
+  0.200     0.100    0.14108   0.03697   0.22185   0.10774   0.66485      0.74036    3516783                                                                                              │·················································
+  0.100     0.050    0.14131   0.03707   0.16546   0.08938   0.44210      0.68430    2146693                                                                                              │·················································
+  0.050     0.040    0.14086   0.03689   0.12551   0.06978   0.30361      0.67717    3786783                                                                                              │·················································
+  0.040     0.030    0.14084   0.03689   0.11876   0.06760   0.23199      0.66405    5142119                                                                                              │·················································
+  0.030     0.020    0.14080   0.03688   0.11209   0.06691   0.16156      0.65119    6459929                                                                                              │·················································
+  0.020     0.010    0.14076   0.03687   0.10604   0.06880   0.09395      0.64028    7978484                                                                                              │·················································
+  0.010     -0.010   0.14076   0.03688   0.10088   0.07417   0.02902      0.62925    9943949                                                                                              │·················································
+TEST avg xyz_avg_diff: 0.06616239572738435                                                                                                                                                │·················································
+TEST avg locnorm_avg_diff: 0.14074624128975993                                                                                                                                            │·················································
+TEST avg locsqrnorm_avg_diff: 0.03686143390157006                                                                                                                                         │·················································
+TEST avg dist_avg_diff: 0.08433014520332074                                                                                                                                               │·················································
+TEST avg direction_avg_diff: 0.46516726642979683                                                                                                                                          │·················································
+TEST avg direction_abs_avg_diff: 0.745245157800809
+
+--- res50v2 onestream all 004010
+nohup python -u train_ivt.py --gpu 0 --img_feat_onestream --encoder resnet_v2_50 --restore_modelcnn ../models/CNN/pretrained_model/resnet_v2_50.ckpt --log_dir checkpoint/onestream_all/chair_res50v2_004010 --category chair --uni_num 1024 --sphere_num 0 --num_pnts 2048 --batch_size 20 --learning_rate 0.0001 --weight_type non --lossw 0.0 0.0 4.0 0.0 1.0 0.0 --XYZ &> onestream_all_chair_res50v2_004010.log &
+
+--- res50v2 onestream all 004010 drctdist
+nohup python -u train_ivt.py --gpu 1 --img_feat_onestream --encoder resnet_v2_50 --restore_modelcnn ../models/CNN/pretrained_model/resnet_v2_50.ckpt --log_dir checkpoint/onestream_all/chair_res50v2_004010_drctdist --category chair --uni_num 1024 --sphere_num 0 --num_pnts 2048 --batch_size 20 --learning_rate 0.0001 --weight_type non --lossw 0.0 0.0 4.0 0.0 1.0 0.0  &> onestream_all_chair_res50v2_004010drctdist.log &
+
+--- res50v2 onestream ball+grid 004010
+nohup python -u train_ivt.py --gpu 0 --img_feat_onestream --encoder resnet_v2_50 --restore_modelcnn ../models/CNN/pretrained_model/resnet_v2_50.ckpt --log_dir checkpoint/onestream_ballgrid/chair_res50v2_004010 --category chair --uni_num 1024 --sphere_num 1024 --num_pnts 2048 --batch_size 20 --learning_rate 0.0001 --weight_type non --lossw 0.0 0.0 4.0 0.0 1.0 0.0  &> onestream_ballgrid_chair_res50v2_004010.log &
+
+--- res50v2 onestream surface 004010
+nohup python -u train_ivt.py --gpu 1 --img_feat_onestream --encoder resnet_v2_50 --restore_modelcnn ../models/CNN/pretrained_model/resnet_v2_50.ckpt --log_dir checkpoint/onestream_surface/chair_res50v2_004010 --category chair --uni_num 0 --sphere_num 0 --num_pnts 2048 --batch_size 20 --learning_rate 0.0001 --weight_type non --lossw 0.0 0.0 4.0 0.0 1.0 0.0  &> onestream_surface_chair_res50v2_004010.log &
+
+
+
+--- res50v2 onestream all 004000
 nohup python -u train_ivt.py --gpu 1 --img_feat_onestream --encoder resnet_v2_50 --restore_modelcnn ../models/CNN/pretrained_model/resnet_v2_50.ckpt --log_dir checkpoint/onestream_all/chair_res50v2_004000 --category chair --uni_num 1024 --num_pnts 2048 --batch_size 20 --learning_rate 0.0001 --weight_type non --lossw 0.0 0.0 4.0 0.0 0.0 0.0 --XYZ &> onestream_all_chair_res50v2_004000.log &
 
+
+data order reordered!                                                                                                                                                                     │·················································
+  upper     lower    locnorm  locsqrnorm   xyz       dist      drct      drct_abs     count                                                                                               │·················································
+  1.000     0.900    0.12819   0.03070   0.44490   0.12493   0.92490      0.92490     505463                                                                                              │·················································
+  0.900     0.800    0.12823   0.03070   0.39307   0.11470   0.92868      0.92868    1055192                                                                                              │·················································
+  0.800     0.700    0.12822   0.03067   0.34693   0.10341   0.93087      0.93088    2045002                                                                                              │·················································
+  0.700     0.600    0.12826   0.03066   0.31049   0.09067   0.92893      0.92901    3418158                                                                                              │·················································
+  0.600     0.500    0.12841   0.03069   0.29113   0.08661   0.91920      0.91958    4447030                                                                                              │·················································
+  0.500     0.400    0.12862   0.03076   0.28101   0.09111   0.89950      0.90096    4787670                                                                                              │·················································
+  0.400     0.300    0.12872   0.03079   0.26593   0.09521   0.86669      0.87123    4669007                                                                                              │·················································
+  0.300     0.200    0.12870   0.03078   0.23734   0.09483   0.81098      0.82681    4254087                                                                                              │·················································
+  0.200     0.100    0.12882   0.03082   0.19789   0.08989   0.67987      0.75141    3517368                                                                                              │·················································
+  0.100     0.050    0.12903   0.03090   0.15055   0.07510   0.41815      0.66616    2146104                                                                                              │·················································
+  0.050     0.040    0.12869   0.03078   0.11737   0.05901   0.25784      0.62034    3783860                                                                                              │·················································
+  0.040     0.030    0.12866   0.03077   0.11054   0.05668   0.19259      0.60932    5141838                                                                                              │·················································
+  0.030     0.020    0.12863   0.03077   0.10408   0.05639   0.13151      0.59830    6461785                                                                                              │·················································
+  0.020     0.010    0.12862   0.03077   0.09797   0.05904   0.07475      0.58895    7977905                                                                                              │·················································
+  0.010     -0.010   0.12864   0.03079   0.09257   0.06532   0.02269      0.57777    9945126                                                                                              │·················································
+TEST avg xyz_avg_diff: 0.06131403031892179                                                                                                                                                │·················································
+TEST avg locnorm_avg_diff: 0.12860982189664247                                                                                                                                            │·················································
+TEST avg locsqrnorm_avg_diff: 0.03076416879503953                                                                                                                                         │·················································
+TEST avg dist_avg_diff: 0.07587543398956546                                                                                                                                               │·················································
+TEST avg direction_avg_diff: 0.4593465498542604                                                                                                                                           │·················································
+TEST avg direction_abs_avg_diff: 0.7237370111952901
+
+
 --- vgg_16 onestream_small all 01000
-nohup python -u train_ivt.py --gpu 2 --img_feat_onestream --encoder vgg_16 --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/onestream_small_all/chair_vgg_16_010000 --category chair --uni_num 1024 --num_pnts 2048 --batch_size 20 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ &> onestream_small_all_chair_vgg_010000.log &
+nohup python -u train_ivt.py --gpu 2 --img_feat_onestream --encoder vgg_16 --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/onestream_small_all/chair_vgg_16_010000 --category chair --uni_num 1024 --sphere_num 0 --num_pnts 2048 --batch_size 20 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ &> onestream_small_all_chair_vgg_010000.log &
 
 
 
 
 
 --- vgg_16 onestream all 01000
-nohup python -u train_ivt.py --gpu 3 --img_feat_onestream --encoder vgg_16 --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/onestream_all/chair_vgg_16_010000 --category chair --uni_num 1024 --num_pnts 2048 --batch_size 20 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ &> onestream_all_chair_vgg_010000.log &
-
-
+nohup python -u train_ivt.py --gpu 3 --img_feat_onestream --encoder vgg_16 --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/onestream_all/chair_vgg_16_010000 --category chair --uni_num 1024 --sphere_num 0 --num_pnts 2048 --batch_size 20 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ &> onestream_all_chair_vgg_010000.log &
 
 --- res50v2 onestream all 01000
-nohup python -u train_ivt.py --gpu 1 --img_feat_onestream --encoder resnet_v2_50 --restore_modelcnn ../models/CNN/pretrained_model/resnet_v2_50.ckpt --log_dir checkpoint/onestream_all/chair_res50v2_010000 --category chair --uni_num 1024 --num_pnts 2048 --batch_size 20 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ &> onestream_all_chair_res50v2_010000.log &
+nohup python -u train_ivt.py --gpu 1 --img_feat_onestream --encoder resnet_v2_50 --restore_modelcnn ../models/CNN/pretrained_model/resnet_v2_50.ckpt --log_dir checkpoint/onestream_all/chair_res50v2_010000 --category chair --uni_num 1024 --sphere_num 0 --num_pnts 2048 --batch_size 20 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ &> onestream_all_chair_res50v2_010000.log &
+
+avg xyz_avg_diff: 0.021246339427196708                                                                                                                                                    │·················································
+avg locnorm_avg_diff: 0.04594552917115616                                                                                                                                                 │·················································
+avg locsqrnorm_avg_diff: 0.006053492953182257                                                                                                                                             │·················································
+avg dist_avg_diff: 0.02435550035286561                                                                                                                                                    │·················································
+avg direction_avg_diff: 0.5979944439341061                                                                                                                                                │·················································
+avg direction_abs_avg_diff: 0.8329653279523642
+data order reordered!                                                                                                                                                                     │·················································
+  upper     lower    locnorm  locsqrnorm   xyz       dist      drct      drct_abs     count                                                                                               │·················································
+  1.000     0.900    0.14102   0.03525   0.44922   0.12760   0.91397      0.91398     505966                                                                                              │·················································
+  0.900     0.800    0.14115   0.03528   0.39677   0.11018   0.91712      0.91714    1054791                                                                                              │·················································
+  0.800     0.700    0.14116   0.03527   0.34886   0.09527   0.92014      0.92023    2047317                                                                                              │·················································
+  0.700     0.600    0.14128   0.03528   0.31281   0.08402   0.91917      0.91944    3417067                                                                                              │·················································
+  0.600     0.500    0.14152   0.03535   0.29686   0.08413   0.90866      0.90936    4443263                                                                                              │·················································
+  0.500     0.400    0.14180   0.03543   0.28997   0.09186   0.88603      0.88814    4788192                                                                                              │·················································
+  0.400     0.300    0.14191   0.03547   0.27698   0.09800   0.84812      0.85444    4665863                                                                                              │·················································
+  0.300     0.200    0.14188   0.03546   0.24950   0.09789   0.78666      0.80701    4253953                                                                                              │·················································
+  0.200     0.100    0.14199   0.03550   0.21198   0.09369   0.65411      0.73505    3517824                                                                                              │·················································
+  0.100     0.050    0.14223   0.03559   0.16757   0.08135   0.40037      0.66596    2146771                                                                                              │·················································
+  0.050     0.040    0.14179   0.03544   0.13509   0.06561   0.24704      0.63774    3786915                                                                                              │·················································
+  0.040     0.030    0.14180   0.03544   0.12997   0.06731   0.18466      0.62875    5142513                                                                                              │·················································
+  0.030     0.020    0.14176   0.03543   0.12493   0.07163   0.12747      0.61913    6458390                                                                                              │·················································
+  0.020     0.010    0.14175   0.03543   0.12078   0.07837   0.07246      0.61041    7978737                                                                                              │·················································
+  0.010     -0.010   0.14176   0.03544   0.11716   0.08613   0.02188      0.60025    9948173                                                                                              │·················································
+TEST avg xyz_avg_diff: 0.06651459103337687                                                                                                                                                │·················································
+TEST avg locnorm_avg_diff: 0.14173125818097054                                                                                                                                            │·················································
+TEST avg locsqrnorm_avg_diff: 0.035423661904848844                                                                                                                                        │·················································
+TEST avg dist_avg_diff: 0.08437384112968387                                                                                                                                               │·················································
+TEST avg direction_avg_diff: 0.4493672276710297                                                                                                                                           │·················································
+TEST avg direction_abs_avg_diff: 0.7282697776283948
+
 
                 --- resnet_v2_50 global all 01000  poor
                 nohup python -u train_ivt.py --gpu 0 --encoder resnet_v2_50 --restore_modelcnn ../models/CNN/pretrained_model/resnet_v2_50.ckpt --log_dir checkpoint/global_all/chair_res50v2_010000 --category chair --uni_num 1024 --num_pnts 2048 --batch_size 20 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ &> global_all_chair_res50v2_010000.log &
 
---- res101v2 onestream all 01000
-nohup python -u train_ivt.py --gpu 2 --img_feat_onestream --encoder resnet_v2_101 --restore_modelcnn ../models/CNN/pretrained_model/resnet_v2_101.ckpt --log_dir checkpoint/onestream_all/chair_res101v2_010000 --category chair --uni_num 1024 --num_pnts 2048 --batch_size 16 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ &> onestream_all_chair_res101v2_010000.log &
-
-
-
+                --- res101v2 onestream all 01000  Poor
+                nohup python -u train_ivt.py --gpu 2 --img_feat_onestream --encoder resnet_v2_101 --restore_modelcnn ../models/CNN/pretrained_model/resnet_v2_101.ckpt --log_dir checkpoint/onestream_all/chair_res101v2_010000 --category chair --uni_num 1024 --num_pnts 2048 --batch_size 16 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ &> onestream_all_chair_res101v2_010000.log &
 
 
 
