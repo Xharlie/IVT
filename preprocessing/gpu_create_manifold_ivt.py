@@ -373,7 +373,7 @@ def create_ivt(num_sample, pntnum, res, angles_num, cats, raw_dirs, lst_dir, uni
             np.random.shuffle(index)
         list_objs = [[list_obj[j] for j in index[i*span:min((i+1)*span,len(list_obj))].tolist()] for i in range(thread_num)]
         cat_mesh_dir_lst = [cat_mesh_dir for i in range(thread_num)]
-        cat_pnt_dir = [cat_pnt_dir for i in range(thread_num)]
+        cat_pnt_dir_lst = [cat_pnt_dir for i in range(thread_num)]
         gpu_lst = [i % 4 for i in range(START, thread_num+START)]
         catnm_lst = [catnm for i in range(thread_num)]
         cat_norm_mesh_dir_lst = [cat_norm_mesh_dir for i in range(thread_num)]
