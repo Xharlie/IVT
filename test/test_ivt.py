@@ -105,7 +105,7 @@ for cat_id in cat_ids:
                 TEST_LISTINFO += [(cat_id, line.strip(), render)]
 
 info = {'rendered_dir': raw_dirs["renderedh5_dir"],
-            'ivt_dir': raw_dirs["ivt_dir"]}
+            'ivt_dir': raw_dirs["ivt_mani_dir"]}
 if FLAGS.cam_est:
     info['rendered_dir']= raw_dirs["renderedh5_dir_est"]
 
