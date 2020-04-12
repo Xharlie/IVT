@@ -505,7 +505,7 @@ def z_norm_matrix(norm):
     print("normal of norm rotate:", normal.shape)
     sinal = np.linalg.norm(normal,axis=1,keepdims=True)
     cosal = np.sum(np.multiply(z_b, norm),axis=1,keepdims=True)
-    sinalsqrrev = 1/np.square(np.maximum(1e-5, sinal))
+    # sinalsqrrev = 1/np.square(np.maximum(1e-5, sinal))
     ux = normal[:,[0]]
     uy = normal[:,[1]]
     uz = normal[:,[2]]

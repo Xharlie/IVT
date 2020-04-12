@@ -333,6 +333,7 @@ def create_ivt_obj(gpu, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_di
             model_file = os.path.join(cat_mesh_dir, obj, "models", "model_normalized.obj")
         if normalize and (not os.path.exists(os.path.join(norm_mesh_sub_dir, "pc_norm.obj")) or not os.path.exists(os.path.join(norm_mesh_sub_dir, "pc_norm.txt")) or not os.path.exists(os.path.join(pnt_dir, "pnt_{}.h5".format(pntnum)))):
             verts, faces, params, surfpoints, surfnormals, from_marchingcube = get_normalize_mesh(model_file, norm_mesh_sub_dir, pnt_dir, ref_sub_dir, pntnum)
+
         else:
             verts, faces, surfpoints, surfnormals = get_mesh(norm_mesh_sub_dir)
             from_marchingcube = os.path.exists(os.path.join(ref_sub_dir, "isosurf.obj"))
@@ -439,8 +440,8 @@ if __name__ == "__main__":
             FLAGS.category:cats[FLAGS.category]
         }
 
-    create_ivt(32768*3, 163840, 0.01, 100, cats, raw_dirs, lst_dir, uni_ratio=0.3, surf_ratio=0.4, normalize=True, version=1, skip_all_exist=True)
-    #
+    create_ivt(32768*3, 163840, 0.01, 100, cats, raw_dirs, lst_dir, uni_ratio=0.4, surf_ratio=0.4, normalize=True, version=1, skip_all_exist=True)
+
     # unigrid = get_unigrid(0.01)
     # ballgrid = get_ballgrid(100)
     #
