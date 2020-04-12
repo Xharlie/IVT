@@ -31,7 +31,8 @@ parser.add_argument('--encoder', type=str, default='vgg_16', help='encoder model
 parser.add_argument('--category', type=str, default="all", help='Which single class to train on [default: None]')
 parser.add_argument('--log_dir', default='checkpoint', help='Log dir [default: log]')
 parser.add_argument('--num_pnts', type=int, default=2048, help='Point Number [default: 2048]')
-parser.add_argument('--uni_num', type=int, default=512, help='Point Number [default: 2048]')
+parser.add_argument('--uni_num', type=int, default=1024, help='Point Number [default: 2048]')
+parser.add_argument('--sphere_num', type=int, default=0, help='Point Number [default: 2048]')
 parser.add_argument('--num_classes', type=int, default=1024, help='vgg dim')
 parser.add_argument("--beta1", type=float, dest="beta1",
                     default=0.5, help="beta1 of adams")
@@ -306,6 +307,8 @@ def train():
             for epoch in range(FLAGS.max_epoch):
                 log_string('**** EPOCH %03d ****' % (epoch))
                 sys.stdout.flush()
+                if epoch == 0 and FLAGS.restore_model:
+                    test_one_epoch(sess, ops, epoch)
                 xyz_avg_diff, _, _ = train_one_epoch(sess, ops, epoch)
                 if epoch % 10 == 0 and epoch > 1:
                     locnorm_avg_diff, direction_avg_diff = test_one_epoch(sess, ops, epoch)

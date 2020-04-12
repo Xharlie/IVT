@@ -31,7 +31,8 @@ parser.add_argument('--encoder', type=str, default='vgg_16', help='encoder model
 parser.add_argument('--category', type=str, default="all", help='Which single class to train on [default: None]')
 parser.add_argument('--log_dir', default='checkpoint', help='Log dir [default: log]')
 parser.add_argument('--num_pnts', type=int, default=2048, help='Point Number [default: 2048]')
-parser.add_argument('--uni_num', type=int, default=512, help='Point Number [default: 2048]')
+parser.add_argument('--uni_num', type=int, default=1024, help='Point Number [default: 2048]')
+parser.add_argument('--sphere_num', type=int, default=0, help='Point Number [default: 2048]')
 parser.add_argument('--num_classes', type=int, default=1024, help='vgg dim')
 parser.add_argument("--beta1", type=float, dest="beta1", default=0.5, help="beta1 of adams")
 # parser.add_argument('--sdf_points_num', type=int, default=32, help='Sample Point Number [default: 2048]')
@@ -65,7 +66,7 @@ parser.add_argument('--cat_limit', type=int, default=168000, help="balance each 
 parser.add_argument('--multi_view', action='store_true')
 parser.add_argument('--bn', action='store_true')
 parser.add_argument('--lossw', nargs='+', action='append', default=[1.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-parser.add_argument('--distlimit', nargs='+', action='store', type=str, default=[1.0, 0.05, 0.05, 0.04, 0.04, 0.03, 0.03, 0.02, 0.02, 0.01, 0.01, -0.01])
+parser.add_argument('--distlimit', nargs='+', action='store', type=str, default=[1.0, 0.9, 0.9, 0.8, 0.8, 0.7, 0.7, 0.6, 0.6, 0.5, 0.5, 0.4, 0.4, 0.3, 0.3, 0.2, 0.2, 0.1, 0.1, 0.05, 0.05, 0.04, 0.04, 0.03, 0.03, 0.02, 0.02, 0.01, 0.01, -0.01])
 
 FLAGS = parser.parse_args()
 FLAGS.distlimit = [float(i) for i in FLAGS.distlimit]
