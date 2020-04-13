@@ -448,7 +448,7 @@ def save_surface(pntnum, sample_indices, surfpoints, all_tries, all_face_normals
     with h5py.File(pnt_file, 'w') as f1:
         f1.create_dataset('pnt', data=sampled_surfpoints.astype(np.float32), compression='gzip', compression_opts=4)
         f1.create_dataset('normal', data=sampled_face_norm_surfpnt.astype(np.float32), compression='gzip', compression_opts=4)
-    np.savetxt(os.path.join(pnt_dir, "pnt_{}.txt".format(pntnum)), np.concatenate([sampled_surfpoints, sampled_face_norm_surfpnt], axis=1), delimiter=";")
+    # np.savetxt(os.path.join(pnt_dir, "pnt_{}.txt".format(pntnum)), np.concatenate([sampled_surfpoints, sampled_face_norm_surfpnt], axis=1), delimiter=";")
     print("export_pntnorm", pnt_file)
     return face_norm_surfpnt
 
