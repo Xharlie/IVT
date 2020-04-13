@@ -69,7 +69,7 @@ def thresh_edge_tries(tries, edge_thresh=0.02):
     edgetries = triesAB + triesAC + triesBC
     if np.amax(edgetries) <= edge_thresh:
         print("np.amax(edgetries) <= edge_thresh")
-        return None 
+        return None
     largetries = tries[edgetries>edge_thresh]
     return largetries
 
@@ -124,6 +124,8 @@ def gpu_calculate_ivt_norm(points, tries, face_norms, vert_norms, gpu, from_marc
     inter_norm = normal_gen.interp(points_surf, face_norms, tries, vert_norms)
     return ivt_closest, inter_norm
 
+
+
 def get_plane_abcd(tries):
     v1 = tries[:,2,:] - tries[:,0,:]
     v2 = tries[:,1,:] - tries[:,0,:]
@@ -154,7 +156,7 @@ def calculate_ivt_single(planes, e, point, tries):
             if plane_dists[count - plane_check_start_index] > minimum:
                 # print("count,{},plane_check_start_index,{},plane_dists[count - plane_check_start_index],{},minimum,{}".format(count,plane_check_start_index,plane_dists[count - plane_check_start_index],minimum))
                 continue
-        dist, vct = ptd.pointTriangleDistance(tri, point) 
+        dist, vct = ptd.pointTriangleDistance(tri, point)
         if dist < minimum:
             vct_shortest = vct
             minimum = dist
@@ -188,34 +190,168 @@ def calculate_ivt_single(planes, e, point, tries):
 #         return False
 
 
-def create_h5_ivt_pt(gpu, cat_id, h5_file, verts, faces, surfpoints_sample, surfnormals_sample, ball_samples, ungridsamples, norm_params, ivt_res, num_sample, uni_ratio, from_marchingcube):
-    if faces.shape[0] > 2000000:
+def create_h5_ivt_pt(gpu, cat_id, h5_file, tries, face_norms, vert_norms, surfpoints_sample, surfnormals_sample, ball_samples, ungridsamples, norm_params, from_marchingcube, normalgt):
+    if tries.shape[0] > 2000000:
         print(cat_id,h5_file,"is too big!!! faces_size", faces.shape[0])
         return
-    index = faces.reshape(-1)
-    tries = verts[index].reshape([-1,3,3])
-    print("tries.shape", tries.shape, faces.shape)
+    print("tries.shape", tries.shape)
     ball_samples = add_jitters(ball_samples, std=0.01, type="uniform")
     ungridsamples = add_jitters(ungridsamples, std=0.005, type="uniform")
     surfpoints_sample = add_normal_jitters(surfpoints_sample, surfnormals_sample, height=0.1)
-    sphere_ivts = gpu_calculate_ivt(ball_samples, tries,gpu,from_marchingcube)  # (N*8)x4 (x,y,z)
-    uni_ivts = gpu_calculate_ivt(ungridsamples, tries,gpu,from_marchingcube)  # (N*8)x4 (x,y,z)
-    surf_ivts = gpu_calculate_ivt(surfpoints_sample, tries, gpu,from_marchingcube)  # (N*8)x4 (x,y,z)
+    if normalgt:
+        sphere_ivts = gpu_calculate_ivt(ball_samples, tries,gpu,from_marchingcube)  # (N*8)x4 (x,y,z)
+        uni_ivts = gpu_calculate_ivt(ungridsamples, tries,gpu,from_marchingcube)  # (N*8)x4 (x,y,z)
+        surf_ivts = gpu_calculate_ivt(surfpoints_sample, tries, gpu,from_marchingcube)  # (N*8)x4 (x,y,z)
+    else:
+        sphere_ivts, sphere_norm = gpu_calculate_ivt_norm(ball_samples, tries, face_norms, vert_norms, gpu, from_marchingcube)  # (N*8)x4 (x,y,z)
+        uni_ivts, uni_norm = gpu_calculate_ivt_norm(ungridsamples, tries, face_norms, vert_norms, gpu, from_marchingcube)  # (N*8)x4 (x,y,z)
+        surf_ivts, surf_norm = gpu_calculate_ivt_norm(surfpoints_sample, tries, face_norms, vert_norms, gpu, from_marchingcube)  # (N*8)x4 (x,y,z)
     print("start to write", h5_file)
-    f1 = h5py.File(h5_file, 'w')
-    f1.create_dataset('uni_pnts', data=ungridsamples.astype(np.float32), compression='gzip', compression_opts=4)
-    f1.create_dataset('sphere_pnts', data=ball_samples.astype(np.float32), compression='gzip', compression_opts=4)
-    f1.create_dataset('surf_pnts', data=surfpoints_sample.astype(np.float32), compression='gzip', compression_opts=4)
-    f1.create_dataset('uni_ivts', data=uni_ivts.astype(np.float32), compression='gzip', compression_opts=4)
-    f1.create_dataset('sphere_ivts', data=sphere_ivts.astype(np.float32), compression='gzip', compression_opts=4)
-    f1.create_dataset('surf_ivts', data=surf_ivts.astype(np.float32), compression='gzip', compression_opts=4)
-    # f1.create_dataset('surf_normals', data=surfnormals_sample.astype(np.float32), compression='gzip', compression_opts=4)
-    f1.create_dataset('norm_params', data=norm_params, compression='gzip', compression_opts=4)
-    f1.close()
+    with h5py.File(h5_file, 'w') as f1:
+        f1.create_dataset('uni_pnts', data=ungridsamples.astype(np.float32), compression='gzip', compression_opts=4)
+        f1.create_dataset('sphere_pnts', data=ball_samples.astype(np.float32), compression='gzip', compression_opts=4)
+        f1.create_dataset('surf_pnts', data=surfpoints_sample.astype(np.float32), compression='gzip', compression_opts=4)
+        f1.create_dataset('uni_ivts', data=uni_ivts.astype(np.float32), compression='gzip', compression_opts=4)
+        f1.create_dataset('sphere_ivts', data=sphere_ivts.astype(np.float32), compression='gzip', compression_opts=4)
+        f1.create_dataset('surf_ivts', data=surf_ivts.astype(np.float32), compression='gzip', compression_opts=4)
+        f1.create_dataset('norm_params', data=norm_params, compression='gzip', compression_opts=4)
+        if normalgt:
+            f1.create_dataset('uni_norm', data=uni_norm.astype(np.float32), compression='gzip', compression_opts=4)
+            f1.create_dataset('sphere_norm', data=sphere_norm.astype(np.float32), compression='gzip', compression_opts=4)
+            f1.create_dataset('surf_norm', data=surf_norm.astype(np.float32), compression='gzip', compression_opts=4)
     # np.savetxt(h5_file[:-3]+"ball_samples.txt",ball_samples, delimiter=';')
     # np.savetxt(h5_file[:-3]+"ungridsamples.txt",ungridsamples, delimiter=';')
     # np.savetxt(h5_file[:-3]+"surfpoints_sample.txt",surfpoints_sample, delimiter=';')
 
+
+def get_mesh(norm_mesh_sub_dir, ref_sub_dir, pnt_dir, pntnum):
+    ref_file = os.path.join(ref_sub_dir, "isosurf.obj")
+    from_marchingcube = False
+    if os.path.exists(ref_file):
+        from_marchingcube = True
+    total = 16384 * 5 * 2
+    obj_file = os.path.join(norm_mesh_sub_dir, "pc_norm.obj")
+    print("trimesh_load:", obj_file)
+    mesh_list = trimesh.load_mesh(obj_file, process=False)
+    if not isinstance(mesh_list, list):
+        mesh_list = [mesh_list]
+    area_sum = 0
+    area_lst = []
+    for idx, mesh in enumerate(mesh_list):
+        area = np.sum(mesh.area_faces)
+        area_lst.append(area)
+        area_sum+=area
+    area_lst = np.asarray(area_lst)
+    amount_lst = (area_lst * total / area_sum).astype(np.int32)
+    points_all=np.zeros((0,3), dtype=np.float32)
+    all_face_normals = np.zeros((0, 3), dtype=np.float32)
+    all_vert_normals = np.zeros((0, 3, 3), dtype=np.float32)
+    all_tries = np.zeros((0, 3, 3), dtype=np.float32)
+    sample_indices = np.zeros((0), dtype=np.int)
+    for i in range(amount_lst.shape[0]):
+        mesh = mesh_list[i]
+        # print("start sample surface of ", mesh.faces.shape[0])
+        points, index = trimesh.sample.sample_surface(mesh, amount_lst[i])
+        sample_indices = np.concatenate([sample_indices, sample_indices.shape[0] + index], axis=0)
+        vert_ind = mesh.faces.reshape(-1)
+        all_tries = np.concatenate([all_tries, mesh.vertices[vert_ind].reshape([-1, 3, 3])], axis=0)
+        all_face_normals = np.concatenate([all_face_normals, mesh.face_normals], axis=0)
+        all_vert_normals = np.concatenate([all_vert_normals, mesh.vertex_normals[vert_ind].reshape([-1, 3, 3])], axis=0)
+        # print("end sample surface")
+        points_all = np.concatenate([points_all,points], axis=0)
+    face_norm_surfpnt = save_surface(pntnum, sample_indices, points_all, all_tries, all_face_normals, all_vert_normals, pnt_dir)
+    return all_tries, all_face_normals, all_vert_normals, points_all, face_norm_surfpnt, from_marchingcube
+
+def create_ivt_obj(gpu, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_dir, cat_ref_dir, obj, res, normalize, num_sample, pntnum, cat_id, version, ungrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist, normalgt):
+    obj=obj.rstrip('\r\n')
+    ivt_sub_dir = os.path.join(cat_ivt_dir, obj)
+    ref_sub_dir = os.path.join(cat_ref_dir, obj)
+    norm_mesh_sub_dir = os.path.join(cat_norm_mesh_dir, obj)
+    pnt_dir = os.path.join(cat_pnt_dir, obj)
+    if not os.path.exists(ivt_sub_dir): os.makedirs(ivt_sub_dir)
+    if not os.path.exists(norm_mesh_sub_dir): os.makedirs(norm_mesh_sub_dir)
+    h5_file = os.path.join(ivt_sub_dir, "ivt_sample.h5")
+    if  os.path.exists(h5_file) and skip_all_exist:
+        print("skip existed: ", h5_file)
+    else:
+        if version == 1:
+            model_file = os.path.join(cat_mesh_dir, obj, "model.obj")
+        else:
+            model_file = os.path.join(cat_mesh_dir, obj, "models", "model_normalized.obj")
+        if normalize and (not os.path.exists(os.path.join(norm_mesh_sub_dir, "pc_norm.obj")) or not os.path.exists(os.path.join(norm_mesh_sub_dir, "pc_norm.txt"))):
+            all_tries, all_face_normals, all_vert_normals, params, surfpoints, surfnormals, from_marchingcube = get_normalize_mesh(model_file, norm_mesh_sub_dir, pnt_dir, ref_sub_dir, pntnum)
+        else:
+            all_tries, all_face_normals, all_vert_normals, surfpoints, surfnormals, from_marchingcube = get_mesh(norm_mesh_sub_dir, ref_sub_dir, pnt_dir, pntnum)
+            from_marchingcube = os.path.exists(os.path.join(ref_sub_dir, "isosurf.obj"))
+            params = np.loadtxt(os.path.join(norm_mesh_sub_dir, "pc_norm.txt"))
+        surfchoice = np.random.randint(surfpoints.shape[0], size = int(surf_ratio*num_sample))
+        surfpoints_sample = surfpoints[surfchoice,:]
+        surfnormals_sample = surfnormals[surfchoice,:]
+        ungridsamples = sample_uni(ungrid, int(uni_ratio*num_sample))
+        ball_samples = sample_balluni(ballgrid, int((1.0-uni_ratio-surf_ratio)*num_sample))
+        create_h5_ivt_pt(gpu, cat_id, h5_file, all_tries, all_face_normals, all_vert_normals, surfpoints_sample, surfnormals_sample, ball_samples, ungridsamples, params, from_marchingcube, normalgt)
+
+def create_ivt(num_sample, pntnum, res, angles_num, cats, raw_dirs, lst_dir, uni_ratio=0.3, surf_ratio=0.4, normalize=True, version=1, skip_all_exist=False, normalgt=True):
+
+    ivt_dir=raw_dirs["ivt_mani_dir"]
+    ref_dir=raw_dirs["ref_mani_dir"]
+    if not os.path.exists(ivt_dir): os.makedirs(ivt_dir)
+    if not os.path.exists(raw_dirs["pnt_dir"]): os.makedirs(raw_dirs["pnt_dir"])
+    start=0
+    unigrid = get_unigrid(res)
+    ballgrid = get_ballgrid(angles_num)
+    thread_num=FLAGS.thread_num
+    for catnm in cats.keys():
+        cat_id = cats[catnm]
+        cat_ivt_dir = os.path.join(ivt_dir, cat_id)
+        cat_ref_dir = os.path.join(ref_dir, cat_id)
+        if not os.path.exists(cat_ivt_dir): os.makedirs(cat_ivt_dir)
+        cat_mesh_dir = os.path.join(raw_dirs["mesh_dir"], cat_id)
+        cat_pnt_dir = os.path.join(raw_dirs["pnt_dir"], cat_id)
+        if not os.path.exists(cat_pnt_dir): os.makedirs(cat_pnt_dir)
+        cat_norm_mesh_dir = os.path.join(raw_dirs["norm_mesh_dir"], cat_id)
+        with open(lst_dir+"/"+str(cat_id)+"_test.lst", "r") as f:
+            list_obj = f.readlines()
+        with open(lst_dir+"/"+str(cat_id)+"_train.lst", "r") as f:
+            list_obj += f.readlines()
+        # print(list_obj)
+        span = len(list_obj) // thread_num
+        index = np.arange(len(list_obj))
+        if FLAGS.shuffle:
+            np.random.shuffle(index)
+        list_objs = [[list_obj[j] for j in index[i*span:min((i+1)*span,len(list_obj))].tolist()] for i in range(thread_num)]
+        cat_mesh_dir_lst = [cat_mesh_dir for i in range(thread_num)]
+        cat_pnt_dir_lst = [cat_pnt_dir for i in range(thread_num)]
+        gpu_lst = [i % 4 for i in range(START, thread_num+START)]
+        catnm_lst = [catnm for i in range(thread_num)]
+        cat_norm_mesh_dir_lst = [cat_norm_mesh_dir for i in range(thread_num)]
+        cat_ivt_dir_lst = [cat_ivt_dir for i in range(thread_num)]
+        normalize_lst = [normalize for i in range(thread_num)]
+        num_sample_lst = [num_sample for i in range(thread_num)]
+        normalgt_lst = [normalgt for i in range(thread_num)]
+        pntnum_lst = [pntnum for i in range(thread_num)]
+        cat_id_lst = [cat_id for i in range(thread_num)]
+        version_lst = [version for i in range(thread_num)]
+        unigrid_lst = [unigrid for i in range(thread_num)]
+        ballgrid_lst = [ballgrid for i in range(thread_num)]
+        uni_ratio_lst = [uni_ratio for i in range(thread_num)]
+        surf_ratio_lst = [surf_ratio for i in range(thread_num)]
+        res_lst = [res for i in range(thread_num)]
+        cat_ref_dir_lst = [cat_ref_dir for i in range(thread_num)]
+        skip_all_exist_lst = [skip_all_exist for i in range(thread_num)]
+        if thread_num > 1:
+            with Parallel(n_jobs=thread_num) as parallel:
+                vcts_part = parallel(delayed(create_ivt_distribute)
+                    (gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_dir, cat_ref_dir, list_obj, res, normalize, num_sample, pntnum, cat_id, version, unigrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist, normalgt) for gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_dir, cat_ref_dir, list_obj, res, normalize, num_sample, pntnum, cat_id, version, unigrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist, normalgt in zip(gpu_lst, catnm_lst, cat_mesh_dir_lst, cat_norm_mesh_dir_lst, cat_ivt_dir_lst, cat_pnt_dir_lst, cat_ref_dir_lst, list_objs, res_lst, normalize_lst, num_sample_lst, pntnum_lst, cat_id_lst, version_lst, unigrid_lst, ballgrid_lst, uni_ratio_lst, surf_ratio_lst, skip_all_exist_lst,normalgt_lst))
+        else:
+            vcts_part = create_ivt_distribute(-1, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_dir, cat_ref_dir, list_objs[0], res, normalize, num_sample, pntnum, cat_id, version, unigrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist, normalgt)
+    print("finish all")
+
+def create_ivt_distribute(gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_dir, cat_ref_dir, list_obj, res, normalize, num_sample, pntnum, cat_id, version, unigrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist, normalgt):
+    for i in range(len(list_obj)):
+        create_ivt_obj(gpu%4, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_dir, cat_ref_dir, list_obj[i],
+            res, normalize, num_sample, pntnum, cat_id, version, unigrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist, normalgt)
+        print("finish {}/{} for {}".format(i,len(list_obj),catnm))
 
 
 def get_normalize_mesh(model_file, norm_mesh_sub_dir, pnt_dir, ref_sub_dir, pntnum):
@@ -234,14 +370,20 @@ def get_normalize_mesh(model_file, norm_mesh_sub_dir, pnt_dir, ref_sub_dir, pntn
     area_lst = np.asarray(area_lst)
     amount_lst = (area_lst * total / area_sum).astype(np.int32)
     points_all=np.zeros((0,3), dtype=np.float32)
-    face_norm_all = np.zeros((0, 3), dtype=np.float32)
+    all_face_normals = np.zeros((0, 3), dtype=np.float32)
+    all_vert_normals = np.zeros((0, 3, 3), dtype=np.float32)
+    all_tries = np.zeros((0, 3, 3), dtype=np.float32)
+    sample_indices = np.zeros((0), dtype=np.int)
     for i in range(amount_lst.shape[0]):
         mesh = mesh_list[i]
         # print("start sample surface of ", mesh.faces.shape[0])
         points, index = trimesh.sample.sample_surface(mesh, amount_lst[i])
         if not os.path.exists(ref_file):
-            face_norms = find_normal(index, mesh)
-            face_norm_all = np.concatenate([face_norm_all, face_norms], axis=0)
+            sample_indices = np.concatenate([sample_indices, sample_indices.shape[0] + index], axis=0)
+            vert_ind = mesh.faces.reshape(-1)
+            all_tries = np.concatenate([all_tries, mesh.vertices[vert_ind].reshape([-1, 3, 3])], axis=0)
+            all_face_normals = np.concatenate([all_face_normals, mesh.face_normals], axis=0)
+            all_vert_normals = np.concatenate([all_vert_normals, mesh.vertex_normals[vert_ind].reshape([-1, 3, 3])], axis=0)
         # print("end sample surface")
         points_all = np.concatenate([points_all,points], axis=0)
     centroid = np.mean(points_all, axis=0)
@@ -249,7 +391,6 @@ def get_normalize_mesh(model_file, norm_mesh_sub_dir, pnt_dir, ref_sub_dir, pntn
     m = np.max(np.sqrt(np.sum(points_all ** 2, axis=1)))
     obj_file = os.path.join(norm_mesh_sub_dir, "pc_norm.obj")
     param_file = os.path.join(norm_mesh_sub_dir, "pc_norm.txt")
-    pnt_file = os.path.join(pnt_dir, "pnt_{}.h5".format(pntnum))
     params = np.concatenate([centroid, np.expand_dims(m, axis=0)])
     np.savetxt(param_file, params)
     print("export_mesh", obj_file)
@@ -276,8 +417,11 @@ def get_normalize_mesh(model_file, norm_mesh_sub_dir, pnt_dir, ref_sub_dir, pntn
             mesh = mesh_list[i]
             # print("start sample surface of ", mesh.faces.shape[0])
             points, index = trimesh.sample.sample_surface(mesh, amount_lst[i])
-            face_norms = find_normal(index, mesh)
-            face_norm_all = np.concatenate([face_norm_all, face_norms], axis=0)
+            sample_indices = np.concatenate([sample_indices, sample_indices.shape[0] + index], axis=0)
+            vert_ind = mesh.faces.reshape(-1)
+            all_tries = np.concatenate([all_tries, mesh.vertices[vert_ind].reshape([-1, 3, 3])], axis=0)
+            all_face_normals = np.concatenate([all_face_normals, mesh.face_normals], axis=0)
+            all_vert_normals = np.concatenate([all_vert_normals, mesh.vertex_normals[vert_ind].reshape([-1, 3, 3])], axis=0)
             # print("end sample surface")
             points_all = np.concatenate([points_all, points], axis=0)
         centroid = np.mean(points_all, axis=0)
@@ -285,137 +429,33 @@ def get_normalize_mesh(model_file, norm_mesh_sub_dir, pnt_dir, ref_sub_dir, pntn
         m = np.max(np.sqrt(np.sum(points_all ** 2, axis=1)))
         ori_mesh = pymesh.load_mesh(ref_file)
     surfpoints = points_all / float(m)
+    all_tries = (all_tries - centroid[np.newaxis, np.newaxis, :]) / float(m)
     print("centroid, m", centroid, m)
     verts = (ori_mesh.vertices - centroid) / float(m)
     pymesh.save_mesh_raw(obj_file, verts, ori_mesh.faces)
+    face_norm_surfpnt = save_surface(pntnum, sample_indices, surfpoints, all_tries, all_face_normals, all_vert_normals, pnt_dir)
+    return all_tries, all_face_normals, all_vert_normals, params, surfpoints, face_norm_surfpnt, from_marchingcube
+
+def save_surface(pntnum, sample_indices, surfpoints, all_tries, all_face_normals, all_vert_normals, pnt_dir):
+    os.makedirs(pnt_dir, exist_ok=True)
+    pnt_file = os.path.join(pnt_dir, "pnt_{}.h5".format(pntnum))
     pntchoice = np.random.randint(surfpoints.shape[0], size=pntnum)
+    sampled_surfpoints = surfpoints[pntchoice]
+    face_tries = all_tries[sample_indices]
+    face_norm_surfpnt = all_face_normals[sample_indices]
+    vert_norms = all_vert_normals[sample_indices]
+    sampled_face_norm_surfpnt = normal_gen.interp(sampled_surfpoints, face_norm_surfpnt[pntchoice], face_tries[pntchoice], vert_norms[pntchoice])
     with h5py.File(pnt_file, 'w') as f1:
-        f1.create_dataset('pnt', data=surfpoints[pntchoice].astype(np.float32), compression='gzip', compression_opts=4)
-        f1.create_dataset('normal', data=face_norm_all[pntchoice].astype(np.float32), compression='gzip', compression_opts=4)
+        f1.create_dataset('pnt', data=sampled_surfpoints.astype(np.float32), compression='gzip', compression_opts=4)
+        f1.create_dataset('normal', data=sampled_face_norm_surfpnt.astype(np.float32), compression='gzip', compression_opts=4)
+    np.savetxt(os.path.join(pnt_dir, "pnt_{}.txt".format(pntnum)), np.concatenate([sampled_surfpoints, sampled_face_norm_surfpnt], axis=1), delimiter=";")
     print("export_pntnorm", pnt_file)
-    return verts, ori_mesh.faces, params, surfpoints, face_norm_all, from_marchingcube
+    return face_norm_surfpnt
 
 def find_normal(index, mesh):
     all_face_normals = mesh.face_normals
     face_norms = all_face_normals[index]
     return face_norms
-
-def get_mesh(norm_mesh_sub_dir):
-    total = 16384 * 5 * 2
-    obj_file = os.path.join(norm_mesh_sub_dir, "pc_norm.obj")
-    print("trimesh_load:", obj_file)
-    mesh_list = trimesh.load_mesh(obj_file, process=False)
-    if not isinstance(mesh_list, list):
-        mesh_list = [mesh_list]
-    area_sum = 0
-    area_lst = []
-    for idx, mesh in enumerate(mesh_list):
-        area = np.sum(mesh.area_faces)
-        area_lst.append(area)
-        area_sum+=area
-    area_lst = np.asarray(area_lst)
-    amount_lst = (area_lst * total / area_sum).astype(np.int32)
-    points_all=np.zeros((0,3), dtype=np.float32)
-    face_norm_all = np.zeros((0, 3), dtype=np.float32)
-    for i in range(amount_lst.shape[0]):
-        mesh = mesh_list[i]
-        # print("start sample surface of ", mesh.faces.shape[0])
-        points, index = trimesh.sample.sample_surface(mesh, amount_lst[i])
-        face_norms = find_normal(index, mesh)
-        face_norm_all = np.concatenate([face_norm_all, face_norms], axis=0)
-        # print("end sample surface")
-        points_all = np.concatenate([points_all,points], axis=0)
-    ori_mesh = pymesh.load_mesh(obj_file)
-    return ori_mesh.vertices, ori_mesh.faces, points_all, face_norm_all
-
-def create_ivt_obj(gpu, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_dir, cat_ref_dir, obj, res, normalize, num_sample, pntnum, cat_id, version, ungrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist):
-    obj=obj.rstrip('\r\n')
-    ivt_sub_dir = os.path.join(cat_ivt_dir, obj)
-    ref_sub_dir = os.path.join(cat_ref_dir, obj)
-    norm_mesh_sub_dir = os.path.join(cat_norm_mesh_dir, obj)
-    pnt_dir = os.path.join(cat_pnt_dir, obj)
-    if not os.path.exists(ivt_sub_dir): os.makedirs(ivt_sub_dir)
-    if not os.path.exists(norm_mesh_sub_dir): os.makedirs(norm_mesh_sub_dir)
-    h5_file = os.path.join(ivt_sub_dir, "ivt_sample.h5")
-    if  os.path.exists(h5_file) and skip_all_exist:
-        print("skip existed: ", h5_file)
-    else:
-        if version == 1:
-            model_file = os.path.join(cat_mesh_dir, obj, "model.obj")
-        else:
-            model_file = os.path.join(cat_mesh_dir, obj, "models", "model_normalized.obj")
-        if normalize and (not os.path.exists(os.path.join(norm_mesh_sub_dir, "pc_norm.obj")) or not os.path.exists(os.path.join(norm_mesh_sub_dir, "pc_norm.txt")) or not os.path.exists(os.path.join(pnt_dir, "pnt_{}.h5".format(pntnum)))):
-            verts, faces, params, surfpoints, surfnormals, from_marchingcube = get_normalize_mesh(model_file, norm_mesh_sub_dir, pnt_dir, ref_sub_dir, pntnum)
-
-        else:
-            verts, faces, surfpoints, surfnormals = get_mesh(norm_mesh_sub_dir)
-            from_marchingcube = os.path.exists(os.path.join(ref_sub_dir, "isosurf.obj"))
-            params = np.loadtxt(os.path.join(norm_mesh_sub_dir, "pc_norm.txt"))
-        surfchoice = np.random.randint(surfpoints.shape[0], size = int(surf_ratio*num_sample))
-        surfpoints_sample = surfpoints[surfchoice,:]
-        surfnormals_sample = surfnormals[surfchoice,:]
-        ungridsamples = sample_uni(ungrid, int(uni_ratio*num_sample))
-        ball_samples = sample_balluni(ballgrid, int((1.0-uni_ratio-surf_ratio)*num_sample))
-        create_h5_ivt_pt(gpu, cat_id, h5_file, verts, faces, surfpoints_sample, surfnormals_sample, ball_samples, ungridsamples, params, res, num_sample, uni_ratio, from_marchingcube)
-
-def create_ivt(num_sample, pntnum, res, angles_num, cats, raw_dirs, lst_dir, uni_ratio=0.3, surf_ratio=0.4, normalize=True, version=1, skip_all_exist=False):
-
-    ivt_dir=raw_dirs["ivt_mani_dir"]
-    ref_dir=raw_dirs["ref_mani_dir"]
-    if not os.path.exists(ivt_dir): os.makedirs(ivt_dir)
-    start=0
-    unigrid = get_unigrid(res)
-    ballgrid = get_ballgrid(angles_num)
-    thread_num=FLAGS.thread_num
-    for catnm in cats.keys():
-        cat_id = cats[catnm]
-        cat_ivt_dir = os.path.join(ivt_dir, cat_id)
-        cat_ref_dir = os.path.join(ref_dir, cat_id)
-        if not os.path.exists(cat_ivt_dir): os.makedirs(cat_ivt_dir)
-        cat_mesh_dir = os.path.join(raw_dirs["mesh_dir"], cat_id)
-        cat_pnt_dir = os.path.join(raw_dirs["pnt_dir"], cat_id)
-        cat_norm_mesh_dir = os.path.join(raw_dirs["norm_mesh_dir"], cat_id)
-        with open(lst_dir+"/"+str(cat_id)+"_test.lst", "r") as f:
-            list_obj = f.readlines()
-        with open(lst_dir+"/"+str(cat_id)+"_train.lst", "r") as f:
-            list_obj += f.readlines()
-        # print(list_obj)
-        span = len(list_obj) // thread_num
-        index = np.arange(len(list_obj))
-        if FLAGS.shuffle: 
-            np.random.shuffle(index)
-        list_objs = [[list_obj[j] for j in index[i*span:min((i+1)*span,len(list_obj))].tolist()] for i in range(thread_num)]
-        cat_mesh_dir_lst = [cat_mesh_dir for i in range(thread_num)]
-        cat_pnt_dir_lst = [cat_pnt_dir for i in range(thread_num)]
-        gpu_lst = [i % 4 for i in range(START, thread_num+START)]
-        catnm_lst = [catnm for i in range(thread_num)]
-        cat_norm_mesh_dir_lst = [cat_norm_mesh_dir for i in range(thread_num)]
-        cat_ivt_dir_lst = [cat_ivt_dir for i in range(thread_num)]
-        normalize_lst = [normalize for i in range(thread_num)]
-        num_sample_lst = [num_sample for i in range(thread_num)]
-        pntnum_lst = [pntnum for i in range(thread_num)]
-        cat_id_lst = [cat_id for i in range(thread_num)]
-        version_lst = [version for i in range(thread_num)]
-        unigrid_lst = [unigrid for i in range(thread_num)]
-        ballgrid_lst = [ballgrid for i in range(thread_num)]
-        uni_ratio_lst = [uni_ratio for i in range(thread_num)]
-        surf_ratio_lst = [surf_ratio for i in range(thread_num)]
-        res_lst = [res for i in range(thread_num)]
-        cat_ref_dir_lst = [cat_ref_dir for i in range(thread_num)]
-        skip_all_exist_lst = [skip_all_exist for i in range(thread_num)]
-        if thread_num > 1:
-            with Parallel(n_jobs=thread_num) as parallel:
-                vcts_part = parallel(delayed(create_ivt_distribute)
-                    (gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_dir, cat_ref_dir, list_obj, res, normalize, num_sample, pntnum, cat_id, version, unigrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist) for gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_dir, cat_ref_dir, list_obj, res, normalize, num_sample, pntnum, cat_id, version, unigrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist in zip(gpu_lst, catnm_lst, cat_mesh_dir_lst, cat_norm_mesh_dir_lst, cat_ivt_dir_lst, cat_pnt_dir_lst, cat_ref_dir_lst, list_objs, res_lst, normalize_lst, num_sample_lst, pntnum_lst, cat_id_lst, version_lst, unigrid_lst, ballgrid_lst, uni_ratio_lst, surf_ratio_lst, skip_all_exist_lst))
-        else:
-            vcts_part = create_ivt_distribute(-1, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_dir, cat_ref_dir, list_objs[0], res, normalize, num_sample, pntnum, cat_id, version, unigrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist)
-    print("finish all")
-
-def create_ivt_distribute(gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_dir, cat_ref_dir, list_obj, res, normalize, num_sample, pntnum, cat_id, version, unigrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist):
-    for i in range(len(list_obj)):
-        create_ivt_obj(gpu%4, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_dir, cat_ref_dir, list_obj[i],
-            res, normalize, num_sample, pntnum, cat_id, version, unigrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist)
-        print("finish {}/{} for {}".format(i,len(list_obj),catnm))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -453,7 +493,9 @@ if __name__ == "__main__":
             FLAGS.category:cats[FLAGS.category]
         }
 
-    create_ivt(32768*3, 163840, 0.01, 100, cats, raw_dirs, lst_dir, uni_ratio=0.4, surf_ratio=0.4, normalize=True, version=1, skip_all_exist=True)
+    # get_mesh("/hdd_extra1/datasets/ShapeNet/ShapeNetCore_v1_norm/03001627/17e916fc863540ee3def89b32cef8e45", "/hdd_extra1/datasets/ShapeNet/march_cube_objs_v1/03001627/17e916fc863540ee3def89b32cef8e45", "./test/2/", 50000)
+
+    create_ivt(32768*3, 163840, 0.01, 100, cats, raw_dirs, lst_dir, uni_ratio=0.4, surf_ratio=0.4, normalize=True, version=1, skip_all_exist=True, normalgt=True)
 
     # unigrid = get_unigrid(0.01)
     # ballgrid = get_ballgrid(100)
