@@ -88,9 +88,10 @@ def gpu_calculate_ivt(points, tries, gpu, from_marchingcube):
         vcts_part = ptdcuda.closet(ivt, dist)
         vcts.append(vcts_part)
     else:
-        times = points.shape[0] * num_tries // (25000 * 6553) + 1
+        times = points.shape[0] * num_tries // (25000 * 6553 * 3) + 1
         span = points.shape[0] // times + 1
         vcts = []
+        print("points.shape, tries.shape", points.shape, tries.shape)
         for i in range(times):
             print("start ptdcuda: {}/{}".format(i + 1, times))
             smindx = i * span

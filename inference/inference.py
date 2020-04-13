@@ -376,7 +376,7 @@ def unisample_pnts(sess, ops, roundnum, batch_data, res, num, threshold=0.1, std
         unigrid = unigrid[inds]  # uni_ivts = ct.gpu_calculate_ivt(unigrid, tries, gpu)
     batch_data["pnts"] = np.array([unigrid])
     if sess is None:
-        uni_ivts = ct.gpu_calculate_ivt(batch_data["pnts"][0], tries, int(FLAGS.gpu), tries.shape[0]>70000)
+        uni_ivts = ct.gpu_calculate_ivt(batch_data["pnts"][0], tries, int(FLAGS.gpu), tries.shape[0]>700)
         uni_dist = np.linalg.norm(uni_ivts, axis=1, keepdims=True)
         uni_drcts = uni_ivts / uni_dist
         uni_dist = uni_dist.reshape((-1))
@@ -405,7 +405,7 @@ def ballsample_pnts(sess, ops, roundnum, angles_num, batch_data, num, threshold=
         ballgrid = ballgrid[inds]
     batch_data["pnts"] = np.array([ballgrid])
     if sess is None:
-        ball_ivts = ct.gpu_calculate_ivt(batch_data["pnts"][0], tries, int(FLAGS.gpu), tries.shape[0]>70000)
+        ball_ivts = ct.gpu_calculate_ivt(batch_data["pnts"][0], tries, int(FLAGS.gpu), tries.shape[0]>700)
         ball_dist = np.linalg.norm(ball_ivts, axis=1, keepdims=True)
         ball_drcts = ball_ivts / ball_dist
         ball_dist = ball_dist.reshape((-1))
@@ -519,7 +519,7 @@ def z_norm_matrix(norm):
 
 def nearsample_pnts(sess, ops, roundnum, batch_data, tries, stdratio=10, weightform="reverse", stdlwb=0.04, stdupb=0.1):
     if sess is None:
-        surface_ivts = ct.gpu_calculate_ivt(batch_data["pnts"][0], tries, int(FLAGS.gpu), tries.shape[0]>70000)
+        surface_ivts = ct.gpu_calculate_ivt(batch_data["pnts"][0], tries, int(FLAGS.gpu), tries.shape[0]>700)
         dist = np.linalg.norm(surface_ivts, axis=1, keepdims=True)
         surf_norm = surface_ivts / dist
         print("surface_ivts.shape, surface_ivts.shape", surface_ivts.shape, surface_ivts.shape)
@@ -544,8 +544,12 @@ def save_norm(loc, norm, outfile):
 if __name__ == "__main__":
     # nohup python -u inference.py --restore_model ../train/checkpoint/global_direct_surfaceonly/chair_evenweight --outdir  chair_drct_even_surfonly_uni --unionly &> global_direct_chair_surf_evenweight_uni.log &
 
+
     # nohup python -u inference.py --gt --outdir  gt_noerrBall --unionly --stdupb 0.3 0.3 0.2 0.1 0.05 --stdlwb 0.01 0.01 0.01 0.01 0.01 &> gt_uni.log &
-     # full set
+
+    #   nohup python -u inference.py --gt --outdir  gt_shirt1 --unionly --stdupb 0.3 0.3 0.2 0.1 0.05 --stdlwb 0.01 0.0 0.0 0.0 0.0 &> shirt.log &
+
+    # full set
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--gpu', type=str, default='0', help='GPU to use [default: GPU 0]')
@@ -585,9 +589,9 @@ if __name__ == "__main__":
     parser.add_argument('--rounds', type=int, default=4, help='how many rounds of ivf')
     parser.add_argument('--uni_thresh', type=float, default=0.1, help='threshold for uniform sampling')
     parser.add_argument('--res', type=float, default=0.01, help='cube resolution')
-    parser.add_argument('--anglenums', type=int, default=400, help='angle resolution')
+    parser.add_argument('--anglenums', type=int, default=200, help='angle resolution')
     parser.add_argument('--initnums', type=int, default=8096, help='initial sampled uni point numbers')
-    parser.add_argument('--num_ratio', type=int, default=8, help='point numbers expansion each round')
+    parser.add_argument('--num_ratio', type=int, default=2, help='point numbers expansion each round')
     parser.add_argument('--stdratio', type=int, default=4, help='')
     parser.add_argument('--stdupb', nargs='+', action='store', default=[0.1, 0.1, 0.03, 0.01, 0])
     parser.add_argument('--stdlwb', nargs='+', action='store', default=[0.08, 0.04, 0.003, 0.001, 0])
@@ -686,13 +690,19 @@ if __name__ == "__main__":
     # model_file = os.path.join(raw_dirs['norm_mesh_dir'], batch_data["cat_id"][0], batch_data["obj_nm"][0], "pc_norm.obj")
     # model_file = os.path.join("/hdd_extra1/datasets/ShapeNet/ShapeNetCore_v1_norm_old/", batch_data["cat_id"][0], batch_data["obj_nm"][0], "pc_norm.obj")
     #
-    batch_data={"cat_id":["02691156"],"obj_nm":["1beb0776148870d4c511571426f8b16d"]}
-    model_file = os.path.join("/hdd_extra1/datasets/ShapeNet/march_cube_objs_v1/", batch_data["cat_id"][0], batch_data["obj_nm"][0], "isosurf.obj")
 
-    command_str = "cp " + model_file + " ./" + FLAGS.outdir + "/"
-    print("command:", command_str)
-    os.system(command_str)
 
+    #
+    # batch_data={"cat_id":["02691156"],"obj_nm":["1beb0776148870d4c511571426f8b16d"]}
+    # model_file = os.path.join("/hdd_extra1/datasets/ShapeNet/march_cube_objs_v1/", batch_data["cat_id"][0], batch_data["obj_nm"][0], "isosurf.obj")
+    #
+    # command_str = "cp " + model_file + " ./" + FLAGS.outdir + "/"
+    # print("command:", command_str)
+    # os.system(command_str)
+    batch_data = {"cat_id": ["000"], "obj_nm": ["shirt3"]}
+    # model_file = "./shirt.obj"
+    # ct.get_normalize_mesh(model_file, "./", "./", "./", 0)
+    model_file = "./pc_norm.obj"
     batch_data["model_file"] = model_file
     os.makedirs(FLAGS.outdir, exist_ok=True)
     if FLAGS.gt:

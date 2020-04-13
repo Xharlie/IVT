@@ -235,6 +235,7 @@ def pnts_tries_ivts(pnts, tries, topk_tries=None, gpu=0):
         pnts_tries_ivt = mod.get_function("p2ttop")
         pnts_tries_ivt(drv.Out(ivt), drv.Out(dist), drv.In(np.float32(pnts)), drv.In(np.float32(topk_tries)),np.int32(pnt_num), np.int32(top_num), block=(kMaxThreadsPerBlock, 1, 1), grid=(gridSize, 1))
     else:
+        print("start to cal ivf", tries.shape)
         tries_num = tries.shape[0]
         ivt = np.zeros((pnt_num, tries_num, 3)).astype(np.float32)
         dist = 10.0 * np.ones((pnt_num, tries_num)).astype(np.float32)
@@ -635,11 +636,11 @@ def pointTriangleDistance(TRI, P):
 # i,j = 2000, 4000
 # pnts = np.random.randn(i, 3).astype(np.float32)
 # tries = np.random.randn(j, 3, 3).astype(np.float32)
-pnts = np.array([[ 0.0388784,  -0.43049761,  0.93390526], [ 0.65514363,  0.33294779, -0.46959095]])
-tries = np.array([[[ 0.59400288, -0.48788681,  0.40524953],
- [ 0.53634743, -0.4928393,   0.40898072],
- [ 0.59449531, -0.4878803,   0.41286809]], [[ 0.59449531, -0.4878803,   0.41286809],
- [ 0.53634743, -0.4928393,   0.40898072],
- [ 0.59300718, -0.48804083,  0.42035432]]])
-ivt, dist = pnts_tries_ivts(pnts, tries)
-closet(ivt, dist)
+# pnts = np.array([[ 0.0388784,  -0.43049761,  0.93390526], [ 0.65514363,  0.33294779, -0.46959095]])
+# tries = np.array([[[ 0.59400288, -0.48788681,  0.40524953],
+#  [ 0.53634743, -0.4928393,   0.40898072],
+#  [ 0.59449531, -0.4878803,   0.41286809]], [[ 0.59449531, -0.4878803,   0.41286809],
+#  [ 0.53634743, -0.4928393,   0.40898072],
+#  [ 0.59300718, -0.48804083,  0.42035432]]])
+# ivt, dist = pnts_tries_ivts(pnts, tries)
+# closet(ivt, dist)
