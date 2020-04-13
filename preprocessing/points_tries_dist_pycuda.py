@@ -316,7 +316,8 @@ def cal_topkind(pnts, avg_points, gpu=0):
 
 def closet(ivt, dist):
     # index = (np.arange(ivt.shape[0]) * dist.shape[1] + np.argmin(dist, axis=1))[:,np.newaxis]
-    ivt_index0 = 3*(np.arange(ivt.shape[0]) * dist.shape[1] + np.argmin(dist, axis=1))[:,np.newaxis]
+    minind = np.argmin(dist, axis=1)
+    ivt_index0 = 3*(np.arange(ivt.shape[0]) * dist.shape[1] + minind)[:,np.newaxis]
     ivt_index1 = ivt_index0 + 1
     ivt_index2 = ivt_index1 + 1
     ivt_indices = np.concatenate([ivt_index0, ivt_index1, ivt_index2],axis=1)
@@ -327,7 +328,7 @@ def closet(ivt, dist):
     # print(index.shape, dist_closest.shape, ivt_closest.shape)
     # print(dist_closest, dist)
     # print(ivt_closest, ivt)
-    return ivt_closest
+    return ivt_closest, minind
 
 
 

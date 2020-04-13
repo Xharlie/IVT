@@ -12,6 +12,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../'))
 import points_tries_dist_pycuda as ptdcuda
 import argparse
+import normal_gen
 
 
 START = 0
@@ -76,6 +77,7 @@ def gpu_calculate_ivt(points, tries, gpu, from_marchingcube):
     start = time.time()
     num_tries = tries.shape[0]
     vcts = []
+    closest_ind = np.zeros((0),dtype=np.int)
     if from_marchingcube:
         ind_start = time.time()
         avg_points = np.mean(tries, axis=1)
@@ -85,7 +87,10 @@ def gpu_calculate_ivt(points, tries, gpu, from_marchingcube):
         ivtround_start = time.time()
         ivt, dist = ptdcuda.pnts_tries_ivts(points, None, topk_tries=topk_tries, gpu=gpu)
         print("finish ptdcuda ivt, dist:", ivt.shape, dist.shape, "time diff:", time.time() - ivtround_start)
-        vcts_part = ptdcuda.closet(ivt, dist)
+        vcts_part, minind = ptdcuda.closet(ivt, dist)
+        minind = np.arange(minind.shape[0]) * 10 + minind
+        closest_ind = np.take(topk_ind, minind)
+        # print("closest_ind,minind",closest_ind.shape,minind.shape,minind)
         vcts.append(vcts_part)
     else:
         times = points.shape[0] * num_tries // (25000 * 6553 * 3) + 1
@@ -100,17 +105,24 @@ def gpu_calculate_ivt(points, tries, gpu, from_marchingcube):
             ivtround_start = time.time()
             ivt, dist = ptdcuda.pnts_tries_ivts(pnts, tries, gpu=gpu)
             print("finish, ivt, dist", ivt.shape, dist.shape, "time diff:", time.time() - ivtround_start)
-            vcts_part = ptdcuda.closet(ivt, dist)
+            vcts_part, minind = ptdcuda.closet(ivt, dist)
+            closest_ind = np.concatenate([closest_ind, minind],axis=0)
             vcts.append(vcts_part)
             print("end ptdcuda: {}/{}".format(i+1, times))
     ivt_closest = vcts[0] if len(vcts) == 0 else np.concatenate(vcts, axis=0)
     print("ivt_closest.shape", ivt_closest.shape, "time diff:", time.time() - start)
-    return ivt_closest
+    return ivt_closest, closest_ind
 
-# def closest_dist(points, tries, gpu):
-#     min_dists = ptdcuda.cal_dist(points, avg_points, gpu=gpu)
-#     return min_dists
-
+def gpu_calculate_ivt_norm(points, tries, face_norms, vert_norms, gpu, from_marchingcube):
+    ivt_closest, closest_ind = gpu_calculate_ivt(points, tries, gpu, from_marchingcube)
+    # print("uniq face ind",np.unique(closest_ind))
+    tries = tries[closest_ind]
+    face_norms = face_norms[closest_ind]
+    vert_norms = vert_norms[closest_ind]
+    print("gpu_calculate_ivt_norm : face_norms.shape, vert_norms.shape",face_norms.shape, vert_norms.shape)
+    points_surf = points + ivt_closest
+    inter_norm = normal_gen.interp(points_surf, face_norms, tries, vert_norms)
+    return ivt_closest, inter_norm
 
 def get_plane_abcd(tries):
     v1 = tries[:,2,:] - tries[:,0,:]

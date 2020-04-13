@@ -45,7 +45,7 @@ finalfile = "surf_loc3_final.ply"
 
 
 trimD = 7
-depth = 8
+depth = 10
 ksearch = 5
 samplesPerNode = 1.0
 confidence = 1.0

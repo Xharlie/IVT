@@ -26,6 +26,7 @@ import argparse
 import pymesh
 import trimesh
 import pandas as pd
+import normal_gen
 from pyntcloud import PyntCloud
 from sklearn.neighbors import DistanceMetric as dm
 from sklearn.neighbors import NearestNeighbors
@@ -180,9 +181,9 @@ def test(batch_data):
             weightform = FLAGS.weightform
             distr = FLAGS.distr
             if FLAGS.unitype == "uni":
-                loc, norm, std, weights, gt_pc, tries, dist = unisample_pnts(sess, ops, -1, batch_data, FLAGS.res, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
+                loc, norm, std, weights, gt_pc, tries, face_norms, vert_norms, dist = unisample_pnts(sess, ops, -1, batch_data, FLAGS.res, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
             elif FLAGS.unitype == "ball":
-                loc, norm, std, weights, gt_pc, tries, dist = ballsample_pnts(sess, ops, FLAGS.anglenums, -1, batch_data, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
+                loc, norm, std, weights, gt_pc, tries, face_norms, vert_norms, dist = ballsample_pnts(sess, ops, FLAGS.anglenums, -1, batch_data, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
             save_norm(loc, norm, os.path.join(FLAGS.outdir, "uni_l.ply"))
             if FLAGS.restore_surfmodel != "":
                 sess = load_model_strict(sess, saver, FLAGS.restore_surfmodel)
@@ -197,7 +198,7 @@ def test(batch_data):
                 pc = sample_from_MM(loc, norm, std, weights, nums, num_ratio, dist, distr=distr, gridsize=FLAGS.gridsize)
                 batch_data['pnts'] = np.array([pc])
                 # print("batch_data['pnts'].shape", batch_data['pnts'].shape)
-                loc, norm, std, weights = nearsample_pnts(sess, ops, i, batch_data, tries, stdratio=FLAGS.stdratio, weightform=weightform, stdlwb=FLAGS.stdlwb[i+1], stdupb=FLAGS.stdupb[i+1])
+                loc, norm, std, weights, dist = nearsample_pnts(sess, ops, i, batch_data, tries, face_norms, vert_norms, stdratio=FLAGS.stdratio, weightform=weightform, stdlwb=FLAGS.stdlwb[i+1], stdupb=FLAGS.stdupb[i+1])
                 save_norm(loc, norm, os.path.join(FLAGS.outdir, "surf_loc{}.ply".format(i)))
             sys.stdout.flush()
 
@@ -218,9 +219,9 @@ def gt_test(batch_data):
     distr = FLAGS.distr
 
     if FLAGS.unitype == "uni":
-        loc, norm, std, weights, gt_pc, tries, dist = unisample_pnts(None, None, -1, batch_data, FLAGS.res, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
+        loc, norm, std, weights, gt_pc, tries, face_norms, vert_norms, dist = unisample_pnts(None, None, -1, batch_data, FLAGS.res, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
     elif FLAGS.unitype == "ball":
-        loc, norm, std, weights, gt_pc, tries, dist = ballsample_pnts(None, None, -1,  FLAGS.anglenums, batch_data, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
+        loc, norm, std, weights, gt_pc, tries, face_norms, vert_norms, dist = ballsample_pnts(None, None, -1,  FLAGS.anglenums, batch_data, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
     save_norm(loc, norm, os.path.join(FLAGS.outdir, "uni_l.ply"))
 
     for i in range(FLAGS.rounds):
@@ -229,7 +230,7 @@ def gt_test(batch_data):
         pc = sample_from_MM(loc, norm, std, weights, nums, num_ratio, dist, distr=distr, gridsize=FLAGS.gridsize)
         batch_data['pnts'] = np.array([pc])
         print("batch_data['pnts'].shape", batch_data['pnts'].shape)
-        loc, norm, std, weights, dist = nearsample_pnts(None, None, i, batch_data, tries, stdratio=FLAGS.stdratio, weightform=weightform, stdlwb=FLAGS.stdlwb[i+1], stdupb=FLAGS.stdupb[i+1])
+        loc, norm, std, weights, dist = nearsample_pnts(None, None, i, batch_data, tries, face_norms, vert_norms, stdratio=FLAGS.stdratio, weightform=weightform, stdlwb=FLAGS.stdlwb[i+1], stdupb=FLAGS.stdupb[i+1])
         # print("pc.shape", pc.shape, "loc.shape", loc.shape, "std.shape", std.shape, "weights.shape", weights.shape)
         np.savetxt(os.path.join(FLAGS.outdir, "surf_samp{}.txt".format(i)), pc, delimiter=";")
         save_norm(loc, norm, os.path.join(FLAGS.outdir, "surf_loc{}.ply".format(i)))
@@ -341,6 +342,32 @@ def get_unigrid(ivt_res):
     return np.stack([x.reshape(-1), y.reshape(-1), z.reshape(-1)], axis=1)
 
 
+# def get_normalized_mesh(model_file):
+#     total = 16384 * 5
+#     print("trimesh_load:", model_file)
+#     mesh_list = trimesh.load_mesh(model_file, process=False)
+#     if not isinstance(mesh_list, list):
+#         mesh_list = [mesh_list]
+#     area_sum = 0
+#     area_lst = []
+#     for idx, mesh in enumerate(mesh_list):
+#         area = np.sum(mesh.area_faces)
+#         area_lst.append(area)
+#         area_sum += area
+#     area_lst = np.asarray(area_lst)
+#     amount_lst = (area_lst * total / area_sum).astype(np.int32)
+#     points_all = np.zeros((0, 3), dtype=np.float32)
+#     for i in range(amount_lst.shape[0]):
+#         mesh = mesh_list[i]
+#         # print("start sample surface of ", mesh.faces.shape[0])
+#         points, index = trimesh.sample.sample_surface(mesh, amount_lst[i])
+#         # print("end sample surface")
+#         points_all = np.concatenate([points_all, points], axis=0)
+#     ori_mesh = pymesh.load_mesh(model_file)
+#     index = ori_mesh.faces.reshape(-1)
+#     tries = ori_mesh.vertices[index].reshape([-1, 3, 3])
+#     return points_all, tries
+
 def get_normalized_mesh(model_file):
     total = 16384 * 5
     print("trimesh_load:", model_file)
@@ -356,38 +383,45 @@ def get_normalized_mesh(model_file):
     area_lst = np.asarray(area_lst)
     amount_lst = (area_lst * total / area_sum).astype(np.int32)
     points_all = np.zeros((0, 3), dtype=np.float32)
+    all_face_normals = np.zeros((0, 3), dtype=np.float32)
+    all_vert_normals = np.zeros((0, 3, 3), dtype=np.float32)
+    all_tries = np.zeros((0, 3, 3), dtype=np.float32)
     for i in range(amount_lst.shape[0]):
         mesh = mesh_list[i]
         # print("start sample surface of ", mesh.faces.shape[0])
         points, index = trimesh.sample.sample_surface(mesh, amount_lst[i])
+        vert_ind = mesh.faces.reshape(-1)
         # print("end sample surface")
+        all_tries = np.concatenate([all_tries, mesh.vertices[vert_ind].reshape([-1, 3, 3])], axis=0)
+        all_face_normals = np.concatenate([all_face_normals, mesh.face_normals], axis=0)
+        all_vert_normals = np.concatenate([all_vert_normals, mesh.vertex_normals[vert_ind].reshape([-1, 3, 3])], axis=0)
         points_all = np.concatenate([points_all, points], axis=0)
-    ori_mesh = pymesh.load_mesh(model_file)
-    index = ori_mesh.faces.reshape(-1)
-    tries = ori_mesh.vertices[index].reshape([-1, 3, 3])
-    return points_all, tries
+    # print(all_tries.shape, all_vert_normals.shape)
+    # print(np.linalg.norm(all_vert_normals,axis=2))
+    return points_all, all_tries, all_face_normals, all_vert_normals
 
 
 def unisample_pnts(sess, ops, roundnum, batch_data, res, num, threshold=0.1, stdratio=10, stdlwb=0.0, stdupb=0.1):
-    gt_pnts, tries = get_normalized_mesh(batch_data["model_file"])
+    gt_pnts, tries, face_norms, vert_norms = get_normalized_mesh(batch_data["model_file"])
     unigrid = get_unigrid(res)
     if not FLAGS.unionly:
         inds = np.random.choice(unigrid.shape[0], num * 8)
         unigrid = unigrid[inds]  # uni_ivts = ct.gpu_calculate_ivt(unigrid, tries, gpu)
     batch_data["pnts"] = np.array([unigrid])
     if sess is None:
-        uni_ivts = ct.gpu_calculate_ivt(batch_data["pnts"][0], tries, int(FLAGS.gpu), tries.shape[0]>700)
+        uni_ivts, uni_inter_norm = ct.gpu_calculate_ivt_norm(batch_data["pnts"][0], tries, face_norms, vert_norms, int(FLAGS.gpu), tries.shape[0]>700)
         uni_dist = np.linalg.norm(uni_ivts, axis=1, keepdims=True)
-        uni_drcts = uni_ivts / uni_dist
+        uni_drcts = uni_inter_norm if FLAGS.norminter else -uni_ivts / uni_dist
         uni_dist = uni_dist.reshape((-1))
         print("uni_ivts.shape, uni_drcts.shape", uni_ivts.shape, uni_drcts.shape)
     else:
         uni_ivts, uni_drcts = inference_batch(sess, ops, roundnum, batch_data)
+        uni_drcts = -uni_drcts
         uni_dist = np.linalg.norm(uni_ivts, axis=1)
     ind = uni_dist <= threshold
     uni_drcts = uni_drcts[ind]
     dist, uni_place, std = cal_std_loc(unigrid[ind], uni_ivts[ind], stdratio, stdlwb=stdlwb, stdupb=stdupb)
-    return uni_place, -uni_drcts, std, np.full(std.shape[0], 1), gt_pnts, tries, dist
+    return uni_place, -uni_drcts, std, np.full(std.shape[0], 1), gt_pnts, tries, face_norms, vert_norms, dist
 
 def get_ballgrid(angles_num):
     phi = np.linspace(0, np.pi, num=angles_num)
@@ -398,25 +432,26 @@ def get_ballgrid(angles_num):
     return np.stack([x, y, z], axis=1)
 
 def ballsample_pnts(sess, ops, roundnum, angles_num, batch_data, num, threshold=0.1, stdratio=10, stdlwb=0.0, stdupb=0.1):
-    gt_pnts, tries = get_normalized_mesh(batch_data["model_file"])
+    gt_pnts, tries, face_norms, vert_norms = get_normalized_mesh(batch_data["model_file"])
     ballgrid = get_ballgrid(angles_num)
     if not FLAGS.unionly:
         inds = np.random.choice(ballgrid.shape[0], num * 8)
         ballgrid = ballgrid[inds]
     batch_data["pnts"] = np.array([ballgrid])
     if sess is None:
-        ball_ivts = ct.gpu_calculate_ivt(batch_data["pnts"][0], tries, int(FLAGS.gpu), tries.shape[0]>700)
+        ball_ivts, ball_inter_norm = ct.gpu_calculate_ivt_norm(batch_data["pnts"][0], tries, face_norms, vert_norms, int(FLAGS.gpu), tries.shape[0]>700)
         ball_dist = np.linalg.norm(ball_ivts, axis=1, keepdims=True)
-        ball_drcts = ball_ivts / ball_dist
+        ball_drcts = ball_inter_norm if FLAGS.norminter else -ball_ivts / ball_dist
         ball_dist = ball_dist.reshape((-1))
         print("ball_ivts.shape, ball_drcts.shape", ball_ivts.shape, ball_drcts.shape)
     else:
         ball_ivts, ball_drcts = inference_batch(sess, ops, roundnum, batch_data)
+        ball_drcts=-ball_drcts
         ball_dist = np.linalg.norm(uni_ivts, axis=1)
     # ind = ball_dist <= threshold
     # ivts = ball_drcts[ind]
     dist, ball_place, std = cal_std_loc(ballgrid, ball_ivts, stdratio, stdlwb=stdlwb, stdupb=stdupb)
-    return ball_place, -ball_drcts, std, np.full(std.shape[0], 1), gt_pnts, tries, dist
+    return ball_place, ball_drcts, std, np.full(std.shape[0], 1), gt_pnts, tries, face_norms,vert_norms, dist
 
 
 def cal_std_loc(pnts, ivts, stdratio, stdlwb=0.0, stdupb=0.1):
@@ -517,14 +552,15 @@ def z_norm_matrix(norm):
     R = I + W + np.expand_dims(C, axis=2) * Wsqr
     return R
 
-def nearsample_pnts(sess, ops, roundnum, batch_data, tries, stdratio=10, weightform="reverse", stdlwb=0.04, stdupb=0.1):
+def nearsample_pnts(sess, ops, roundnum, batch_data, tries, face_norms, vert_norms, stdratio=10, weightform="reverse", stdlwb=0.04, stdupb=0.1):
     if sess is None:
-        surface_ivts = ct.gpu_calculate_ivt(batch_data["pnts"][0], tries, int(FLAGS.gpu), tries.shape[0]>700)
+        surface_ivts, surf_inter_norm = ct.gpu_calculate_ivt_norm(batch_data["pnts"][0], tries, face_norms, vert_norms, int(FLAGS.gpu), tries.shape[0]>700)
         dist = np.linalg.norm(surface_ivts, axis=1, keepdims=True)
-        surf_norm = surface_ivts / dist
+        surf_norm = surf_inter_norm if FLAGS.norminter else -surface_ivts / dist
         print("surface_ivts.shape, surface_ivts.shape", surface_ivts.shape, surface_ivts.shape)
     else:
         surface_ivts, surf_norm = inference_batch(sess, ops, roundnum, batch_data)
+        surf_norm=-surf_norm
     # print("batch_data[pnts][0], surface_ivts",batch_data["pnts"][0].shape, surface_ivts.shape)
     dist, surface_place, std = cal_std_loc(batch_data["pnts"][0], surface_ivts, stdratio, stdlwb=stdlwb, stdupb=stdupb)
     if weightform == "even":
@@ -532,7 +568,7 @@ def nearsample_pnts(sess, ops, roundnum, batch_data, tries, stdratio=10, weightf
     elif weightform == "reverse":
         weights = 1.0 / np.maximum(dist, 5e-3)
 
-    return surface_place, -surf_norm, std, weights, dist
+    return surface_place, surf_norm, std, weights, dist
 
 def save_norm(loc, norm, outfile):
     cloud = PyntCloud(pd.DataFrame(
@@ -547,7 +583,7 @@ if __name__ == "__main__":
 
     # nohup python -u inference.py --gt --outdir  gt_noerrBall --unionly --stdupb 0.3 0.3 0.2 0.1 0.05 --stdlwb 0.01 0.01 0.01 0.01 0.01 &> gt_uni.log &
 
-    #   nohup python -u inference.py --gt --outdir  gt_shirt1 --unionly --stdupb 0.3 0.3 0.2 0.1 0.05 --stdlwb 0.01 0.0 0.0 0.0 0.0 &> shirt.log &
+    #   nohup python -u inference.py --gt --outdir  gt_shirt1 --unionly --norminter --stdupb 0.3 0.3 0.2 0.1 0.05 --stdlwb 0.01 0.0 0.0 0.0 0.0 &> shirt.log &
 
     # full set
 
@@ -604,6 +640,7 @@ if __name__ == "__main__":
     parser.add_argument('--unitype', type=str, default="ball", help='out_dir')
     parser.add_argument('--unionly', action='store_true')
     parser.add_argument('--gt', action='store_true')
+    parser.add_argument('--norminter', action='store_true')
 
     FLAGS = parser.parse_args()
     FLAGS.stdupb = [float(i) for i in FLAGS.stdupb]

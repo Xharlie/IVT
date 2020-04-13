@@ -26,26 +26,25 @@ START = 0
 CUR_PATH = os.path.dirname(os.path.realpath(__file__))
 FLAGS=None
 
-def create_h5_ivt_pt(gpu, cat_id, h5_file, verts, faces, surfpoints_sample, surfpoints, ungrid, norm_params, ivt_res, num_sample, uni_ratio):
-    if faces.shape[0] > 2000000:
-        print(cat_id,h5_file,"is too big!!! faces_size", faces.shape[0])
-        return
-    index = faces.reshape(-1)
-    tries = verts[index].reshape([-1,3,3])
-    print("tries.shape", tries.shape, faces.shape)
-    ungrid = add_jitters(ungrid, std=0.005)
-    surfpoints_sample = add_jitters(surfpoints_sample, std=0.05, type="uniform")
-    uni_ivts = gpu_calculate_ivt(ungrid, tries,gpu)  # (N*8)x4 (x,y,z)
-    surf_ivts = gpu_calculate_ivt(surfpoints_sample, tries, gpu)  # (N*8)x4 (x,y,z)
-    print("start to write", h5_file)
-    f1 = h5py.File(h5_file, 'w')
-    f1.create_dataset('uni_pnts', data=ungrid.astype(np.float32), compression='gzip', compression_opts=4)
-    f1.create_dataset('surf_pnts', data=surfpoints_sample.astype(np.float32), compression='gzip', compression_opts=4)
-    f1.create_dataset('uni_ivts', data=uni_ivts.astype(np.float32), compression='gzip', compression_opts=4)
-    f1.create_dataset('surf_ivts', data=surf_ivts.astype(np.float32), compression='gzip', compression_opts=4)
-    f1.create_dataset('norm_params', data=norm_params, compression='gzip', compression_opts=4)
-    f1.close()
-
+def norm_z_matrix(norm):
+    bs = norm.shape[0]
+    z_b = np.repeat(np.array([(0., 0., 1.)]), bs, axis=0)
+    print("norm.shape, z_b.shape",norm.shape, z_b.shape)
+    normal = np.cross(norm, z_b)
+    print("normal of norm rotate:", normal.shape)
+    sinal = np.linalg.norm(normal,axis=1,keepdims=True)
+    cosal = np.sum(np.multiply(norm, z_b),axis=1,keepdims=True)
+    # sinalsqrrev = 1/np.square(np.maximum(1e-5, sinal))
+    ux = normal[:,[0]]
+    uy = normal[:,[1]]
+    uz = normal[:,[2]]
+    zr = np.zeros_like(ux)
+    W = np.concatenate([zr, -uz, uy, uz, zr, -ux, -uy, ux, zr], axis=1).reshape((-1,3,3))
+    I = np.repeat(np.expand_dims(np.identity(3), axis = 0), bs, axis=0)
+    Wsqr = np.matmul(W, W)
+    C = 1/np.maximum(1e-5,1+cosal)
+    R = I + W + np.expand_dims(C, axis=2) * Wsqr
+    return R
 
 
 def get_normal(norm_mesh_sub_dir):
@@ -78,6 +77,7 @@ def get_normal(norm_mesh_sub_dir):
     ori_mesh = pymesh.load_mesh(obj_file)
     return ori_mesh.vertices, ori_mesh.faces, points_all, face_norm_all, vert_norm_all
 
+
 def find_normal(points, index, mesh):
     trimesh.repair.fix_winding(mesh)
     trimesh.repair.fix_normals(mesh)
@@ -104,22 +104,14 @@ def find_normal(points, index, mesh):
     return face_norms, verts_inter_norm
 
 
-def rectify_matrix(norm):
-    bs = norm.shape[0]
-    z_b = np.repeat(np.array([(0., 0., 1.)]), bs, axis=0)
-    normal = np.cross(norm, z_b)
-    print("normal of norm rotate:", normal.shape)
-    sinal = np.linalg.norm(normal,axis=1,keepdims=True)
-    cosal = np.sum(np.multiply(norm, z_b),axis=1,keepdims=True)
-    normal = normal / np.maximum(1e-5, sinal)
-    ux = normal[:,[0]]
-    uy = normal[:,[1]]
-    uz = normal[:,[2]]
-    zr = np.zeros_like(ux)
-    W = np.concatenate([zr, -uz, uy, uz, zr, -ux, -uy, ux, zr], axis=1).reshape((-1,3,3))
-    I = np.repeat(np.expand_dims(np.identity(3), axis = 0), bs, axis=0)
-    R = I + np.expand_dims(sinal,axis=2) * W + (1-np.expand_dims(cosal,axis=2)) * np.matmul(W, W)
-    return R
+def interp(points, face_norms, verts_xyz, vert_norms):
+    print("interp: points, face_norms, verts_xyz, vert_norms",points.shape, face_norms.shape, verts_xyz.shape, vert_norms.shape)
+    R = norm_z_matrix(face_norms)
+    allcord = np.concatenate([np.transpose(verts_xyz,(0,2,1)), np.expand_dims(points,axis=2)], axis = 2) # K * 3 * 4
+    rotcord = np.matmul(R, allcord)
+    verts_inter_norm = baracenter_interp(rotcord[:,0,:3], rotcord[:,1,:3], rotcord[:,0,3], rotcord[:,1,3],vert_norms)
+    return verts_inter_norm
+
 
 def baracenter_interp(X, Y, Px, Py, feats):
     Yv2_v3 = Y[:,1]-Y[:,2]
@@ -134,81 +126,6 @@ def baracenter_interp(X, Y, Px, Py, feats):
     interfeat = W1[:,np.newaxis] * feats[:,0,:] + W2[:,np.newaxis] * feats[:,1,:] + W3[:,np.newaxis] * feats[:,2,:]
     return interfeat
 
-
-def create_ivt_obj(gpu, cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, obj,
-                   res, normalize, num_sample, cat_id, version, ungrid, uni_ratio, skip_all_exist):
-    obj=obj.rstrip('\r\n')
-    ivt_sub_dir = os.path.join(cat_sdf_dir, obj)
-    norm_mesh_sub_dir = os.path.join(cat_norm_mesh_dir, obj)
-    if not os.path.exists(ivt_sub_dir): os.makedirs(ivt_sub_dir)
-    if not os.path.exists(norm_mesh_sub_dir): os.makedirs(norm_mesh_sub_dir)
-    h5_file = os.path.join(ivt_sub_dir, "ivt_sample.h5")
-    if  os.path.exists(h5_file) and skip_all_exist:
-        print("skip existed: ", h5_file)
-    else:
-        if version == 1:
-            model_file = os.path.join(cat_mesh_dir, obj, "model.obj")
-        else:
-            model_file = os.path.join(cat_mesh_dir, obj, "models", "model_normalized.obj")
-        if normalize and (not os.path.exists(os.path.join(norm_mesh_sub_dir, "pc_norm.obj")) or not os.path.exists(
-                os.path.join(norm_mesh_sub_dir, "pc_norm.txt"))):
-            verts, faces, params, surfpoints = get_normalize_mesh(model_file, norm_mesh_sub_dir)
-        else:
-            verts, faces, surfpoints = get_mesh(norm_mesh_sub_dir)
-            params = np.loadtxt(os.path.join(norm_mesh_sub_dir, "pc_norm.txt"))
-
-        surfpoints_sample = surfpoints[np.random.randint(surfpoints.shape[0], size = num_sample - int(uni_ratio*num_sample)),:] 
-        create_h5_ivt_pt(gpu, cat_id, h5_file, verts, faces, surfpoints_sample, surfpoints, ungrid, params, res, num_sample, uni_ratio)
-
-def create_ivt(num_sample, res, cats, raw_dirs, lst_dir, uni_ratio=0.2, normalize=True, version=1, skip_all_exist=False):
-
-    sdf_dir=raw_dirs["ivt_dir"]
-    if not os.path.exists(sdf_dir): os.makedirs(sdf_dir)
-    start=0
-    unigrid = get_unigrid(res, int(uni_ratio*num_sample))
-    thread_num=FLAGS.thread_num
-    for catnm in cats.keys():
-        cat_id = cats[catnm]
-        cat_sdf_dir = os.path.join(sdf_dir, cat_id)
-        if not os.path.exists(cat_sdf_dir): os.makedirs(cat_sdf_dir)
-        cat_mesh_dir = os.path.join(raw_dirs["mesh_dir"], cat_id)
-        cat_norm_mesh_dir = os.path.join(raw_dirs["norm_mesh_dir"], cat_id)
-        with open(lst_dir+"/"+str(cat_id)+"_test.lst", "r") as f:
-            list_obj = f.readlines()
-        with open(lst_dir+"/"+str(cat_id)+"_train.lst", "r") as f:
-            list_obj += f.readlines()
-        # print(list_obj)
-        span = len(list_obj) // thread_num
-        index = np.arange(len(list_obj))
-        if FLAGS.shuffle: 
-            np.random.shuffle(index)
-        list_objs = [[list_obj[j] for j in index[i*span:min((i+1)*span,len(list_obj))].tolist()] for i in range(thread_num)]
-        cat_mesh_dir_lst = [cat_mesh_dir for i in range(thread_num)]
-        gpu_lst = [i % 4 for i in range(START, thread_num+START)]
-        catnm_lst = [catnm for i in range(thread_num)]
-        cat_norm_mesh_dir_lst = [cat_norm_mesh_dir for i in range(thread_num)]
-        cat_sdf_dir_lst = [cat_sdf_dir for i in range(thread_num)]
-        normalize_lst = [normalize for i in range(thread_num)]
-        num_sample_lst = [num_sample for i in range(thread_num)]
-        cat_id_lst = [cat_id for i in range(thread_num)]
-        version_lst = [version for i in range(thread_num)]
-        unigrid_lst = [unigrid for i in range(thread_num)]
-        uni_ratio_lst = [uni_ratio for i in range(thread_num)]
-        res_lst = [res for i in range(thread_num)]
-        skip_all_exist_lst = [skip_all_exist for i in range(thread_num)]
-        if thread_num > 1:
-            with Parallel(n_jobs=thread_num) as parallel:
-                vcts_part = parallel(delayed(create_ivt_distribute)
-                    (gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, list_obj, res, normalize, num_sample, cat_id, version, unigrid, uni_ratio, skip_all_exist) for gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, list_obj, res, normalize, num_sample, cat_id, version, unigrid, uni_ratio, skip_all_exist in zip(gpu_lst, catnm_lst, cat_mesh_dir_lst, cat_norm_mesh_dir_lst, cat_sdf_dir_lst, list_objs, res_lst, normalize_lst, num_sample_lst, cat_id_lst, version_lst, unigrid_lst, uni_ratio_lst, skip_all_exist_lst))
-        else:
-            vcts_part = create_ivt_distribute(-1, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, list_objs[0], res, normalize, num_sample, cat_id, version, unigrid, uni_ratio, skip_all_exist)
-    print("finish all")
-
-def create_ivt_distribute(gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, list_obj, res, normalize, num_sample, cat_id, version, unigrid, uni_ratio, skip_all_exist):
-    for i in range(len(list_obj)):
-        create_ivt_obj(gpu, cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_dir, list_obj[i],
-            res, normalize, num_sample, cat_id, version, unigrid, uni_ratio, skip_all_exist)
-        print("finish {}/{} for {}".format(i,len(list_obj),catnm))
 
 if __name__ == "__main__":
     # parser = argparse.ArgumentParser()
