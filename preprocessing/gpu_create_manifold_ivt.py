@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../
 import points_tries_dist_pycuda as ptdcuda
 import argparse
 import normal_gen
+from normal_gen import save_norm
 
 
 START = 0
@@ -93,7 +94,7 @@ def gpu_calculate_ivt(points, tries, gpu, from_marchingcube):
         # print("closest_ind,minind",closest_ind.shape,minind.shape,minind)
         vcts.append(vcts_part)
     else:
-        times = points.shape[0] * num_tries // (25000 * 6553 * 3) + 1
+        times = points.shape[0] * num_tries // (25000 * 6553 * 1) + 1
         span = points.shape[0] // times + 1
         vcts = []
         print("points.shape, tries.shape", points.shape, tries.shape)
@@ -198,10 +199,10 @@ def create_h5_ivt_pt(gpu, cat_id, h5_file, tries, face_norms, vert_norms, surfpo
     ball_samples = add_jitters(ball_samples, std=0.01, type="uniform")
     ungridsamples = add_jitters(ungridsamples, std=0.005, type="uniform")
     surfpoints_sample = add_normal_jitters(surfpoints_sample, surfnormals_sample, height=0.1)
-    if normalgt:
-        sphere_ivts = gpu_calculate_ivt(ball_samples, tries,gpu,from_marchingcube)  # (N*8)x4 (x,y,z)
-        uni_ivts = gpu_calculate_ivt(ungridsamples, tries,gpu,from_marchingcube)  # (N*8)x4 (x,y,z)
-        surf_ivts = gpu_calculate_ivt(surfpoints_sample, tries, gpu,from_marchingcube)  # (N*8)x4 (x,y,z)
+    if not normalgt:
+        sphere_ivts,_ = gpu_calculate_ivt(ball_samples, tries,gpu,from_marchingcube)  # (N*8)x4 (x,y,z)
+        uni_ivts,_ = gpu_calculate_ivt(ungridsamples, tries,gpu,from_marchingcube)  # (N*8)x4 (x,y,z)
+        surf_ivts,_ = gpu_calculate_ivt(surfpoints_sample, tries, gpu,from_marchingcube)  # (N*8)x4 (x,y,z)
     else:
         sphere_ivts, sphere_norm = gpu_calculate_ivt_norm(ball_samples, tries, face_norms, vert_norms, gpu, from_marchingcube)  # (N*8)x4 (x,y,z)
         uni_ivts, uni_norm = gpu_calculate_ivt_norm(ungridsamples, tries, face_norms, vert_norms, gpu, from_marchingcube)  # (N*8)x4 (x,y,z)
@@ -452,10 +453,27 @@ def save_surface(pntnum, sample_indices, surfpoints, all_tries, all_face_normals
     print("export_pntnorm", pnt_file)
     return face_norm_surfpnt
 
-def find_normal(index, mesh):
-    all_face_normals = mesh.face_normals
-    face_norms = all_face_normals[index]
-    return face_norms
+def test_h5(ivt_dir, pnt_dir, mesh_dir, target_dir):
+    command_str = "cp " + mesh_dir + "pc_norm.obj " +target_dir
+    print("command:", command_str)
+    os.system(command_str)
+    with h5py.File(os.path.join(ivt_dir, "ivt_sample.h5"),"r") as f1:
+        uni_pnts = f1['uni_pnts'][:]
+        sphere_pnts = f1['sphere_pnts'][:]
+        surf_pnts = f1['surf_pnts'][:]
+        uni_ivts = f1['uni_ivts'][:]
+        sphere_ivts = f1['sphere_ivts'][:]
+        surf_ivts = f1['surf_ivts'][:]
+        uni_norm = f1['uni_norm'][:]
+        sphere_norm = f1['sphere_norm'][:]
+        surf_norm = f1['surf_norm'][:]
+    with h5py.File(os.path.join(pnt_dir, "pnt_163840.h5"),"r") as f2:
+        pnts = f2['pnt'][:]
+        norms = f2['normal'][:]
+    save_norm(uni_pnts+uni_ivts, uni_norm, os.path.join(target_dir, "uni.ply"))
+    save_norm(sphere_pnts+sphere_ivts, sphere_norm, os.path.join(target_dir, "sphere.ply"))
+    save_norm(surf_pnts+surf_ivts, surf_norm, os.path.join(target_dir, "surf.ply"))
+    save_norm(pnts, norms, os.path.join(target_dir, "pnt.ply"))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -465,7 +483,7 @@ if __name__ == "__main__":
                         help='Which single class to generate on [default: all, can be chair or plane, etc.]')
     FLAGS = parser.parse_args()
 
-    # nohup python -u gpu_create_manifold_ivt.py --thread_num 3 --shuffle --category up &> create_ivt.log &
+    # nohup python -u gpu_create_manifold_ivt.py --thread_num 12 --shuffle --category all &> create_ivt.log &
 
     #  full set
     lst_dir, cats, all_cats, raw_dirs = create_file_lst.get_all_info()
@@ -495,7 +513,15 @@ if __name__ == "__main__":
 
     # get_mesh("/hdd_extra1/datasets/ShapeNet/ShapeNetCore_v1_norm/03001627/17e916fc863540ee3def89b32cef8e45", "/hdd_extra1/datasets/ShapeNet/march_cube_objs_v1/03001627/17e916fc863540ee3def89b32cef8e45", "./test/2/", 50000)
 
-    create_ivt(32768*3, 163840, 0.01, 100, cats, raw_dirs, lst_dir, uni_ratio=0.4, surf_ratio=0.4, normalize=True, version=1, skip_all_exist=True, normalgt=True)
+    create_ivt(32768*3, 163840, 0.01, 200, cats, raw_dirs, lst_dir, uni_ratio=0.4, surf_ratio=0.4, normalize=True, version=1, skip_all_exist=True, normalgt=True)
+
+
+
+
+    # ivt_dir, pnt_dir, mesh_dir, target_dir = "/ssd1/datasets/ShapeNet/IVT_mani_v1/03001627/99ee0185fa2492859be1712545749b62/", "/ssd1/datasets/ShapeNet/pnt_163840/03001627/99ee0185fa2492859be1712545749b62/", "/hdd_extra1/datasets/ShapeNet/ShapeNetCore_v1_norm/03001627/99ee0185fa2492859be1712545749b62/","./test/2/"
+    # test_h5(ivt_dir, pnt_dir, mesh_dir, target_dir)
+
+
 
     # unigrid = get_unigrid(0.01)
     # ballgrid = get_ballgrid(100)

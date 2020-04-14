@@ -123,33 +123,34 @@ def create_ivt_distribute(gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_sdf_d
         print("finish {}/{} for {}".format(i,len(list_obj),catnm))
 
 
-def create_single_pnt(mesh_dir, ref_dir, total, num):
-    model_file = os.path.join(mesh_dir, "pc_norm.obj")
-    print("trimesh_load:", model_file)
-    mesh_list = trimesh.load_mesh(model_file, process=False)
-    if not isinstance(mesh_list, list):
-        mesh_list = [mesh_list]
-    area_sum = 0
-    area_lst = []
-    for idx, mesh in enumerate(mesh_list):
-        area = np.sum(mesh.area_faces)
-        area_lst.append(area)
-        area_sum += area
-    area_lst = np.asarray(area_lst)
-    amount_lst = (area_lst * total / area_sum).astype(np.int32)
-    points_all = np.zeros((0, 3), dtype=np.float32)
-    for i in range(amount_lst.shape[0]):
-        mesh = mesh_list[i]
-        # print("start sample surface of ", mesh.faces.shape[0])
-        points, index = trimesh.sample.sample_surface(mesh, amount_lst[i])
-        # print("end sample surface")
-        points_all = np.concatenate([points_all, points], axis=0)
-    if os.path.exists(ref_dir):
-        
-    choice = np.asarray(random.sample(range(points_all.shape[0]), num), dtype=np.int32)
-    points_all = points_all[choice]
-    surfpoints = np.random.shuffle(points_all)
-    return surfpoints
+# def create_single_pnt(mesh_dir, ref_dir, total, num):
+#     model_file = os.path.join(mesh_dir, "pc_norm.obj")
+#     print("trimesh_load:", model_file)
+#     mesh_list = trimesh.load_mesh(model_file, process=False)
+#     if not isinstance(mesh_list, list):
+#         mesh_list = [mesh_list]
+#     area_sum = 0
+#     area_lst = []
+#     for idx, mesh in enumerate(mesh_list):
+#         area = np.sum(mesh.area_faces)
+#         area_lst.append(area)
+#         area_sum += area
+#     area_lst = np.asarray(area_lst)
+#     amount_lst = (area_lst * total / area_sum).astype(np.int32)
+#     points_all = np.zeros((0, 3), dtype=np.float32)
+#     for i in range(amount_lst.shape[0]):
+#         mesh = mesh_list[i]
+#         # print("start sample surface of ", mesh.faces.shape[0])
+#         points, index = trimesh.sample.sample_surface(mesh, amount_lst[i])
+#         # print("end sample surface")
+#         points_all = np.concatenate([points_all, points], axis=0)
+#     if os.path.exists(ref_dir):
+#
+#     choice = np.asarray(random.sample(range(points_all.shape[0]), num), dtype=np.int32)
+#     points_all = points_all[choice]
+#     surfpoints = np.random.shuffle(points_all)
+#     return surfpoints
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

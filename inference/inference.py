@@ -27,7 +27,7 @@ import pymesh
 import trimesh
 import pandas as pd
 import normal_gen
-from pyntcloud import PyntCloud
+from normal_gen import save_norm
 from sklearn.neighbors import DistanceMetric as dm
 from sklearn.neighbors import NearestNeighbors
 from random import sample
@@ -73,12 +73,12 @@ class NoStdStreams(object):
 
     def __enter__(self):
         self.old_stdout, self.old_stderr = sys.stdout, sys.stderr
-        self.old_stdout.flush();
+        self.old_stdout.flush()
         self.old_stderr.flush()
         sys.stdout, sys.stderr = self._stdout, self._stderr
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self._stdout.flush();
+        self._stdout.flush()
         self._stderr.flush()
         sys.stdout = self.old_stdout
         sys.stderr = self.old_stderr
@@ -570,12 +570,7 @@ def nearsample_pnts(sess, ops, roundnum, batch_data, tries, face_norms, vert_nor
 
     return surface_place, surf_norm, std, weights, dist
 
-def save_norm(loc, norm, outfile):
-    cloud = PyntCloud(pd.DataFrame(
-        # same arguments that you are passing to visualize_pcl
-        data=np.hstack((loc, norm)),
-        columns=["x", "y", "z", "nx", "ny", "nz"]))
-    cloud.to_file(outfile)
+
 
 if __name__ == "__main__":
     # nohup python -u inference.py --restore_model ../train/checkpoint/global_direct_surfaceonly/chair_evenweight --outdir  chair_drct_even_surfonly_uni --unionly &> global_direct_chair_surf_evenweight_uni.log &
