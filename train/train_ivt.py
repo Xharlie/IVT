@@ -50,7 +50,7 @@ parser.add_argument('--restore_modelcnn', default='', help='restore_model')#../m
 
 parser.add_argument('--train_lst_dir', default=lst_dir, help='train mesh data list')
 parser.add_argument('--test_lst_dir', default=lst_dir, help='test mesh data list')
-parser.add_argument('--decay_step', type=int, default=200000, help='Decay step for lr decay [default: 200000]')
+parser.add_argument('--decay_step', type=int, default=1000000, help='Decay step for lr decay [default: 1000000]')
 parser.add_argument('--decay_rate', type=float, default=0.9, help='Decay rate for lr decay [default: 0.7]')
 parser.add_argument('--weight_type', type=str, default="ntanh")
 parser.add_argument('--img_feat_onestream', action='store_true')
@@ -62,12 +62,13 @@ parser.add_argument('--augcolorback', action='store_true')
 parser.add_argument('--backcolorwhite', action='store_true')
 parser.add_argument('--rot', action='store_true')
 parser.add_argument('--XYZ', action='store_true')
+parser.add_argument('--LOC', action='store_true')
 parser.add_argument('--cam_est', action='store_true')
-parser.add_argument('--cat_limit', type=int, default=168000, help="balance each category, 1500 * 24 = 36000")
+parser.add_argument('--cat_limit', type=int, default=1168000, help="balance each category, 1500 * 24 = 36000")
 parser.add_argument('--multi_view', action='store_true')
 parser.add_argument('--bn', action='store_true')
-parser.add_argument('--lossw', nargs='+', action='store', default=[0.0, 1.0, 0.0, 0.0, 0.0, 0.0], help="xyz, locnorm, locsqrnorm, dist, dirct, drct_abs")
-parser.add_argument('--distlimit', nargs='+', action='store', type=str, default=[1.0, 0.9, 0.9, 0.8, 0.8, 0.7, 0.7, 0.6, 0.6, 0.5, 0.5, 0.4, 0.4, 0.3, 0.3, 0.2, 0.2, 0.1, 0.1, 0.05, 0.05, 0.04, 0.04, 0.03, 0.03, 0.02, 0.02, 0.01, 0.01, -0.01])
+parser.add_argument('--lossw', nargs='+', action='store', default=[0.0, 1.0, 0.0, 0.0, 1.0, 0.0], help="xyz, locnorm, locsqrnorm, dist, dirct, drct_abs")
+parser.add_argument('--distlimit', nargs='+', action='store', type=str, default=[1.0, 0.9, 0.9, 0.8, 0.8, 0.7, 0.7, 0.6, 0.6, 0.5, 0.5, 0.4, 0.4, 0.3, 0.3, 0.2, 0.2, 0.1, 0.18, 0.16, 0.16, 0.14, 0.14, 0.12, 0.12, 0.1, 0.1, 0.05, 0.05, 0.04, 0.04, 0.03, 0.03, 0.02, 0.02, 0.01, 0.01, -0.01])
 
 FLAGS = parser.parse_args()
 FLAGS.lossw = [float(i) for i in FLAGS.lossw]
@@ -280,6 +281,7 @@ def train():
             if ckptstate is not None:
                 LOAD_MODEL_FILE = os.path.join(FLAGS.restore_model, os.path.basename(ckptstate.model_checkpoint_path))
                 load_model_all(saver,sess, LOAD_MODEL_FILE)
+                print("Model loaded in file: %s" % LOAD_MODEL_FILE)
                 # try:
                 #     load_model(sess, LOAD_MODEL_FILE, ['sdfprediction/fold1', 'sdfprediction/fold2', FLAGS.encoder],
                 #                strict=True)
