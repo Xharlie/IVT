@@ -137,11 +137,8 @@ def get_model(input_pls, is_training, bn=False, bn_decay=None, img_size = 224, F
             with tf.compat.v1.variable_scope("sdfprediction") as scope:
                 ivts_feat = ivtnet.get_ivt_basic(input_pnts_rot, ref_feats_embedding_cnn, is_training, batch_size, FLAGS.num_pnts, bn, bn_decay,wd=FLAGS.wd)
     end_points['pred_ivts_xyz'], end_points['pred_ivts_dist'], end_points['pred_ivts_direction'] = None, None, None
-    if FLAGS.LOC or FLAGS.XYZ:
-        if FLAGS.LOC:
-            end_points['pred_ivts_xyz'] = ivtnet.xyz_ivthead(ivts_feat, batch_size, wd=FLAGS.wd) - end_points['pnts_rot']
-        else:
-            end_points['pred_ivts_xyz'] = ivtnet.xyz_ivthead(ivts_feat, batch_size, wd=FLAGS.wd)
+    if FLAGS.XYZ:
+        end_points['pred_ivts_xyz'] = ivtnet.xyz_ivthead(ivts_feat, batch_size, wd=FLAGS.wd)
         end_points['pred_ivts_dist'] = tf.sqrt(tf.reduce_sum(tf.square(end_points['pred_ivts_xyz']), axis=2, keepdims=True))
         end_points['pred_ivts_direction'] = end_points['pred_ivts_xyz'] / tf.maximum(end_points['pred_ivts_dist'], 1e-6)
     else:

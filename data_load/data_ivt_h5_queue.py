@@ -159,20 +159,20 @@ class Pt_sdf_img(threading.Thread):
             else:
                 img_raw = h5_f["img_arr"][:]
                 img_arr = img_raw[:, :, :3]
-                if self.FLAGS.augcolorfore or self.FLAGS.augcolorback:
-                    r_aug = 60 * np.random.rand() - 30
-                    g_aug = 60 * np.random.rand() - 30
-                    b_aug = 60 * np.random.rand() - 30
-                if self.FLAGS.augcolorfore:
-                    img_arr[img_raw[:, :, 3] != 0, 0] + r_aug
-                    img_arr[img_raw[:, :, 3] != 0, 1] + g_aug
-                    img_arr[img_raw[:, :, 3] != 0, 2] + b_aug
-                if self.FLAGS.backcolorwhite:
-                    img_arr[img_raw[:, :, 3] == 0] = [255, 255, 255]
-                if self.FLAGS.augcolorback:
-                    img_arr[img_raw[:, :, 3] == 0, 0] + r_aug
-                    img_arr[img_raw[:, :, 3] == 0, 1] + g_aug
-                    img_arr[img_raw[:, :, 3] == 0, 2] + b_aug
+                # if self.FLAGS.augcolorfore or self.FLAGS.augcolorback:
+                #     r_aug = 60 * np.random.rand() - 30
+                #     g_aug = 60 * np.random.rand() - 30
+                #     b_aug = 60 * np.random.rand() - 30
+                # if self.FLAGS.augcolorfore:
+                #     img_arr[img_raw[:, :, 3] != 0, 0] + r_aug
+                #     img_arr[img_raw[:, :, 3] != 0, 1] + g_aug
+                #     img_arr[img_raw[:, :, 3] != 0, 2] + b_aug
+                # if self.FLAGS.backcolorwhite:
+                #     img_arr[img_raw[:, :, 3] == 0] = [255, 255, 255]
+                # if self.FLAGS.augcolorback:
+                #     img_arr[img_raw[:, :, 3] == 0, 0] + r_aug
+                #     img_arr[img_raw[:, :, 3] == 0, 1] + g_aug
+                #     img_arr[img_raw[:, :, 3] == 0, 2] + b_aug
                 img_arr = np.clip(img_arr, 0, 255)
                 img_arr = img_arr.astype(np.float32) / 255.
 
@@ -268,10 +268,17 @@ class Pt_sdf_img(threading.Thread):
                 pnts = np.concatenate([pnts, sphere_pnts[sphere_choice, :]], axis=0)
                 ivts = np.concatenate([ivts, sphere_ivts[sphere_choice, :]], axis=0)
             if (self.FLAGS.num_pnts - self.FLAGS.uni_num - self.FLAGS.sphere_num) > 0:
-                if (self.FLAGS.num_pnts - self.FLAGS.uni_num - self.FLAGS.sphere_num) > surf_pnts.shape[0]:
-                    surf_choice = np.random.randint(surf_pnts.shape[0], size=self.FLAGS.num_pnts-self.FLAGS.uni_num- self.FLAGS.sphere_num)
+                indexlen = surf_pnts.shape[0]
+                if FLAGS.surfrange[0] > 0.0 or FLAGS.surfrange[1] < 0.25:
+                    dist = np.linalg.norm(surf_ivts, axis=1)
+                    indx = np.argwhere(dist >= FLAGS.surfrange[0] and dist <= FLAGS.surfrange[1])
+                    indexlen = np.sum(np.cast(indx, dtype=int))
+                if (self.FLAGS.num_pnts - self.FLAGS.uni_num - self.FLAGS.sphere_num) > indexlen:
+                    surf_choice = np.random.randint(indexlen, size=self.FLAGS.num_pnts-self.FLAGS.uni_num- self.FLAGS.sphere_num)
                 else:
-                    surf_choice = np.asarray(random.sample(range(surf_pnts.shape[0]), self.FLAGS.num_pnts-self.FLAGS.uni_num- self.FLAGS.sphere_num), dtype=np.int32)
+                    surf_choice = np.asarray(random.sample(range(indexlen), self.FLAGS.num_pnts-self.FLAGS.uni_num- self.FLAGS.sphere_num), dtype=np.int32)
+                if indexlen != surf_pnts.shape[0]:
+                    surf_choice = indx[surf_choice]
                 pnts = np.concatenate([pnts, surf_pnts[surf_choice, :]], axis=0)
                 ivts = np.concatenate([ivts, surf_ivts[surf_choice, :]], axis=0)
             batch_pnts[cnt, ...] = pnts

@@ -50,25 +50,26 @@ parser.add_argument('--restore_modelcnn', default='', help='restore_model')#../m
 
 parser.add_argument('--train_lst_dir', default=lst_dir, help='train mesh data list')
 parser.add_argument('--test_lst_dir', default=lst_dir, help='test mesh data list')
-parser.add_argument('--decay_step', type=int, default=1000000, help='Decay step for lr decay [default: 1000000]')
+parser.add_argument('--decay_step', type=int, default=10, help='Decay step for lr decay [default: 1000000]')
 parser.add_argument('--decay_rate', type=float, default=0.9, help='Decay rate for lr decay [default: 0.7]')
 parser.add_argument('--weight_type', type=str, default="ntanh")
 parser.add_argument('--img_feat_onestream', action='store_true')
 parser.add_argument('--img_feat_twostream', action='store_true')
 parser.add_argument('--binary', action='store_true')
 parser.add_argument('--alpha', action='store_true')
-parser.add_argument('--augcolorfore', action='store_true')
-parser.add_argument('--augcolorback', action='store_true')
-parser.add_argument('--backcolorwhite', action='store_true')
+# parser.add_argument('--augcolorfore', action='store_true')
+# parser.add_argument('--augcolorback', action='store_true')
+# parser.add_argument('--backcolorwhite', action='store_true')
 parser.add_argument('--rot', action='store_true')
 parser.add_argument('--XYZ', action='store_true')
-parser.add_argument('--LOC', action='store_true')
 parser.add_argument('--cam_est', action='store_true')
 parser.add_argument('--cat_limit', type=int, default=1168000, help="balance each category, 1500 * 24 = 36000")
 parser.add_argument('--multi_view', action='store_true')
 parser.add_argument('--bn', action='store_true')
 parser.add_argument('--lossw', nargs='+', action='store', default=[0.0, 1.0, 0.0, 0.0, 1.0, 0.0], help="xyz, locnorm, locsqrnorm, dist, dirct, drct_abs")
 parser.add_argument('--distlimit', nargs='+', action='store', type=str, default=[1.0, 0.9, 0.9, 0.8, 0.8, 0.7, 0.7, 0.6, 0.6, 0.5, 0.5, 0.4, 0.4, 0.3, 0.3, 0.2, 0.2, 0.1, 0.18, 0.16, 0.16, 0.14, 0.14, 0.12, 0.12, 0.1, 0.1, 0.05, 0.05, 0.04, 0.04, 0.03, 0.03, 0.02, 0.02, 0.01, 0.01, -0.01])
+parser.add_argument('--surfrange', nargs='+', action='store', default=[0.0, 0.15], help="lower bound, upperbound")
+
 
 FLAGS = parser.parse_args()
 FLAGS.lossw = [float(i) for i in FLAGS.lossw]
@@ -94,7 +95,7 @@ LOG_FOUT.write(str(FLAGS)+'\n')
 
 BN_INIT_DECAY = 0.5
 BN_DECAY_DECAY_RATE = 0.5
-BN_DECAY_DECAY_STEP = float(FLAGS.decay_step)
+BN_DECAY_DECAY_STEP = float(FLAGS.decay_step * len(TRAIN_DATASET))
 BN_DECAY_CLIP = 0.99
 
 TRAIN_LISTINFO = []
@@ -148,7 +149,7 @@ def get_learning_rate(batch):
     learning_rate = tf.compat.v1.train.exponential_decay(
                         FLAGS.learning_rate,  # Base learning rate.
                         batch * FLAGS.batch_size,  # Current index into the dataset.
-                        FLAGS.decay_step,          # Decay step.
+                        FLAGS.decay_step*len(TRAIN_DATASET),          # Decay step.
                         FLAGS.decay_rate,          # Decay rate.
                         staircase=True)
     learning_rate = tf.maximum(learning_rate, 1e-6, name='lr') # CLIP THE LEARNING RATE!

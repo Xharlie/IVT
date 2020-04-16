@@ -388,8 +388,7 @@ def test_one_epoch(sess, ops):
 
     if FLAGS.distlimit is not None:
         print(
-            '{:^10s}{:^10s}{:^10s}{:^10s}{:^10s}{:^10s}{:^10s}{:^15s}{:^8s}'.format("upper", "lower", "locnorm", "locsqrnorm", "xyz", "dist", "drct", "drct_abs",
-                                                                   "count"))
+            '{:^10s}{:^10s}{:^10s}{:^10s}{:^10s}{:^10s}{:^10s}{:^15s}{:^8s}'.format("upper", "lower", "locnorm", "locsqrnorm", "xyz", "dist", "drct", "drct_abs", "count"))
         for i in range(len(FLAGS.distlimit) // 2):
             upper = FLAGS.distlimit[i * 2]
             lower = FLAGS.distlimit[i * 2 + 1]

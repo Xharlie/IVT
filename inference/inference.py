@@ -21,13 +21,13 @@ import data_ivt_h5_queue  # as data
 import output_utils
 import create_file_lst
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../preprocessing'))
+from normal_gen import save_norm
 import gpu_create_manifold_ivt as ct
 import argparse
 import pymesh
 import trimesh
 import pandas as pd
 import normal_gen
-from normal_gen import save_norm
 from sklearn.neighbors import DistanceMetric as dm
 from sklearn.neighbors import NearestNeighbors
 from random import sample
@@ -718,20 +718,17 @@ if __name__ == "__main__":
     # batch_data = TEST_DATASET.fetch()
     # TEST_DATASET.shutdown()
 
-    # batch_data = TEST_DATASET.get_batch(0)
-    # model_file = os.path.join(raw_dirs['norm_mesh_dir'], batch_data["cat_id"][0], batch_data["obj_nm"][0], "pc_norm.obj")
-    # model_file = os.path.join("/hdd_extra1/datasets/ShapeNet/ShapeNetCore_v1_norm_old/", batch_data["cat_id"][0], batch_data["obj_nm"][0], "pc_norm.obj")
-    #
+    batch_data = TEST_DATASET.get_batch(0)
+    model_file = os.path.join(raw_dirs['norm_mesh_dir'], batch_data["cat_id"][0], batch_data["obj_nm"][0], "pc_norm.obj")
 
 
-    #
     # batch_data={"cat_id":["02691156"],"obj_nm":["1beb0776148870d4c511571426f8b16d"]}
     # model_file = os.path.join("/hdd_extra1/datasets/ShapeNet/march_cube_objs_v1/", batch_data["cat_id"][0], batch_data["obj_nm"][0], "isosurf.obj")
     #
     # command_str = "cp " + model_file + " ./" + FLAGS.outdir + "/"
     # print("command:", command_str)
     # os.system(command_str)
-    batch_data = {"cat_id": ["000"], "obj_nm": ["shirt3"]}
+    # batch_data = {"cat_id": ["000"], "obj_nm": ["shirt3"]}
     # model_file = "./shirt.obj"
     # ct.get_normalize_mesh(model_file, "./", "./", "./", 0)
     model_file = "./pc_norm.obj"
