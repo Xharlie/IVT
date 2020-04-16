@@ -146,14 +146,8 @@ avg direction_avg_diff: 0.9741547924713353
 --- vgg_16 onestream_small spheregrid 010000
 nohup python -u train_ivt.py --gpu 0 --img_feat_onestream --encoder vgg_16 --restore_model checkpoint/onestream_small_spheregrid/chair_vgg_16_010000/ --log_dir checkpoint/onestream_small_spheregrid/chair_vgg_16_010000 --category chair --uni_num 1024 --sphere_num 1024 --num_pnts 2048 --batch_size 20 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ &> onestream_small_spheregrid_chair_vgg_010000.log &
 
-
---- vgg_16 onestream_gridsurf all 010000
-nohup python -u train_ivt.py --gpu 1 --img_feat_onestream --encoder vgg_16 --restore_model checkpoint/onestream_small_gridsurf/chair_vgg_16_010000/ --log_dir checkpoint/onestream_small_gridsurf/chair_vgg_16_010000 --category chair --uni_num 1024 --sphere_num 0 --num_pnts 2048 --batch_size 20 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ &> onestream_small_gridsurf_chair_vgg_010000.log &
-
-
-
 --- vgg_16 onestream_small surf 010000
-nohup python -u train_ivt.py --gpu 0 --img_feat_onestream --encoder vgg_16 --restore_model checkpoint/onestream_small_surf/chair_vgg_16_010000/ --log_dir checkpoint/onestream_small_surf/chair_vgg_16_010000 --category chair --uni_num 0 --sphere_num 0 --num_pnts 2048 --batch_size 20 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ &> onestream_small_surf_chair_vgg_010000.log &
+nohup python -u train_ivt.py --gpu 2 --img_feat_onestream --encoder vgg_16 --restore_model checkpoint/onestream_small_surf/chair_vgg_16_010000/ --log_dir checkpoint/onestream_small_surf/chair_vgg_16_010000 --category chair --uni_num 0 --sphere_num 0 --num_pnts 2048 --batch_size 20 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ &> onestream_small_surf_chair_vgg_010000.log &
 
 
 --- vgg_16 onestream_small surf 010000,
