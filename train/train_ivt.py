@@ -74,6 +74,7 @@ parser.add_argument('--surfrange', nargs='+', action='store', default=[0.0, 0.15
 FLAGS = parser.parse_args()
 FLAGS.lossw = [float(i) for i in FLAGS.lossw]
 FLAGS.distlimit = [float(i) for i in FLAGS.distlimit]
+FLAGS.surfrange = [float(i) for i in FLAGS.surfrange]
 
 print(FLAGS)
 

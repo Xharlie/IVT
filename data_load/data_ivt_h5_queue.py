@@ -269,10 +269,10 @@ class Pt_sdf_img(threading.Thread):
                 ivts = np.concatenate([ivts, sphere_ivts[sphere_choice, :]], axis=0)
             if (self.FLAGS.num_pnts - self.FLAGS.uni_num - self.FLAGS.sphere_num) > 0:
                 indexlen = surf_pnts.shape[0]
-                if FLAGS.surfrange[0] > 0.0 or FLAGS.surfrange[1] < 0.15:
+                if self.FLAGS.surfrange[0] > 0.0 or self.FLAGS.surfrange[1] < 0.15:
                     dist = np.linalg.norm(surf_ivts, axis=1)
-                    indx = np.argwhere(dist >= FLAGS.surfrange[0] and dist <= FLAGS.surfrange[1])
-                    indexlen = np.sum(np.cast(indx, dtype=int))
+                    indx = np.argwhere((dist >= self.FLAGS.surfrange[0]) & (dist <= self.FLAGS.surfrange[1])).reshape(-1)
+                    indexlen = indx.shape[0]
                 if (self.FLAGS.num_pnts - self.FLAGS.uni_num - self.FLAGS.sphere_num) > indexlen:
                     surf_choice = np.random.randint(indexlen, size=self.FLAGS.num_pnts-self.FLAGS.uni_num- self.FLAGS.sphere_num)
                 else:

@@ -157,7 +157,7 @@ nohup python -u train_ivt.py --gpu 2 --img_feat_onestream --encoder vgg_16 --res
 
 
 --- vgg_16 onestream_small surf 010010,
-nohup python -u train_ivt.py --gpu 3 --img_feat_onestream --encoder vgg_16 --restore_model checkpoint/onestream_small_surf/chair_vgg_16_010010/ --log_dir checkpoint/onestream_small0205_surf/chair_vgg_16_010010 --category chair --uni_num 0 --sphere_num 0 --num_pnts 2048 --batch_size 20 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 1.0 0.0 --XYZ --surfrange 0.02 0.05 &> onestream_small0205_surf_chair_vgg_010010.log &
+nohup python -u train_ivt.py --gpu 0 --img_feat_onestream --encoder vgg_16 --restore_modelcnn ../models/CNN/pretrained_model/vgg_16.ckpt --log_dir checkpoint/onestream_small0205_surf/chair_vgg_16_010010 --category chair --uni_num 0 --sphere_num 0 --num_pnts 2048 --batch_size 20 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 1.0 0.0 --XYZ --surfrange 0.02 0.05 &> onestream_small0205_surf_chair_vgg_010010.log &
 
 
 
