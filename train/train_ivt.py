@@ -93,10 +93,7 @@ os.system('cp train_ivt.py %s' % (FLAGS.log_dir))
 LOG_FOUT = open(os.path.join(FLAGS.log_dir, 'log_train.txt'), 'w')
 LOG_FOUT.write(str(FLAGS)+'\n')
 
-BN_INIT_DECAY = 0.5
-BN_DECAY_DECAY_RATE = 0.5
-BN_DECAY_DECAY_STEP = float(FLAGS.decay_step * len(TRAIN_DATASET))
-BN_DECAY_CLIP = 0.99
+
 
 TRAIN_LISTINFO = []
 TEST_LISTINFO = []
@@ -139,6 +136,11 @@ print(info)
 
 TRAIN_DATASET = data_ivt_h5_queue.Pt_sdf_img(FLAGS, listinfo=TRAIN_LISTINFO, info=info, cats_limit=cats_limit)
 TEST_DATASET = data_ivt_h5_queue.Pt_sdf_img(FLAGS, listinfo=TEST_LISTINFO, info=info, cats_limit=test_cats_limit)
+
+BN_INIT_DECAY = 0.5
+BN_DECAY_DECAY_RATE = 0.5
+BN_DECAY_DECAY_STEP = float(FLAGS.decay_step * len(TRAIN_DATASET))
+BN_DECAY_CLIP = 0.99
 
 def log_string(out_str):
     LOG_FOUT.write(out_str+'\n')
