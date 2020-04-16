@@ -265,7 +265,7 @@ def get_loss(end_points, regularization=True, FLAGS=None):
     end_points['losses']['ivts_locsqrnorm_avg_diff'] = ivts_locsqrnorm_avg_diff
     end_points['losses']['loss'] = loss
     ############### weight decay
-    if regularization:
+    if regularization and FLAGS.wd>0:
         vgg_regularization_loss = tf.add_n(tf.compat.v1.losses.get_regularization_losses())
         decoder_regularization_loss = tf.add_n(tf.compat.v1.get_collection('regularizer'))
         end_points['losses']['regularization'] = (vgg_regularization_loss + decoder_regularization_loss)
