@@ -282,6 +282,7 @@ def gen_lvl_diff(ivts_xyz_diff, ivts_locnorm_avg_diff, ivts_locsqrnorm_avg_diff,
         upper = distlimit[i*2] * ones
         lower = distlimit[i*2+1] * ones
         floatmask = tf.cast(tf.compat.v1.logical_and(tf.compat.v1.less_equal(gt_ivts_dist, upper), tf.compat.v1.greater(gt_ivts_dist,lower)), dtype=tf.float32)
+        print("floatmask.get_shape().as_list(), ivts_locnorm_avg_diff.get_shape().as_list()",floatmask.get_shape().as_list(), ivts_locnorm_avg_diff.get_shape().as_list())
         lvl_num.append(tf.reduce_sum(floatmask))
         xyz_lvl_diff.append(tf.reduce_sum(floatmask*ivts_xyz_diff))
         locnorm_lvl_diff.append(tf.reduce_sum(floatmask*ivts_locnorm_avg_diff))
