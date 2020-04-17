@@ -10,6 +10,7 @@ sys.path.append(os.path.join(BASE_DIR,'data'))
 sys.path.append(os.path.join(BASE_DIR, 'models'))
 print(os.path.join(BASE_DIR, 'models'))
 import ivtnet
+import res_sim_encoder
 
 def placeholder_inputs(scope='', FLAGS=None, num_pnts=None):
     if num_pnts is None:
@@ -42,6 +43,12 @@ def placeholder_inputs(scope='', FLAGS=None, num_pnts=None):
 #     return feat
 
 def get_model(input_pls, is_training, bn=False, bn_decay=None, img_size = 224, FLAGS=None):
+
+    if FLAGS.act == "relu":
+        activation_fn = tf.nn.relu
+    elif FLAGS.act == "elu":
+        activation_fn = tf.nn.elu
+
 
     input_imgs = input_pls['imgs']
     input_pnts = input_pls['pnts']
@@ -79,6 +86,8 @@ def get_model(input_pls, is_training, bn=False, bn_decay=None, img_size = 224, F
         vgg.vgg_16.default_image_size = img_size
         with slim.arg_scope([slim.conv2d], weights_regularizer=slim.l2_regularizer(FLAGS.wd)):
             ref_feats_embedding, encdr_end_points = vgg.vgg_16(ref_img, num_classes=FLAGS.num_classes, is_training=False, scope='vgg_16', spatial_squeeze=False)
+    elif FLAGS.encoder == "sim_res":
+        ref_feats_embedding, encdr_end_points = res_sim_encoder.res_sim_encoder(ref_img, FLAGS.batch_size, is_training=is_training, activation_fn=activation_fn, bn=bn, bn_decay=bn_decay, wd=FLAGS.wd)
     elif FLAGS.encoder == "resnet_v1_50":
         resnet_v1.default_image_size = img_size
         with slim.arg_scope(resnet_v1.resnet_arg_scope()):
@@ -99,8 +108,7 @@ def get_model(input_pls, is_training, bn=False, bn_decay=None, img_size = 224, F
         with slim.arg_scope(resnet_v1.resnet_arg_scope()):
             ref_feats_embedding, encdr_end_points = resnet_v2.resnet_v2_101(ref_img, FLAGS.num_classes, is_training=is_training, scope='resnet_v2_101')
         scopelst = ["resnet_v2_101/block1", "resnet_v2_101/block2", "resnet_v2_101/block3", 'resnet_v2_101/block4']
-    ref_feats_embedding_cnn = tf.squeeze(ref_feats_embedding, axis=[1, 2])
-    end_points['img_embedding'] = ref_feats_embedding_cnn
+    end_points['img_embedding'] = ref_feats_embedding
     point_img_feat=None
     ivts_feat=None
     sample_img_points = get_img_points(input_pnts, input_trans_mat)  # B * N * 2
@@ -129,27 +137,37 @@ def get_model(input_pls, is_training, bn=False, bn_decay=None, img_size = 224, F
                 # conv4 = tf.compat.v1.image.resize_bilinear(encdr_end_points[scopelst[3]], (FLAGS.img_h, FLAGS.img_w))
                 # point_conv4 = tf.contrib.resampler.resampler(conv4, sample_img_points)
                 point_img_feat = tf.concat(axis=2, values=[point_conv1, point_conv2, point_conv3])
+            else:
+                conv1 = tf.compat.v1.image.resize_bilinear(encdr_end_points[0], (FLAGS.img_h, FLAGS.img_w))
+                point_conv1 = tf.contrib.resampler.resampler(conv1, sample_img_points)
+                conv2 = tf.compat.v1.image.resize_bilinear(encdr_end_points[1], (FLAGS.img_h, FLAGS.img_w))
+                point_conv2 = tf.contrib.resampler.resampler(conv2, sample_img_points)
+                conv3 = tf.compat.v1.image.resize_bilinear(encdr_end_points[2], (FLAGS.img_h, FLAGS.img_w))
+                point_conv3 = tf.contrib.resampler.resampler(conv3, sample_img_points)
+                # conv4 = tf.compat.v1.image.resize_bilinear(encdr_end_points[scopelst[3]], (FLAGS.img_h, FLAGS.img_w))
+                # point_conv4 = tf.contrib.resampler.resampler(conv4, sample_img_points)
+                point_img_feat = tf.concat(axis=2, values=[point_conv1, point_conv2, point_conv3])
             print("point_img_feat.shape", point_img_feat.get_shape())
             point_img_feat = tf.expand_dims(point_img_feat, axis=2)
             if FLAGS.decoderskip:
-                ivts_feat = ivtnet.get_ivt_basic_imgfeat_onestream_skip(input_pnts_rot, ref_feats_embedding_cnn, point_img_feat, is_training, batch_size, FLAGS.num_pnts, bn, bn_decay, wd=FLAGS.wd)
+                ivts_feat = ivtnet.get_ivt_basic_imgfeat_onestream_skip(input_pnts_rot, ref_feats_embedding, point_img_feat, is_training, batch_size, FLAGS.num_pnts, bn, bn_decay, wd=FLAGS.wd, activation_fn=activation_fn)
             else:
-                ivts_feat = ivtnet.get_ivt_basic_imgfeat_onestream(input_pnts_rot, ref_feats_embedding_cnn, point_img_feat, is_training, batch_size, FLAGS.num_pnts, bn, bn_decay, wd=FLAGS.wd)
+                ivts_feat = ivtnet.get_ivt_basic_imgfeat_onestream(input_pnts_rot, ref_feats_embedding, point_img_feat, is_training, batch_size, FLAGS.num_pnts, bn, bn_decay, wd=FLAGS.wd, activation_fn=activation_fn)
     else:
         if not FLAGS.multi_view:
             with tf.compat.v1.variable_scope("sdfprediction") as scope:
-                ivts_feat = ivtnet.get_ivt_basic(input_pnts_rot, ref_feats_embedding_cnn, is_training, batch_size, FLAGS.num_pnts, bn, bn_decay,wd=FLAGS.wd)
+                ivts_feat = ivtnet.get_ivt_basic(input_pnts_rot, ref_feats_embedding, is_training, batch_size, FLAGS.num_pnts, bn, bn_decay,wd=FLAGS.wd, activation_fn=activation_fn)
     end_points['pred_ivts_xyz'], end_points['pred_ivts_dist'], end_points['pred_ivts_direction'] = None, None, None
     if FLAGS.XYZ:
-        end_points['pred_ivts_xyz'] = ivtnet.xyz_ivthead(ivts_feat, batch_size, wd=FLAGS.wd)
+        end_points['pred_ivts_xyz'] = ivtnet.xyz_ivthead(ivts_feat, batch_size, wd=FLAGS.wd, activation_fn=activation_fn)
         end_points['pred_ivts_dist'] = tf.sqrt(tf.reduce_sum(tf.square(end_points['pred_ivts_xyz']), axis=2, keepdims=True))
         end_points['pred_ivts_direction'] = end_points['pred_ivts_xyz'] / tf.maximum(end_points['pred_ivts_dist'], 1e-6)
     else:
-        end_points['pred_ivts_dist'], end_points['pred_ivts_direction'] = ivtnet.dist_direct_ivthead(ivts_feat, batch_size, wd=FLAGS.wd)
+        end_points['pred_ivts_dist'], end_points['pred_ivts_direction'] = ivtnet.dist_direct_ivthead(ivts_feat, batch_size, wd=FLAGS.wd, activation_fn=activation_fn)
         end_points['pred_ivts_xyz'] = end_points['pred_ivts_direction'] * end_points['pred_ivts_dist']
 
     end_points["sample_img_points"] = sample_img_points
-    end_points["ref_feats_embedding_cnn"] = ref_feats_embedding_cnn
+    # end_points["ref_feats_embedding"] = ref_feats_embedding
     end_points["point_img_feat"] = point_img_feat
 
     return end_points

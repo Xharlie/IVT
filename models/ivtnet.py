@@ -1,14 +1,11 @@
 import tensorflow as tf
 import tf_util
 
-def get_ivt_basic(src_pc, globalfeats, is_training, batch_size, num_point, bn, bn_decay, wd=None):
+def get_ivt_basic(src_pc, globalfeats, is_training, batch_size, num_point, bn, bn_decay, wd=None, activation_fn=tf.nn.relu):
 
-    net = tf_util.conv2d(tf.expand_dims(src_pc,2), 64, [1,1], padding='VALID', stride=[1,1], bn_decay=bn_decay, bn=bn, is_training=is_training, 
-                            weight_decay=wd, scope='fold1/conv1')
-    net = tf_util.conv2d(net, 256, [1,1], padding='VALID', stride=[1,1], bn_decay=bn_decay, bn=bn, is_training=is_training, 
-        weight_decay=wd, scope='fold1/conv2')
-    net = tf_util.conv2d(net, 512, [1,1], padding='VALID', stride=[1,1], bn_decay=bn_decay, bn=bn, is_training=is_training, 
-        weight_decay=wd, scope='fold1/conv3')
+    net = tf_util.conv2d(tf.expand_dims(src_pc,2), 64, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold1/conv1')
+    net = tf_util.conv2d(net, 256, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn,bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold1/conv2')
+    net = tf_util.conv2d(net, 512, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold1/conv3')
 
     globalfeats = tf.reshape(globalfeats, [batch_size, 1, 1, -1])
     globalfeats_expand = tf.tile(globalfeats, [1, src_pc.get_shape()[1], 1, 1])
@@ -16,22 +13,17 @@ def get_ivt_basic(src_pc, globalfeats, is_training, batch_size, num_point, bn, b
     print( 'globalfeats_expand', globalfeats_expand.shape)
     concat = tf.concat(axis=3, values=[net, globalfeats_expand])
 
-    net = tf_util.conv2d(concat, 512, [1,1], padding='VALID', stride=[1,1], bn_decay=bn_decay, bn=bn, is_training=is_training, 
-        weight_decay=wd, scope='fold2/conv1')
-    net = tf_util.conv2d(net, 256, [1,1], padding='VALID', stride=[1,1], bn_decay=bn_decay, bn=bn, is_training=is_training, 
-        weight_decay=wd, scope='fold2/conv2')
+    net = tf_util.conv2d(concat, 512, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold2/conv1')
+    net = tf_util.conv2d(net, 256, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold2/conv2')
 
     return net
 
 
-def get_ivt_basic_imgfeat_onestream(src_pc, globalfeats, point_feat, is_training, batch_size, num_point, bn, bn_decay, wd=None):
+def get_ivt_basic_imgfeat_onestream(src_pc, globalfeats, point_feat, is_training, batch_size, num_point, bn, bn_decay, wd=None, activation_fn=tf.nn.relu):
 
-    net = tf_util.conv2d(tf.expand_dims(src_pc,2), 64, [1,1], padding='VALID', stride=[1,1], bn_decay=bn_decay, bn=bn, is_training=is_training,
-                            weight_decay=wd, scope='fold1/conv1')
-    net = tf_util.conv2d(net, 256, [1,1], padding='VALID', stride=[1,1], bn_decay=bn_decay, bn=bn, is_training=is_training,
-        weight_decay=wd, scope='fold1/conv2')
-    net = tf_util.conv2d(net, 512, [1,1], padding='VALID', stride=[1,1], bn_decay=bn_decay, bn=bn, is_training=is_training,
-        weight_decay=wd, scope='fold1/conv3')
+    net = tf_util.conv2d(tf.expand_dims(src_pc,2), 64, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold1/conv1')
+    net = tf_util.conv2d(net, 256, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold1/conv2')
+    net = tf_util.conv2d(net, 512, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold1/conv3')
 
     globalfeats = tf.reshape(globalfeats, [batch_size, 1, 1, -1])
     globalfeats_expand = tf.tile(globalfeats, [1, src_pc.get_shape()[1], 1, 1])
@@ -39,21 +31,17 @@ def get_ivt_basic_imgfeat_onestream(src_pc, globalfeats, point_feat, is_training
     print('globalfeats_expand', globalfeats_expand.shape)
     concat = tf.concat(axis=3, values=[net, globalfeats_expand, point_feat])
 
-    net = tf_util.conv2d(concat, 512, [1,1], padding='VALID', stride=[1,1], bn_decay=bn_decay, bn=bn, is_training=is_training,
-        weight_decay=wd, scope='fold2/conv1')
-    net = tf_util.conv2d(net, 256, [1,1], padding='VALID', stride=[1,1], bn_decay=bn_decay, bn=bn, is_training=is_training,
-        weight_decay=wd, scope='fold2/conv2')
+    net = tf_util.conv2d(concat, 512, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold2/conv1')
+    net = tf_util.conv2d(net, 256, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold2/conv2')
 
     return net
 
 
-def get_ivt_basic_imgfeat_onestream_skip(src_pc, globalfeats, point_feat, is_training, batch_size, num_point, bn, bn_decay, wd=None):
+def get_ivt_basic_imgfeat_onestream_skip(src_pc, globalfeats, point_feat, is_training, batch_size, num_point, bn, bn_decay, wd=None, activation_fn=tf.nn.relu):
 
-    net1 = tf_util.conv2d(tf.expand_dims(src_pc,2), 64, [1,1], padding='VALID', stride=[1,1], bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold1/conv1')
-    net2 = tf_util.conv2d(net1, 256, [1,1], padding='VALID', stride=[1,1], bn_decay=bn_decay, bn=bn, is_training=is_training,
-        weight_decay=wd, scope='fold1/conv2')
-    net3 = tf_util.conv2d(net2, 256, [1,1], padding='VALID', stride=[1,1], bn_decay=bn_decay, bn=bn, is_training=is_training,
-        weight_decay=wd, scope='fold1/conv3')
+    net1 = tf_util.conv2d(tf.expand_dims(src_pc,2), 64, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold1/conv1')
+    net2 = tf_util.conv2d(net1, 256, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold1/conv2')
+    net3 = tf_util.conv2d(net2, 256, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold1/conv3')
 
     globalfeats = tf.reshape(globalfeats, [batch_size, 1, 1, -1])
     globalfeats_expand = tf.tile(globalfeats, [1, src_pc.get_shape()[1], 1, 1])
@@ -61,34 +49,27 @@ def get_ivt_basic_imgfeat_onestream_skip(src_pc, globalfeats, point_feat, is_tra
     print('globalfeats_expand', globalfeats_expand.shape)
     concat = tf.concat(axis=3, values=[net3+net2, globalfeats_expand, point_feat])
 
-    net4 = tf_util.conv2d(concat, 256, [1,1], padding='VALID', stride=[1,1], bn_decay=bn_decay, bn=bn, is_training=is_training,
-        weight_decay=wd, scope='fold2/conv1')
+    net4 = tf_util.conv2d(concat, 256, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold2/conv1')
 
-    net5 = tf_util.conv2d(net4+net3, 256, [1,1], padding='VALID', stride=[1,1], bn_decay=bn_decay, bn=bn, is_training=is_training,
-        weight_decay=wd, scope='fold2/conv2')
+    net5 = tf_util.conv2d(net4+net3, 256, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold2/conv2')
 
     return net5
 
 
-def get_ivt_basic_imgfeat_twostream(src_pc, point_feat, is_training, batch_size, num_point, bn, bn_decay, wd=None):
+def get_ivt_basic_imgfeat_twostream(src_pc, point_feat, is_training, batch_size, num_point, bn, bn_decay, wd=None, activation_fn=tf.nn.relu):
 
-    net = tf_util.conv2d(tf.expand_dims(src_pc,2), 64, [1,1], padding='VALID', stride=[1,1], bn_decay=bn_decay, bn=bn, is_training=is_training,
-                            weight_decay=wd, scope='fold1/conv1')
-    net = tf_util.conv2d(net, 256, [1,1], padding='VALID', stride=[1,1], bn_decay=bn_decay, bn=bn, is_training=is_training,
-        weight_decay=wd, scope='fold1/conv2')
-    net = tf_util.conv2d(net, 512, [1,1], padding='VALID', stride=[1,1], bn_decay=bn_decay, bn=bn, is_training=is_training,
-        weight_decay=wd, scope='fold1/conv3')
+    net = tf_util.conv2d(tf.expand_dims(src_pc,2), 64, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold1/conv1')
+    net = tf_util.conv2d(net, 256, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold1/conv2')
+    net = tf_util.conv2d(net, 512, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold1/conv3')
 
     concat = tf.concat(axis=3, values=[net, point_feat])
 
-    net = tf_util.conv2d(concat, 512, [1,1], padding='VALID', stride=[1,1], bn_decay=bn_decay, bn=bn, is_training=is_training,
-        weight_decay=wd, scope='fold2/conv1')
-    net = tf_util.conv2d(net, 256, [1,1], padding='VALID', stride=[1,1], bn_decay=bn_decay, bn=bn, is_training=is_training,
-        weight_decay=wd, scope='fold2/conv2')
+    net = tf_util.conv2d(concat, 512, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold2/conv1')
+    net = tf_util.conv2d(net, 256, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold2/conv2')
 
     return net
 
-def xyz_ivthead(net, batch_size, wd=None):
+def xyz_ivthead(net, batch_size, wd=None, activation_fn=tf.nn.relu):
 
     pred = tf_util.conv2d(net, 3, [1,1], padding='VALID', stride=[1,1], activation_fn=None, bn=False, weight_decay=wd, scope='head/xyz_conv')
 
@@ -96,7 +77,7 @@ def xyz_ivthead(net, batch_size, wd=None):
 
     return pred
 
-def dist_direct_ivthead(net, batch_size, wd=None):
+def dist_direct_ivthead(net, batch_size, wd=None, activation_fn=tf.nn.relu):
 
     direction = tf_util.conv2d(net, 3, [1,1], padding='VALID', stride=[1,1], activation_fn=None, bn=False, weight_decay=wd, scope='head/direction_conv')
 
