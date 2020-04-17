@@ -42,7 +42,7 @@ parser.add_argument('--batch_size', type=int, default=32, help='Batch Size durin
 parser.add_argument('--img_h', type=int, default=137, help='Image Height')
 parser.add_argument('--img_w', type=int, default=137, help='Image Width')
 parser.add_argument('--learning_rate', type=float, default=1e-5, help='Initial learning rate [default: 0.001]')
-parser.add_argument('--wd', type=float, default=1e-5, help='Initial learning rate [default: 0.001]')
+parser.add_argument('--wd', type=float, default=1e-6, help='Initial learning rate [default: 0.001]')
 parser.add_argument('--momentum', type=float, default=0.9, help='Initial learning rate [default: 0.9]')
 parser.add_argument('--optimizer', default='adam', help='adam or momentum [default: adam]')
 parser.add_argument('--restore_model', default='', help='restore_model') #checkpoint/sdf_2d3d_sdfbasic2_nowd
@@ -50,7 +50,7 @@ parser.add_argument('--restore_modelcnn', default='', help='restore_model')#../m
 
 parser.add_argument('--train_lst_dir', default=lst_dir, help='train mesh data list')
 parser.add_argument('--test_lst_dir', default=lst_dir, help='test mesh data list')
-parser.add_argument('--decay_step', type=int, default=10, help='Decay step for lr decay [default: 1000000]')
+parser.add_argument('--decay_step', type=int, default=5, help='Decay step for lr decay [default: 1000000]')
 parser.add_argument('--decay_rate', type=float, default=0.9, help='Decay rate for lr decay [default: 0.7]')
 parser.add_argument('--weight_type', type=str, default="ntanh")
 parser.add_argument('--img_feat_onestream', action='store_true')
