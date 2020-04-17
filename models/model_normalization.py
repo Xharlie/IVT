@@ -131,7 +131,10 @@ def get_model(input_pls, is_training, bn=False, bn_decay=None, img_size = 224, F
                 point_img_feat = tf.concat(axis=2, values=[point_conv1, point_conv2, point_conv3])
             print("point_img_feat.shape", point_img_feat.get_shape())
             point_img_feat = tf.expand_dims(point_img_feat, axis=2)
-            ivts_feat = ivtnet.get_ivt_basic_imgfeat_onestream(input_pnts_rot, ref_feats_embedding_cnn, point_img_feat, is_training, batch_size, FLAGS.num_pnts, bn, bn_decay, wd=FLAGS.wd)
+            if FLAGS.decoderskip:
+                ivts_feat = ivtnet.get_ivt_basic_imgfeat_onestream_skip(input_pnts_rot, ref_feats_embedding_cnn, point_img_feat, is_training, batch_size, FLAGS.num_pnts, bn, bn_decay, wd=FLAGS.wd)
+            else:
+                ivts_feat = ivtnet.get_ivt_basic_imgfeat_onestream(input_pnts_rot, ref_feats_embedding_cnn, point_img_feat, is_training, batch_size, FLAGS.num_pnts, bn, bn_decay, wd=FLAGS.wd)
     else:
         if not FLAGS.multi_view:
             with tf.compat.v1.variable_scope("sdfprediction") as scope:
@@ -196,9 +199,6 @@ def get_loss(end_points, regularization=True, FLAGS=None):
 
     ivts_locnorm_diff = tf.norm(ivts_xyz_diff, ord='euclidean', axis=2, keepdims=True)
     ivts_locnorm_avg_diff = tf.reduce_mean(ivts_locnorm_diff)
-
-    # ivts_locsqrnorm_diff = tf.square(ivts_locnorm_diff)
-    # ivts_locsqrnorm_avg_diff = tf.reduce_mean(ivts_locsqrnorm_diff)
 
     ivts_locsqrnorm_diff = tf.reduce_sum(tf.square(ivts_xyz_diff), axis=2, keepdims=True)
     ivts_locsqrnorm_avg_diff = tf.reduce_mean(ivts_locsqrnorm_diff)
