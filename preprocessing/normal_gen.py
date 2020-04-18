@@ -26,11 +26,11 @@ START = 0
 CUR_PATH = os.path.dirname(os.path.realpath(__file__))
 FLAGS=None
 
-def norm_z_matrix(norm):
+def norm_z_matrix(norm, rect=True):
     bs = norm.shape[0]
     z_b = np.repeat(np.array([(0., 0., 1.)]), bs, axis=0)
     print("norm.shape, z_b.shape",norm.shape, z_b.shape)
-    normal = np.cross(norm, z_b)
+    normal = np.cross(norm, z_b) if rect else np.cross(z_b, norm)
     print("normal of norm rotate:", normal.shape)
     sinal = np.linalg.norm(normal,axis=1,keepdims=True)
     cosal = np.sum(np.multiply(norm, z_b),axis=1,keepdims=True)

@@ -32,6 +32,7 @@
     ],
     "raw_dirs_v1": {
         "mesh_dir": "/ssd1/datasets/ShapeNet/ShapeNetCore.v1/",
+        "real_norm_mesh_dir":"/hdd_extra1/datasets/ShapeNet/ShapeNetCore_v1_real_norm/",
         "norm_mesh_dir":"/hdd_extra1/datasets/ShapeNet/ShapeNetCore_v1_norm/",
         "ivt_dir": "/ssd1/datasets/ShapeNet/IVT_v1_biguni/",
         "pnt_dir": "/ssd1/datasets/ShapeNet/pnt_163840/",

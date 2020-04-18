@@ -59,9 +59,17 @@ def add_jitters(points, std=0.05, type="uniform"):
 
 def add_normal_jitters(points, normals, height=0.1, span=0.05):
     jitterx = np.random.uniform(-height, height, points.shape[0]).reshape([points.shape[0],1])
-    jitterx = np.multiply(jitterx, normals) + np.random.uniform(-span, span, 3*points.shape[0]).reshape([points.shape[0],3])
+    # jitterx = np.multiply(jitterx, normals) + np.random.uniform(-span, span, 3*points.shape[0]).reshape([points.shape[0],3])
+    R = normal_gen.norm_z_matrix(normals, rect=False)
+    round_points = np.matmul(R, round_sample(span))
     print(points.shape, jitterx.shape)
+    jitterx = np.multiply(jitterx, normals) + round_points
     return points + jitterx
+
+def round_sample(radius):
+    angle = np.random.uniform(0,1, size=points.shape[0]) * 2 * np.pi
+    r = np.sqrt(np.random.uniform(0,1, size=points.shape[0])) * radius
+    return np.stack([np.multiply(r * np.cos(angle)),np.multiply(r * np.sin(angle))], axis=1)
 
 def thresh_edge_tries(tries, edge_thresh=0.02):
     triesAB = np.linalg.norm(tries[:,1,:] - tries[:,0,:], axis = 1)
@@ -191,7 +199,7 @@ def calculate_ivt_single(planes, e, point, tries):
 #         return False
 
 
-def create_h5_ivt_pt(gpu, cat_id, h5_file, tries, face_norms, vert_norms, surfpoints_sample, surfnormals_sample, ball_samples, ungridsamples, norm_params, from_marchingcube, normalgt):
+def create_h5_ivt_pt(gpu, cat_id, h5_file, tries, face_norms, vert_norms, surfpoints_sample, surfnormals_sample, ball_samples, ungridsamples, norm_params, from_marchingcube, normalgt, realmodel):
     if tries.shape[0] > 2000000:
         print(cat_id,h5_file,"is too big!!! faces_size", faces.shape[0])
         return
@@ -263,7 +271,7 @@ def get_mesh(norm_mesh_sub_dir, ref_sub_dir, pnt_dir, pntnum):
     face_norm_surfpnt = save_surface(pntnum, sample_indices, points_all, all_tries, all_face_normals, all_vert_normals, pnt_dir)
     return all_tries, all_face_normals, all_vert_normals, points_all, face_norm_surfpnt, from_marchingcube
 
-def create_ivt_obj(gpu, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_dir, cat_ref_dir, obj, res, normalize, num_sample, pntnum, cat_id, version, ungrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist, normalgt):
+def create_ivt_obj(gpu, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_dir, cat_ref_dir, obj, res, normalize, num_sample, pntnum, cat_id, version, ungrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist, normalgt, realmodel):
     obj=obj.rstrip('\r\n')
     ivt_sub_dir = os.path.join(cat_ivt_dir, obj)
     ref_sub_dir = os.path.join(cat_ref_dir, obj)
@@ -280,7 +288,10 @@ def create_ivt_obj(gpu, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_di
         else:
             model_file = os.path.join(cat_mesh_dir, obj, "models", "model_normalized.obj")
         if normalize and (not os.path.exists(os.path.join(norm_mesh_sub_dir, "pc_norm.obj")) or not os.path.exists(os.path.join(norm_mesh_sub_dir, "pc_norm.txt"))):
-            all_tries, all_face_normals, all_vert_normals, params, surfpoints, surfnormals, from_marchingcube = get_normalize_mesh(model_file, norm_mesh_sub_dir, pnt_dir, ref_sub_dir, pntnum)
+            if realmodel:
+                all_tries, all_face_normals, all_vert_normals, params, surfpoints, surfnormals, from_marchingcube = get_normalize_mesh_real(model_file, norm_mesh_sub_dir, pnt_dir, ref_sub_dir, pntnum)
+            else:
+                all_tries, all_face_normals, all_vert_normals, params, surfpoints, surfnormals, from_marchingcube = get_normalize_mesh(model_file, norm_mesh_sub_dir, pnt_dir, ref_sub_dir, pntnum)
         else:
             all_tries, all_face_normals, all_vert_normals, surfpoints, surfnormals, from_marchingcube = get_mesh(norm_mesh_sub_dir, ref_sub_dir, pnt_dir, pntnum)
             from_marchingcube = os.path.exists(os.path.join(ref_sub_dir, "isosurf.obj"))
@@ -292,7 +303,7 @@ def create_ivt_obj(gpu, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_di
         ball_samples = sample_balluni(ballgrid, int((1.0-uni_ratio-surf_ratio)*num_sample))
         create_h5_ivt_pt(gpu, cat_id, h5_file, all_tries, all_face_normals, all_vert_normals, surfpoints_sample, surfnormals_sample, ball_samples, ungridsamples, params, from_marchingcube, normalgt)
 
-def create_ivt(num_sample, pntnum, res, angles_num, cats, raw_dirs, lst_dir, uni_ratio=0.3, surf_ratio=0.4, normalize=True, version=1, skip_all_exist=False, normalgt=True):
+def create_ivt(num_sample, pntnum, res, angles_num, cats, raw_dirs, lst_dir, uni_ratio=0.3, surf_ratio=0.4, normalize=True, version=1, skip_all_exist=False, normalgt=True, realmodel=False):
 
     ivt_dir=raw_dirs["ivt_mani_dir"]
     ref_dir=raw_dirs["ref_mani_dir"]
@@ -310,7 +321,10 @@ def create_ivt(num_sample, pntnum, res, angles_num, cats, raw_dirs, lst_dir, uni
         cat_mesh_dir = os.path.join(raw_dirs["mesh_dir"], cat_id)
         cat_pnt_dir = os.path.join(raw_dirs["pnt_dir"], cat_id)
         if not os.path.exists(cat_pnt_dir): os.makedirs(cat_pnt_dir)
-        cat_norm_mesh_dir = os.path.join(raw_dirs["norm_mesh_dir"], cat_id)
+        if realmodel:
+            cat_norm_mesh_dir = os.path.join(raw_dirs["real_norm_mesh_dir"], cat_id)
+        else:
+            cat_norm_mesh_dir = os.path.join(raw_dirs["norm_mesh_dir"], cat_id)
         with open(lst_dir+"/"+str(cat_id)+"_test.lst", "r") as f:
             list_obj = f.readlines()
         with open(lst_dir+"/"+str(cat_id)+"_train.lst", "r") as f:
@@ -339,21 +353,97 @@ def create_ivt(num_sample, pntnum, res, angles_num, cats, raw_dirs, lst_dir, uni
         surf_ratio_lst = [surf_ratio for i in range(thread_num)]
         res_lst = [res for i in range(thread_num)]
         cat_ref_dir_lst = [cat_ref_dir for i in range(thread_num)]
+        realmodel_lst = [realmodel for i in range(thread_num)]
         skip_all_exist_lst = [skip_all_exist for i in range(thread_num)]
         if thread_num > 1:
             with Parallel(n_jobs=thread_num) as parallel:
                 vcts_part = parallel(delayed(create_ivt_distribute)
-                    (gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_dir, cat_ref_dir, list_obj, res, normalize, num_sample, pntnum, cat_id, version, unigrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist, normalgt) for gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_dir, cat_ref_dir, list_obj, res, normalize, num_sample, pntnum, cat_id, version, unigrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist, normalgt in zip(gpu_lst, catnm_lst, cat_mesh_dir_lst, cat_norm_mesh_dir_lst, cat_ivt_dir_lst, cat_pnt_dir_lst, cat_ref_dir_lst, list_objs, res_lst, normalize_lst, num_sample_lst, pntnum_lst, cat_id_lst, version_lst, unigrid_lst, ballgrid_lst, uni_ratio_lst, surf_ratio_lst, skip_all_exist_lst,normalgt_lst))
+                    (gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_dir, cat_ref_dir, list_obj, res, normalize, num_sample, pntnum, cat_id, version, unigrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist, normalgt, realmodel) for gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_dir, cat_ref_dir, list_obj, res, normalize, num_sample, pntnum, cat_id, version, unigrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist, normalgt, realmodel in zip(gpu_lst, catnm_lst, cat_mesh_dir_lst, cat_norm_mesh_dir_lst, cat_ivt_dir_lst, cat_pnt_dir_lst, cat_ref_dir_lst, list_objs, res_lst, normalize_lst, num_sample_lst, pntnum_lst, cat_id_lst, version_lst, unigrid_lst, ballgrid_lst, uni_ratio_lst, surf_ratio_lst, skip_all_exist_lst,normalgt_lst, realmodel_lst))
         else:
-            vcts_part = create_ivt_distribute(-1, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_dir, cat_ref_dir, list_objs[0], res, normalize, num_sample, pntnum, cat_id, version, unigrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist, normalgt)
+            vcts_part = create_ivt_distribute(-1, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_dir, cat_ref_dir, list_objs[0], res, normalize, num_sample, pntnum, cat_id, version, unigrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist, normalgt, realmodel)
     print("finish all")
 
-def create_ivt_distribute(gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_dir, cat_ref_dir, list_obj, res, normalize, num_sample, pntnum, cat_id, version, unigrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist, normalgt):
+def create_ivt_distribute(gpu, catnm, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_dir, cat_ref_dir, list_obj, res, normalize, num_sample, pntnum, cat_id, version, unigrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist, normalgt, realmodel):
     for i in range(len(list_obj)):
         create_ivt_obj(gpu%4, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_dir, cat_ref_dir, list_obj[i],
-            res, normalize, num_sample, pntnum, cat_id, version, unigrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist, normalgt)
+            res, normalize, num_sample, pntnum, cat_id, version, unigrid, ballgrid, uni_ratio, surf_ratio, skip_all_exist, normalgt, realmodel)
         print("finish {}/{} for {}".format(i,len(list_obj),catnm))
 
+def get_normalize_mesh_real(model_file, norm_mesh_sub_dir, pnt_dir, ref_sub_dir, pntnum):
+    total = 16384 * 50
+    print("trimesh_load:", model_file)
+    ref_file = os.path.join(ref_sub_dir, "isosurf.obj")
+    mesh_list = trimesh.load_mesh(model_file, process=False)
+    if not isinstance(mesh_list, list):
+        mesh_list = [mesh_list]
+    area_sum = 0
+    area_lst = []
+    for idx, mesh in enumerate(mesh_list):
+        area = np.sum(mesh.area_faces)
+        area_lst.append(area)
+        area_sum+=area
+    area_lst = np.asarray(area_lst)
+    amount_lst = (area_lst * total / area_sum).astype(np.int32)
+    points_all=np.zeros((0,3), dtype=np.float32)
+    all_face_normals = np.zeros((0, 3), dtype=np.float32)
+    all_vert_normals = np.zeros((0, 3, 3), dtype=np.float32)
+    all_tries = np.zeros((0, 3, 3), dtype=np.float32)
+    sample_indices = np.zeros((0), dtype=np.int)
+    for i in range(amount_lst.shape[0]):
+        mesh = mesh_list[i]
+        # print("start sample surface of ", mesh.faces.shape[0])
+        points, index = trimesh.sample.sample_surface(mesh, amount_lst[i])
+        if not os.path.exists(ref_file):
+            sample_indices = np.concatenate([sample_indices, sample_indices.shape[0] + index], axis=0)
+        vert_ind = mesh.faces.reshape(-1)
+        all_tries = np.concatenate([all_tries, mesh.vertices[vert_ind].reshape([-1, 3, 3])], axis=0)
+        all_face_normals = np.concatenate([all_face_normals, mesh.face_normals], axis=0)
+        all_vert_normals = np.concatenate([all_vert_normals, mesh.vertex_normals[vert_ind].reshape([-1, 3, 3])], axis=0)
+        # print("end sample surface")
+        points_all = np.concatenate([points_all,points], axis=0)
+    centroid = np.mean(points_all, axis=0)
+    points_all = points_all - centroid
+    m = np.max(np.sqrt(np.sum(points_all ** 2, axis=1)))
+    obj_file = os.path.join(norm_mesh_sub_dir, "pc_norm.obj")
+    param_file = os.path.join(norm_mesh_sub_dir, "pc_norm.txt")
+    params = np.concatenate([centroid, np.expand_dims(m, axis=0)])
+    np.savetxt(param_file, params)
+    print("export_mesh", obj_file)
+    from_marchingcube = False
+    ori_mesh = pymesh.load_mesh(model_file)
+    verts = (ori_mesh.vertices - centroid) / float(m)
+    pymesh.save_mesh_raw(obj_file, verts, ori_mesh.faces)
+    if not os.path.exists(ref_file):
+        print("centroid, m", centroid, m)
+        ref_face_normals = all_face_normals
+    else:
+        from_marchingcube = True
+        mesh_list = trimesh.load_mesh(ref_file, process=False)
+        print("trimesh_load ref_file:", ref_file)
+        if not isinstance(mesh_list, list):
+            mesh_list = [mesh_list]
+        area_sum = 0
+        area_lst = []
+        for idx, mesh in enumerate(mesh_list):
+            area = np.sum(mesh.area_faces)
+            area_lst.append(area)
+            area_sum += area
+        area_lst = np.asarray(area_lst)
+        amount_lst = (area_lst * total / area_sum).astype(np.int32)
+        points_all = np.zeros((0, 3), dtype=np.float32)
+        ref_face_normals = np.zeros((0, 3), dtype=np.float32)
+        for i in range(amount_lst.shape[0]):
+            mesh = mesh_list[i]
+            points, index = trimesh.sample.sample_surface(mesh, amount_lst[i])
+            sample_indices = np.concatenate([sample_indices, sample_indices.shape[0] + index], axis=0)
+            ref_face_normals = np.concatenate([ref_face_normals, mesh.face_normals], axis=0)
+            points_all = np.concatenate([points_all, points], axis=0)
+        centroid = np.mean(points_all, axis=0)
+        points_all = points_all - centroid
+        m = np.max(np.sqrt(np.sum(points_all ** 2, axis=1)))
+    surfpoints = points_all / float(m)
+    face_norm_surfpnt = ref_face_normals[sample_indices]
+    return all_tries, all_face_normals, all_vert_normals, params, surfpoints, face_norm_surfpnt, from_marchingcube
 
 def get_normalize_mesh(model_file, norm_mesh_sub_dir, pnt_dir, ref_sub_dir, pntnum):
     total = 16384 * 50
@@ -479,11 +569,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--thread_num', type=int, default='1', help='how many objs are creating at the same time')
     parser.add_argument('--shuffle', action='store_true')
+    parser.add_argument('--realmodel', action='store_true')
     parser.add_argument('--category', type=str, default="all",
                         help='Which single class to generate on [default: all, can be chair or plane, etc.]')
     FLAGS = parser.parse_args()
 
     # nohup python -u gpu_create_manifold_ivt.py --thread_num 12 --shuffle --category all &> create_ivt.log &
+    # nohup python -u gpu_create_manifold_ivt.py --thread_num 12 --shuffle --category chair --realmodel &> create_ivt.log &
 
     #  full set
     lst_dir, cats, all_cats, raw_dirs = create_file_lst.get_all_info()
@@ -513,7 +605,7 @@ if __name__ == "__main__":
 
     # get_mesh("/hdd_extra1/datasets/ShapeNet/ShapeNetCore_v1_norm/03001627/17e916fc863540ee3def89b32cef8e45", "/hdd_extra1/datasets/ShapeNet/march_cube_objs_v1/03001627/17e916fc863540ee3def89b32cef8e45", "./test/2/", 50000)
 
-    create_ivt(32768*3, 163840, 0.01, 200, cats, raw_dirs, lst_dir, uni_ratio=0.4, surf_ratio=0.4, normalize=True, version=1, skip_all_exist=True, normalgt=True)
+    create_ivt(32768*3, 163840, 0.01, 200, cats, raw_dirs, lst_dir, uni_ratio=0.4, surf_ratio=0.4, normalize=True, version=1, skip_all_exist=True, normalgt=False, realmodel=FLAGS.realmodel)
 
 
 
