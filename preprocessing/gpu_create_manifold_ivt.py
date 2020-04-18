@@ -61,15 +61,15 @@ def add_normal_jitters(points, normals, height=0.1, span=0.05):
     jitterx = np.random.uniform(-height, height, points.shape[0]).reshape([points.shape[0],1])
     # jitterx = np.multiply(jitterx, normals) + np.random.uniform(-span, span, 3*points.shape[0]).reshape([points.shape[0],3])
     R = normal_gen.norm_z_matrix(normals, rect=False)
-    round_points = np.matmul(R, round_sample(span))
-    print(points.shape, jitterx.shape)
-    jitterx = np.multiply(jitterx, normals) + round_points
+    round_points = np.matmul(R, np.expand_dims(round_sample(span,points.shape[0]),axis=2))
+    print("jitterx.shape, R.shape, round_points.shape", jitterx.shape, R.shape, round_points.shape)
+    jitterx = np.multiply(jitterx, normals) + np.squeeze(round_points)
     return points + jitterx
 
-def round_sample(radius):
-    angle = np.random.uniform(0,1, size=points.shape[0]) * 2 * np.pi
-    r = np.sqrt(np.random.uniform(0,1, size=points.shape[0])) * radius
-    return np.stack([np.multiply(r * np.cos(angle)),np.multiply(r * np.sin(angle))], axis=1)
+def round_sample(radius, num):
+    angle = np.random.uniform(0,1, size=num) * 2 * np.pi
+    r = np.sqrt(np.random.uniform(0,1, size=num)) * radius
+    return np.stack([np.multiply(r, np.cos(angle)), np.multiply(r, np.sin(angle)), np.zeros_like(r)], axis=1)
 
 def thresh_edge_tries(tries, edge_thresh=0.02):
     triesAB = np.linalg.norm(tries[:,1,:] - tries[:,0,:], axis = 1)
@@ -102,7 +102,7 @@ def gpu_calculate_ivt(points, tries, gpu, from_marchingcube):
         # print("closest_ind,minind",closest_ind.shape,minind.shape,minind)
         vcts.append(vcts_part)
     else:
-        times = points.shape[0] * num_tries // (25000 * 6553 * 1) + 1
+        times = points.shape[0] * num_tries // (25000 * 6553 * 3) + 1
         span = points.shape[0] // times + 1
         vcts = []
         print("points.shape, tries.shape", points.shape, tries.shape)
@@ -199,7 +199,7 @@ def calculate_ivt_single(planes, e, point, tries):
 #         return False
 
 
-def create_h5_ivt_pt(gpu, cat_id, h5_file, tries, face_norms, vert_norms, surfpoints_sample, surfnormals_sample, ball_samples, ungridsamples, norm_params, from_marchingcube, normalgt, realmodel):
+def create_h5_ivt_pt(gpu, cat_id, h5_file, tries, face_norms, vert_norms, surfpoints_sample, surfnormals_sample, ball_samples, ungridsamples, norm_params, from_marchingcube, normalgt):
     if tries.shape[0] > 2000000:
         print(cat_id,h5_file,"is too big!!! faces_size", faces.shape[0])
         return
@@ -305,7 +305,12 @@ def create_ivt_obj(gpu, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_di
 
 def create_ivt(num_sample, pntnum, res, angles_num, cats, raw_dirs, lst_dir, uni_ratio=0.3, surf_ratio=0.4, normalize=True, version=1, skip_all_exist=False, normalgt=True, realmodel=False):
 
-    ivt_dir=raw_dirs["ivt_mani_dir"]
+    if realmodel:
+        norm_mesh_dir = raw_dirs["real_norm_mesh_dir"]
+        ivt_dir = raw_dirs["ivt_dir"]
+    else:
+        norm_mesh_dir = raw_dirs["norm_mesh_dir"]
+        ivt_dir = raw_dirs["ivt_mani_dir"]
     ref_dir=raw_dirs["ref_mani_dir"]
     if not os.path.exists(ivt_dir): os.makedirs(ivt_dir)
     if not os.path.exists(raw_dirs["pnt_dir"]): os.makedirs(raw_dirs["pnt_dir"])
@@ -321,10 +326,7 @@ def create_ivt(num_sample, pntnum, res, angles_num, cats, raw_dirs, lst_dir, uni
         cat_mesh_dir = os.path.join(raw_dirs["mesh_dir"], cat_id)
         cat_pnt_dir = os.path.join(raw_dirs["pnt_dir"], cat_id)
         if not os.path.exists(cat_pnt_dir): os.makedirs(cat_pnt_dir)
-        if realmodel:
-            cat_norm_mesh_dir = os.path.join(raw_dirs["real_norm_mesh_dir"], cat_id)
-        else:
-            cat_norm_mesh_dir = os.path.join(raw_dirs["norm_mesh_dir"], cat_id)
+        cat_norm_mesh_dir = os.path.join(norm_mesh_dir, cat_id)
         with open(lst_dir+"/"+str(cat_id)+"_test.lst", "r") as f:
             list_obj = f.readlines()
         with open(lst_dir+"/"+str(cat_id)+"_train.lst", "r") as f:
@@ -417,7 +419,6 @@ def get_normalize_mesh_real(model_file, norm_mesh_sub_dir, pnt_dir, ref_sub_dir,
         print("centroid, m", centroid, m)
         ref_face_normals = all_face_normals
     else:
-        from_marchingcube = True
         mesh_list = trimesh.load_mesh(ref_file, process=False)
         print("trimesh_load ref_file:", ref_file)
         if not isinstance(mesh_list, list):
@@ -575,7 +576,7 @@ if __name__ == "__main__":
     FLAGS = parser.parse_args()
 
     # nohup python -u gpu_create_manifold_ivt.py --thread_num 12 --shuffle --category all &> create_ivt.log &
-    # nohup python -u gpu_create_manifold_ivt.py --thread_num 12 --shuffle --category chair --realmodel &> create_ivt.log &
+    # nohup python -u gpu_create_manifold_ivt.py --thread_num 4 --shuffle --category chair --realmodel &> create_ivt.log &
 
     #  full set
     lst_dir, cats, all_cats, raw_dirs = create_file_lst.get_all_info()
