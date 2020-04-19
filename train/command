@@ -157,9 +157,9 @@ nohup python -u train_ivt.py --gpu 0 --img_feat_onestream --encoder vgg_16  --lo
 
 
 
---- vgg_16 onestream_skip surf 010000,
+                --- vgg_16 onestream_skip surf 010000,
 
-nohup python -u train_ivt.py --gpu 2 --img_feat_onestream --encoder vgg_16 --log_dir checkpoint/onestream_skip_surf/chair_vgg_16_010000 --category chair --uni_num 0 --sphere_num 0 --num_pnts 2048 --batch_size 28 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ --wd 1e-6 --decoderskip &> onestream_skip_surf_chair_vgg_010000.log &
+                nohup python -u train_ivt.py --gpu 2 --img_feat_onestream --encoder vgg_16 --log_dir checkpoint/onestream_skip_surf/chair_vgg_16_010000 --category chair --uni_num 0 --sphere_num 0 --num_pnts 2048 --batch_size 28 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ --wd 1e-6 --decoderskip &> onestream_skip_surf_chair_vgg_010000.log &
 
 
 

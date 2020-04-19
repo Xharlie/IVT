@@ -67,7 +67,9 @@ parser.add_argument('--decoderskip', action='store_true')
 parser.add_argument('--cam_est', action='store_true')
 parser.add_argument('--cat_limit', type=int, default=1168000, help="balance each category, 1500 * 24 = 36000")
 parser.add_argument('--multi_view', action='store_true')
+parser.add_argument('--smaller', action='store_true')
 parser.add_argument('--bn', action='store_true')
+parser.add_argument('--manifold', action='store_true')
 parser.add_argument('--lossw', nargs='+', action='store', default=[0.0, 1.0, 0.0, 0.0, 1.0, 0.0], help="xyz, locnorm, locsqrnorm, dist, dirct, drct_abs")
 parser.add_argument('--distlimit', nargs='+', action='store', type=str, default=[1.0, 0.9, 0.9, 0.8, 0.8, 0.7, 0.7, 0.6, 0.6, 0.5, 0.5, 0.4, 0.4, 0.3, 0.3, 0.2, 0.2, 0.18, 0.18, 0.16, 0.16, 0.14, 0.14, 0.12, 0.12, 0.1, 0.1, 0.08, 0.08, 0.06, 0.06, 0.05, 0.05, 0.04, 0.04, 0.03, 0.03, 0.02, 0.02, 0.01, 0.01, -0.01])
 parser.add_argument('--surfrange', nargs='+', action='store', default=[0.0, 0.15], help="lower bound, upperbound")
@@ -130,8 +132,9 @@ for cat_id in cat_ids:
                 test_cats_limit[cat_id] += 1
                 TEST_LISTINFO += [(cat_id, line.strip(), render)]
 
+
 info = {'rendered_dir': raw_dirs["renderedh5_dir"],
-            'ivt_dir': raw_dirs["ivt_mani_dir"]}
+            'ivt_dir': raw_dirs["ivt_mani_dir"] if FLAGS.manifold else raw_dirs["ivt_dir"]}
 if FLAGS.cam_est:
     info['rendered_dir']= raw_dirs["renderedh5_dir_est"]
 
@@ -280,8 +283,7 @@ def train():
                 if not load_model(sess, FLAGS.restore_modelcnn, FLAGS.encoder, strict=True):
                     return
                 # Overall
-            saver = tf.compat.v1.train.Saver([v for v in tf.compat.v1.get_collection_ref(tf.compat.v1.GraphKeys.GLOBAL_VARIABLES) if
-                                    ('lr' not in v.name) and ('batch' not in v.name)])
+            saver = tf.compat.v1.train.Saver([v for v in tf.compat.v1.get_collection_ref(tf.compat.v1.GraphKeys.GLOBAL_VARIABLES) if ('lr' not in v.name) and ('batch' not in v.name)])
             ckptstate = tf.train.get_checkpoint_state(FLAGS.restore_model)
 
             if ckptstate is not None:

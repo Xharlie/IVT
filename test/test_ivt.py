@@ -64,6 +64,7 @@ parser.add_argument('--XYZ', action='store_true')
 parser.add_argument('--cam_est', action='store_true')
 parser.add_argument('--cat_limit', type=int, default=168000, help="balance each category, 1500 * 24 = 36000")
 parser.add_argument('--multi_view', action='store_true')
+parser.add_argument('--manifold', action='store_true')
 parser.add_argument('--bn', action='store_true')
 parser.add_argument('--lossw', nargs='+', action='append', default=[1.0, 0.0, 0.0, 0.0, 0.0, 0.0])
 parser.add_argument('--distlimit', nargs='+', action='store', type=str, default=[1.0, 0.9, 0.9, 0.8, 0.8, 0.7, 0.7, 0.6, 0.6, 0.5, 0.5, 0.4, 0.4, 0.3, 0.3, 0.2, 0.2, 0.1, 0.1, 0.05, 0.05, 0.04, 0.04, 0.03, 0.03, 0.02, 0.02, 0.01, 0.01, -0.01])
@@ -106,7 +107,7 @@ for cat_id in cat_ids:
                 TEST_LISTINFO += [(cat_id, line.strip(), render)]
 
 info = {'rendered_dir': raw_dirs["renderedh5_dir"],
-            'ivt_dir': raw_dirs["ivt_mani_dir"]}
+            'ivt_dir': raw_dirs["ivt_mani_dir"] if FLAGS.manifold else raw_dirs["ivt_dir"]}
 if FLAGS.cam_est:
     info['rendered_dir']= raw_dirs["renderedh5_dir_est"]
 

@@ -121,16 +121,7 @@ def load_model_strict(sess, saver, restore_model):
     ckptstate = tf.train.get_checkpoint_state(restore_model)
     if ckptstate is not None:
         LOAD_MODEL_FILE = os.path.join(restore_model, os.path.basename(ckptstate.model_checkpoint_path))
-        try:
-            load_model(sess, LOAD_MODEL_FILE, ['sdfprediction/fold1', 'sdfprediction/fold2', 'vgg_16'], strict=True)
-            # load_model(sess, LOAD_MODEL_FILE, ['sdfprediction','vgg_16'], strict=True)
-            with NoStdStreams():
-                saver.restore(sess, LOAD_MODEL_FILE)
-            print("Model loaded in file: %s successful" % LOAD_MODEL_FILE)
-        except Exception as e:
-            print(e)
-            print("Fail to load overall modelfile: %s" % FLAGS.restore_model)
-            exit()
+        saver.restore(sess, LOAD_MODEL_FILE)
     return sess
 
 def test(raw_dirs, TEST_DATASET):
@@ -154,26 +145,22 @@ def test(raw_dirs, TEST_DATASET):
             config.log_device_placement = False
             sess = tf.compat.v1.Session(config=config)
 
-
             ##### all
-            update_variables = [x for x in tf.compat.v1.get_collection_ref(tf.compat.v1.GraphKeys.GLOBAL_VARIABLES)]
             # Init variables
             init = tf.compat.v1.global_variables_initializer()
             sess.run(init)
 
             ######### Loading Checkpoint ###############
             # Overall
-            saver = tf.compat.v1.train.Saver(
-                [v for v in tf.compat.v1.get_collection_ref(tf.compat.v1.GraphKeys.GLOBAL_VARIABLES) if
-                 ('lr' not in v.name) and ('batch' not in v.name)])
+            saver = tf.compat.v1.train.Saver([v for v in tf.compat.v1.get_collection_ref(tf.compat.v1.GraphKeys.GLOBAL_VARIABLES) if ('lr' not in v.name) and ('batch' not in v.name)])
 
-            sess = load_model_strict(sess, saver, FLAGS.restore_model)
             ###########################################
 
             ops = {'input_pls': input_pls,
                    'is_training_pl': is_training_pl,
                    'loss': loss,
                    'step': batch,
+                   'saver': saver,
                    'end_points': end_points}
             sys.stdout.flush()
 
@@ -196,6 +183,9 @@ def test_one_epoch(sess, ops, raw_dirs, TEST_DATASET):
         nums = FLAGS.initnums
         weightform = FLAGS.weightform
         distr = FLAGS.distr
+
+        sess = load_model_strict(sess,  ops["saver"], FLAGS.restore_model)
+
         if FLAGS.unitype == "uni":
             loc, norm, std, weights, gt_pc, tries, face_norms, vert_norms, dist = unisample_pnts(sess, ops, -1, batch_data, None, FLAGS.res, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
             save_norm(loc, norm, os.path.join(outdir, "uni.ply"))
@@ -203,7 +193,7 @@ def test_one_epoch(sess, ops, raw_dirs, TEST_DATASET):
             loc, norm, std, weights, gt_pc, tries, face_norms, vert_norms, dist = ballsample_pnts(sess, ops, FLAGS.anglenums, -1, batch_data, None, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
             save_norm(loc, norm, os.path.join(outdir, "ball.ply"))
         if FLAGS.restore_surfmodel != "":
-            sess = load_model_strict(sess, saver, FLAGS.restore_surfmodel)
+            sess = load_model_strict(sess, ops["saver"], FLAGS.restore_surfmodel)
 
         for i in range(FLAGS.rounds):
             if FLAGS.rounds > 2 and i == (FLAGS.rounds - 2):
@@ -216,7 +206,7 @@ def test_one_epoch(sess, ops, raw_dirs, TEST_DATASET):
             batch_data['pnts'] = np.array([pc])
             # print("batch_data['pnts'].shape", batch_data['pnts'].shape)
             loc, norm, std, weights, dist = nearsample_pnts(sess, ops, i, batch_data, tries, face_norms, vert_norms, stdratio=FLAGS.stdratio, weightform=weightform, stdlwb=FLAGS.stdlwb[i+1], stdupb=FLAGS.stdupb[i+1])
-            np.savetxt(os.path.join(FLAGS.outdir, "surf_samp{}.txt".format(i)), pc, delimiter=";")
+            np.savetxt(os.path.join(outdir, "surf_samp{}.txt".format(i)), pc, delimiter=";")
             save_norm(loc, norm, os.path.join(outdir, "surf_{}.ply".format(i)))
         sys.stdout.flush()
         print("finished inference {}/{}".format(batch_idx+1, num_batches))
@@ -439,14 +429,15 @@ def cal_std_loc(pnts, ivts, stdratio, stdlwb=0.0, stdupb=0.1):
 def sample_from_MM(locs, norm, std, weights, nums, num_ratio, dist, distr="gaussian", gridsize=-1.0):
     if np.sum(std) != 0:
         print(locs.shape, norm.shape, std.shape, weights.shape)
-        if locs.shape[0] < nums:
-            locs = np.tile(locs, (num_ratio*2, 1))
-            norm = np.tile(norm, (num_ratio*2, 1))
-            std = np.tile(std, (num_ratio*2))
-            dist = np.tile(dist, (num_ratio*2))
-            weights = np.tile(weights, (num_ratio*2))
+        times = nums*2 // locs.shape[0]
+        if times > 0:
+            locs = np.tile(locs, (times, 1))
+            norm = np.tile(norm, (times, 1))
+            std = np.tile(std, (times))
+            dist = np.tile(dist, (times))
+            weights = np.tile(weights, (times))
         print(locs.shape, norm.shape, std.shape, weights.shape)
-        sampled_pnts = np.zeros((max(locs.shape[0], nums*2), 3))
+        sampled_pnts = np.zeros((locs.shape[0], 3))
         if distr == "gaussian" or distr == "ball":
             std = np.tile(np.expand_dims(std, axis=1), (1, 3))
             for i in range(nums):
@@ -545,7 +536,7 @@ def nearsample_pnts(sess, ops, roundnum, batch_data, tries, face_norms, vert_nor
 
 
 if __name__ == "__main__":
-    # nohup python -u inference.py --restore_model ../train/checkpoint/global_direct_surfaceonly/chair_evenweight --outdir  chair_drct_even_surfonly_uni --unionly --unitype &> global_direct_chair_surf_evenweight_uni.log &
+    # nohup python -u inference.py --gpu 3 --img_feat_onestream --category chair  --restore_model ../train/checkpoint/onestream_small_spheregrid/chair_vgg_16_010000 --restore_surfmodel ../train/checkpoint/onestream_small_surf/chair_vgg_16_010000 --outdir  chair_drct_even_surfonly_uni --unionly --unitype uni --XYZ &> global_direct_chair_surf_evenweight_uni.log &
 
 
     # nohup python -u inference.py --gt --outdir  gt_noerrBall --unionly --stdupb 0.3 0.3 0.2 0.1 0.05 --stdlwb 0.01 0.01 0.01 0.01 0.01 &> gt_uni.log &
@@ -560,6 +551,7 @@ if __name__ == "__main__":
     parser.add_argument('--log_dir', default='checkpoint', help='Log dir [default: log]')
     parser.add_argument('--num_pnts', type=int, default=0, help='Point Number [default: 2048]')
     parser.add_argument('--uni_num', type=int, default=0, help='Point Number [default: 2048]')
+    parser.add_argument('--sphere_num', type=int, default=0, help='Point Number [default: 2048]')
     parser.add_argument('--num_classes', type=int, default=1024, help='vgg dim')
     parser.add_argument("--beta1", type=float, dest="beta1", default=0.5, help="beta1 of adams")
     parser.add_argument('--batch_size', type=int, default=1, help='Batch Size during training [default: 32]')
@@ -589,10 +581,12 @@ if __name__ == "__main__":
     parser.add_argument('--cam_est', action='store_true')
     parser.add_argument('--cat_limit', type=int, default=168000, help="balance each category, 1500 * 24 = 36000")
     parser.add_argument('--multi_view', action='store_true')
+    parser.add_argument('--test_lst_dir', default=lst_dir, help='test mesh data list')
     parser.add_argument('--rounds', type=int, default=4, help='how many rounds of ivf')
     parser.add_argument('--uni_thresh', type=float, default=0.1, help='threshold for uniform sampling')
     parser.add_argument('--res', type=float, default=0.01, help='cube resolution')
     parser.add_argument('--anglenums', type=int, default=200, help='angle resolution')
+    parser.add_argument('--max_epoch', type=int, default=1, help='angle resolution')
     parser.add_argument('--initnums', type=int, default=8096, help='initial sampled uni point numbers')
     parser.add_argument('--num_ratio', type=int, default=2, help='point numbers expansion each round')
     parser.add_argument('--stdratio', type=int, default=4, help='')
@@ -608,11 +602,25 @@ if __name__ == "__main__":
     parser.add_argument('--unionly', action='store_true')
     parser.add_argument('--gt', action='store_true')
     parser.add_argument('--norminter', action='store_true')
-
+    parser.add_argument('--smaller', action='store_true')
+    parser.add_argument('--act', type=str, default="relu")
+    parser.add_argument('--encoder', type=str, default='vgg_16',
+                        help='encoder model: vgg_16, resnet_v1_50, resnet_v1_101, resnet_v2_50, resnet_v2_101')
+    parser.add_argument('--wd', type=float, default=1e-6, help='Initial learning rate [default: 0.001]')
+    parser.add_argument('--decoderskip', action='store_true')
+    parser.add_argument('--lossw', nargs='+', action='store', default=[0.0, 1.0, 0.0, 0.0, 1.0, 0.0],
+                        help="xyz, locnorm, locsqrnorm, dist, dirct, drct_abs")
+    parser.add_argument('--distlimit', nargs='+', action='store', type=str,
+                        default=[1.0, 0.9, 0.9, 0.8, 0.8, 0.7, 0.7, 0.6, 0.6, 0.5, 0.5, 0.4, 0.4, 0.3, 0.3, 0.2, 0.2,
+                                 0.18, 0.18, 0.16, 0.16, 0.14, 0.14, 0.12, 0.12, 0.1, 0.1, 0.08, 0.08, 0.06, 0.06, 0.05,
+                                 0.05, 0.04, 0.04, 0.03, 0.03, 0.02, 0.02, 0.01, 0.01, -0.01])
+    parser.add_argument('--surfrange', nargs='+', action='store', default=[0.0, 0.15], help="lower bound, upperbound")
     FLAGS = parser.parse_args()
     FLAGS.stdupb = [float(i) for i in FLAGS.stdupb]
     FLAGS.stdlwb = [float(i) for i in FLAGS.stdlwb]
-
+    FLAGS.lossw = [float(i) for i in FLAGS.lossw]
+    FLAGS.distlimit = [float(i) for i in FLAGS.distlimit]
+    FLAGS.surfrange = [float(i) for i in FLAGS.surfrange]
     print(FLAGS)
 
 
@@ -626,7 +634,6 @@ if __name__ == "__main__":
     # print(np.take(a, b, axis=0))
     #
     # exit()
-
 
 
     os.environ["CUDA_VISIBLE_DEVICES"] = FLAGS.gpu
@@ -678,13 +685,13 @@ if __name__ == "__main__":
     # TEST_LISTINFO += [("02691156", "1beb0776148870d4c511571426f8b16d", 0)]
 
     info = {'rendered_dir': raw_dirs["renderedh5_dir"],
-            'ivt_dir': raw_dirs["ivt_dir"]}
+            'ivt_dir': raw_dirs["ivt_mani_dir"]}
     if FLAGS.cam_est:
         info['rendered_dir'] = raw_dirs["renderedh5_dir_est"]
 
     print(info)
 
-    TEST_DATASET = data_ivt_h5_queue.Pt_sdf_img(FLAGS, listinfo=TEST_LISTINFO, info=info, cats_limit=cats_limit)
+    TEST_DATASET = data_ivt_h5_queue.Pt_sdf_img(FLAGS, listinfo=TEST_LISTINFO, info=info, cats_limit=cats_limit, shuffle=False)
 
 
     # batch_data={"cat_id":["02691156"],"obj_nm":["1beb0776148870d4c511571426f8b16d"]}
