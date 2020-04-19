@@ -52,6 +52,8 @@ def get_ivt_basic_imgfeat_onestream_skip(src_pc, globalfeats, point_feat, is_tra
     net4 = tf_util.conv2d(concat, 512, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold2/conv1')
 
     concat = tf.concat(axis=3, values=[point_feat, net3])
+    print('skip point_feat', point_feat.shape)
+
     net5 = tf_util.conv2d(concat, 512, [1, 1], padding='VALID', stride=[1, 1], activation_fn=activation_fn,
                           bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold2/conv2')
 

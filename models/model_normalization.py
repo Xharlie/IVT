@@ -82,7 +82,7 @@ def get_model(input_pls, is_training, bn=False, bn_decay=None, img_size = 224, F
     else:
         ref_img = input_imgs
     end_points['resized_ref_img'] = ref_img
-    if FLAGS.encoder == "vgg_16":
+    if FLAGS.encoder[:6] == "vgg_16":
         vgg.vgg_16.default_image_size = img_size
         with slim.arg_scope([slim.conv2d], weights_regularizer=slim.l2_regularizer(FLAGS.wd)):
             ref_feats_embedding, encdr_end_points = vgg.vgg_16(ref_img, num_classes=FLAGS.num_classes, is_training=False, scope='vgg_16', spatial_squeeze=False)
@@ -123,10 +123,12 @@ def get_model(input_pls, is_training, bn=False, bn_decay=None, img_size = 224, F
                 point_conv2 = tf.contrib.resampler.resampler(conv2, sample_img_points)
                 conv3 = tf.compat.v1.image.resize_bilinear(encdr_end_points['vgg_16/conv3/conv3_3'], (FLAGS.img_h, FLAGS.img_w))
                 point_conv3 = tf.contrib.resampler.resampler(conv3, sample_img_points)
-                # conv4 = tf.compat.v1.image.resize_bilinear(encdr_end_points['vgg_16/conv4/conv4_3'], (FLAGS.img_h, FLAGS.img_w))
-                # point_conv4 = tf.contrib.resampler.resampler(conv4, sample_img_points)
-                # point_img_feat = tf.concat(axis=2, values=[point_conv1, point_conv2, point_conv3, point_conv4]) # small
-                point_img_feat = tf.concat(axis=2, values=[point_conv1, point_conv2, point_conv3]) # small
+                if FLAGS.encoder[-7:] != "smaller":
+                    conv4 = tf.compat.v1.image.resize_bilinear(encdr_end_points['vgg_16/conv4/conv4_3'], (FLAGS.img_h, FLAGS.img_w))
+                    point_conv4 = tf.contrib.resampler.resampler(conv4, sample_img_points)
+                    point_img_feat = tf.concat(axis=2, values=[point_conv1, point_conv2, point_conv3, point_conv4]) # small
+                else:
+                    point_img_feat = tf.concat(axis=2, values=[point_conv1, point_conv2, point_conv3]) # small
             elif FLAGS.encoder[:3] == "res":
                 # print(encdr_end_points.keys())
                 conv1 = tf.compat.v1.image.resize_bilinear(encdr_end_points[scopelst[0]], (FLAGS.img_h, FLAGS.img_w))

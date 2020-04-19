@@ -133,7 +133,7 @@ def load_model_strict(sess, saver, restore_model):
             exit()
     return sess
 
-def test(batch_data):
+def test(raw_dirs, TEST_DATASET):
     log_string(FLAGS.log_dir)
     with tf.Graph().as_default():
         with tf.device('/gpu:0'):
@@ -177,65 +177,87 @@ def test(batch_data):
                    'end_points': end_points}
             sys.stdout.flush()
 
-            nums = FLAGS.initnums
-            weightform = FLAGS.weightform
-            distr = FLAGS.distr
-            if FLAGS.unitype == "uni":
-                loc, norm, std, weights, gt_pc, tries, face_norms, vert_norms, dist = unisample_pnts(sess, ops, -1, batch_data, FLAGS.res, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
-            elif FLAGS.unitype == "ball":
-                loc, norm, std, weights, gt_pc, tries, face_norms, vert_norms, dist = ballsample_pnts(sess, ops, FLAGS.anglenums, -1, batch_data, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
-            save_norm(loc, norm, os.path.join(FLAGS.outdir, "uni_l.ply"))
-            if FLAGS.restore_surfmodel != "":
-                sess = load_model_strict(sess, saver, FLAGS.restore_surfmodel)
-
-            for i in range(FLAGS.rounds):
-                if FLAGS.rounds > 2 and i == (FLAGS.rounds - 2):
-                    weightform = "even"
-                    num_ratio = 1
-                else:
-                    num_ratio = FLAGS.num_ratio
-                nums = nums * num_ratio
-                pc = sample_from_MM(loc, norm, std, weights, nums, num_ratio, dist, distr=distr, gridsize=FLAGS.gridsize)
-                batch_data['pnts'] = np.array([pc])
-                # print("batch_data['pnts'].shape", batch_data['pnts'].shape)
-                loc, norm, std, weights, dist = nearsample_pnts(sess, ops, i, batch_data, tries, face_norms, vert_norms, stdratio=FLAGS.stdratio, weightform=weightform, stdlwb=FLAGS.stdlwb[i+1], stdupb=FLAGS.stdupb[i+1])
-                save_norm(loc, norm, os.path.join(FLAGS.outdir, "surf_loc{}.ply".format(i)))
+            TEST_DATASET.start()
+            log_string('**** INFERENCE  ****')
             sys.stdout.flush()
+            test_one_epoch(sess, ops, raw_dirs, TEST_DATASET)
+            TEST_DATASET.shutdown()
+            print("Done!")
+
+def test_one_epoch(sess, ops, raw_dirs, TEST_DATASET):
+    num_batches = int(len(TEST_DATASET) / FLAGS.batch_size)
+    print('num_batches', num_batches)
+    for batch_idx in range(num_batches):
+        start_fetch_tic = time.time()
+        batch_data = TEST_DATASET.fetch()
+        view_id = batch_data["view_id"][0]
+        outdir = os.path.join(FLAGS.outdir, batch_data["cat_id"][0], batch_data["obj_nm"][0], str(view_id), FLAGS.unitype)
+        os.makedirs(outdir, exist_ok=True)
+        nums = FLAGS.initnums
+        weightform = FLAGS.weightform
+        distr = FLAGS.distr
+        if FLAGS.unitype == "uni":
+            loc, norm, std, weights, gt_pc, tries, face_norms, vert_norms, dist = unisample_pnts(sess, ops, -1, batch_data, None, FLAGS.res, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
+            save_norm(loc, norm, os.path.join(outdir, "uni.ply"))
+        elif FLAGS.unitype == "ball":
+            loc, norm, std, weights, gt_pc, tries, face_norms, vert_norms, dist = ballsample_pnts(sess, ops, FLAGS.anglenums, -1, batch_data, None, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
+            save_norm(loc, norm, os.path.join(outdir, "ball.ply"))
+        if FLAGS.restore_surfmodel != "":
+            sess = load_model_strict(sess, saver, FLAGS.restore_surfmodel)
+
+        for i in range(FLAGS.rounds):
+            if FLAGS.rounds > 2 and i == (FLAGS.rounds - 2):
+                weightform = "even"
+                num_ratio = 1
+            else:
+                num_ratio = FLAGS.num_ratio
+            nums = nums * num_ratio
+            pc = sample_from_MM(loc, norm, std, weights, nums, num_ratio, dist, distr=distr, gridsize=FLAGS.gridsize)
+            batch_data['pnts'] = np.array([pc])
+            # print("batch_data['pnts'].shape", batch_data['pnts'].shape)
+            loc, norm, std, weights, dist = nearsample_pnts(sess, ops, i, batch_data, tries, face_norms, vert_norms, stdratio=FLAGS.stdratio, weightform=weightform, stdlwb=FLAGS.stdlwb[i+1], stdupb=FLAGS.stdupb[i+1])
+            np.savetxt(os.path.join(FLAGS.outdir, "surf_samp{}.txt".format(i)), pc, delimiter=";")
+            save_norm(loc, norm, os.path.join(outdir, "surf_{}.ply".format(i)))
+        sys.stdout.flush()
+        print("finished inference {}/{}".format(batch_idx+1, num_batches))
 
 
-def gt_test(batch_data):
+
+def gt_test_one_epoch(raw_dirs, TEST_DATASET):
+    num_batches = int(len(TEST_DATASET) / FLAGS.batch_size)
+    print('num_batches', num_batches)
     log_string(FLAGS.log_dir)
+    for batch_idx in range(num_batches):
+        start_fetch_tic = time.time()
+        batch_data = TEST_DATASET.fetch()
+        view_id = batch_data["view_id"][0]
+        outdir = os.path.join(FLAGS.outdir, batch_data["cat_id"][0], batch_data["obj_nm"][0], str(view_id), FLAGS.unitype)
+        os.makedirs(outdir, exist_ok=True)
+        nums = FLAGS.initnums
+        weightform = FLAGS.weightform
+        distr = FLAGS.distr
+        modelfile = os.path.join(raw_dirs['norm_mesh_dir'], batch_data["cat_id"][0], batch_data["obj_nm"][0], "pc_norm.obj")
 
-    input_pls = model.placeholder_inputs(scope='inputs_pl', FLAGS=FLAGS, num_pnts=NUM_INPUT_POINTS)
-    is_training_pl = tf.compat.v1.placeholder(tf.bool, shape=())
-    print(is_training_pl)
-    batch = tf.Variable(0, name='batch')
+        if FLAGS.unitype == "uni":
+            loc, norm, std, weights, gt_pc, tries, face_norms, vert_norms, dist = unisample_pnts(None, None, -1, batch_data, modelfile, FLAGS.res, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
+            save_norm(loc, norm, os.path.join(outdir, "uni.ply"))
+        elif FLAGS.unitype == "ball":
+            loc, norm, std, weights, gt_pc, tries, face_norms, vert_norms, dist = ballsample_pnts(None, None, -1,  FLAGS.anglenums, batch_data, modelfile, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
+            save_norm(loc, norm, os.path.join(outdir, "ball.ply"))
 
-    print("--- Get model and loss")
-    # Get model and loss
-
-    nums = FLAGS.initnums
-    weightform = FLAGS.weightform
-    distr = FLAGS.distr
-
-    if FLAGS.unitype == "uni":
-        loc, norm, std, weights, gt_pc, tries, face_norms, vert_norms, dist = unisample_pnts(None, None, -1, batch_data, FLAGS.res, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
-    elif FLAGS.unitype == "ball":
-        loc, norm, std, weights, gt_pc, tries, face_norms, vert_norms, dist = ballsample_pnts(None, None, -1,  FLAGS.anglenums, batch_data, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
-    save_norm(loc, norm, os.path.join(FLAGS.outdir, "uni_l.ply"))
-
-    for i in range(FLAGS.rounds):
-        num_ratio = FLAGS.num_ratio
-        nums = nums * num_ratio
-        pc = sample_from_MM(loc, norm, std, weights, nums, num_ratio, dist, distr=distr, gridsize=FLAGS.gridsize)
-        batch_data['pnts'] = np.array([pc])
-        print("batch_data['pnts'].shape", batch_data['pnts'].shape)
-        loc, norm, std, weights, dist = nearsample_pnts(None, None, i, batch_data, tries, face_norms, vert_norms, stdratio=FLAGS.stdratio, weightform=weightform, stdlwb=FLAGS.stdlwb[i+1], stdupb=FLAGS.stdupb[i+1])
-        # print("pc.shape", pc.shape, "loc.shape", loc.shape, "std.shape", std.shape, "weights.shape", weights.shape)
-        np.savetxt(os.path.join(FLAGS.outdir, "surf_samp{}.txt".format(i)), pc, delimiter=";")
-        save_norm(loc, norm, os.path.join(FLAGS.outdir, "surf_loc{}.ply".format(i)))
-    sys.stdout.flush()
-
+        for i in range(FLAGS.rounds):
+            num_ratio = FLAGS.num_ratio
+            nums = nums * num_ratio
+            pc = sample_from_MM(loc, norm, std, weights, nums, num_ratio, dist, distr=distr, gridsize=FLAGS.gridsize)
+            batch_data['pnts'] = np.array([pc])
+            print("batch_data['pnts'].shape", batch_data['pnts'].shape)
+            loc, norm, std, weights, dist = nearsample_pnts(None, None, i, batch_data, tries, face_norms, vert_norms, stdratio=FLAGS.stdratio, weightform=weightform, stdlwb=FLAGS.stdlwb[i+1], stdupb=FLAGS.stdupb[i+1])
+            # print("pc.shape", pc.shape, "loc.shape", loc.shape, "std.shape", std.shape, "weights.shape", weights.shape)
+            np.savetxt(os.path.join(FLAGS.outdir, "surf_samp{}.txt".format(i)), pc, delimiter=";")
+            save_norm(loc, norm, os.path.join(outdir, "surf_{}.ply".format(i)))
+        sys.stdout.flush()
+        print("finished gt {}/{}".format(batch_idx+1, num_batches))
+    print("Done!")
 
 def rectify(norm, right_drct):
     cosim = np.dot(norm, right_drct)
@@ -282,21 +304,15 @@ def linearRect(loc, norm):
 def inference_batch(sess, ops, roundnum, batch_data):
     """ ops: dict mapping from string to tf ops """
     is_training = False
-
     log_string(str(datetime.now()))
-
     SPLIT_SIZE = int(np.ceil(batch_data['pnts'].shape[1] / NUM_INPUT_POINTS))
     totalnum = batch_data['pnts'].shape[1]
     extra_pts = np.zeros((1, SPLIT_SIZE * NUM_INPUT_POINTS - totalnum, 3), dtype=np.float32)
     batch_points = np.concatenate([batch_data['pnts'], extra_pts], axis = 1).reshape((SPLIT_SIZE, 1, -1, 3))
     pred_ivt_lst = []
     pred_drct_lst = []
+    tic = time.time()
     for sp in range(SPLIT_SIZE):
-        losses = {}
-        for lossname in ops['end_points']['losses'].keys():
-            losses[lossname] = 0
-
-        tic = time.time()
         feed_dict = {ops['is_training_pl']: is_training,
                      ops['input_pls']['pnts']: batch_points[sp,:],
                      ops['input_pls']['imgs']: batch_data['imgs'],
@@ -304,34 +320,17 @@ def inference_batch(sess, ops, roundnum, batch_data):
                      ops['input_pls']['trans_mats']: batch_data['trans_mats']}
         output_list = [ops['end_points']['pred_ivts_xyz'], ops['end_points']['pred_ivts_dist'],
                        ops['end_points']['pred_ivts_direction'], ops['end_points']['imgs']]
-
         loss_list = []
-        # for il, lossname in enumerate(losses.keys()):
-        #     loss_list += [ops['end_points']['losses'][lossname]]
-
         outputs = sess.run(output_list + loss_list, feed_dict=feed_dict)
-
         pred_xyz_val, pred_dist_val, pred_direction_val, _ = outputs[:]
         pred_ivt_lst.append(pred_xyz_val)
         pred_drct_lst.append(pred_direction_val)
     pred_ivts = np.concatenate(pred_ivt_lst, axis=1).reshape(-1,3)[:totalnum,:]
     pred_directions = np.concatenate(pred_drct_lst, axis=1).reshape(-1,3)[:totalnum,:]
-
-    # for il, lossname in enumerate(losses.keys()):
-    #     if lossname == "ivts_xyz_avg_diff":
-    #         xyz_avg_diff = outputs[len(output_list)+il]
-    #     if lossname == "ivts_dist_avg_diff":
-    #         dist_avg_diff= outputs[len(output_list)+il]
-    #     if lossname == "ivts_direction_avg_diff":
-    #         direction_avg_diff= outputs[len(output_list)+il]
-    #     losses[lossname] += outputs[len(output_list)+il]
-    # # outstr = ' -- %03d / %03d -- ' % (batch_idx + 1, num_batches)
     outstr = ' -----rounds %d, %d points ------ ' % (roundnum, totalnum)
-    outstr += ' time per b: %.02f, ' % (time.time() - tic)
+    outstr += ' time per obj: %.02f, ' % (time.time() - tic)
     log_string(outstr)
     return pred_ivts, pred_directions
-
-
 
 def get_unigrid(ivt_res):
     grids = int(1 / ivt_res)
@@ -340,33 +339,6 @@ def get_unigrid(ivt_res):
     z_ = np.linspace(-1, 1, num=grids).astype(np.float32)
     x, y, z = np.meshgrid(x_, y_, z_, indexing='ij')
     return np.stack([x.reshape(-1), y.reshape(-1), z.reshape(-1)], axis=1)
-
-
-# def get_normalized_mesh(model_file):
-#     total = 16384 * 5
-#     print("trimesh_load:", model_file)
-#     mesh_list = trimesh.load_mesh(model_file, process=False)
-#     if not isinstance(mesh_list, list):
-#         mesh_list = [mesh_list]
-#     area_sum = 0
-#     area_lst = []
-#     for idx, mesh in enumerate(mesh_list):
-#         area = np.sum(mesh.area_faces)
-#         area_lst.append(area)
-#         area_sum += area
-#     area_lst = np.asarray(area_lst)
-#     amount_lst = (area_lst * total / area_sum).astype(np.int32)
-#     points_all = np.zeros((0, 3), dtype=np.float32)
-#     for i in range(amount_lst.shape[0]):
-#         mesh = mesh_list[i]
-#         # print("start sample surface of ", mesh.faces.shape[0])
-#         points, index = trimesh.sample.sample_surface(mesh, amount_lst[i])
-#         # print("end sample surface")
-#         points_all = np.concatenate([points_all, points], axis=0)
-#     ori_mesh = pymesh.load_mesh(model_file)
-#     index = ori_mesh.faces.reshape(-1)
-#     tries = ori_mesh.vertices[index].reshape([-1, 3, 3])
-#     return points_all, tries
 
 def get_normalized_mesh(model_file):
     total = 16384 * 5
@@ -396,19 +368,18 @@ def get_normalized_mesh(model_file):
         all_face_normals = np.concatenate([all_face_normals, mesh.face_normals], axis=0)
         all_vert_normals = np.concatenate([all_vert_normals, mesh.vertex_normals[vert_ind].reshape([-1, 3, 3])], axis=0)
         points_all = np.concatenate([points_all, points], axis=0)
-    # print(all_tries.shape, all_vert_normals.shape)
-    # print(np.linalg.norm(all_vert_normals,axis=2))
     return points_all, all_tries, all_face_normals, all_vert_normals
 
 
-def unisample_pnts(sess, ops, roundnum, batch_data, res, num, threshold=0.1, stdratio=10, stdlwb=0.0, stdupb=0.1):
-    gt_pnts, tries, face_norms, vert_norms = get_normalized_mesh(batch_data["model_file"])
+def unisample_pnts(sess, ops, roundnum, batch_data, modelfile, res, num, threshold=0.1, stdratio=10, stdlwb=0.0, stdupb=0.1):
+    gt_pnts, tries, face_norms, vert_norms = None, None, None, None
     unigrid = get_unigrid(res)
     if not FLAGS.unionly:
         inds = np.random.choice(unigrid.shape[0], num * 8)
         unigrid = unigrid[inds]  # uni_ivts = ct.gpu_calculate_ivt(unigrid, tries, gpu)
     batch_data["pnts"] = np.array([unigrid])
     if sess is None:
+        gt_pnts, tries, face_norms, vert_norms = get_normalized_mesh(modelfile)
         uni_ivts, uni_inter_norm = ct.gpu_calculate_ivt_norm(batch_data["pnts"][0], tries, face_norms, vert_norms, int(FLAGS.gpu), tries.shape[0]>700)
         uni_dist = np.linalg.norm(uni_ivts, axis=1, keepdims=True)
         uni_drcts = uni_inter_norm if FLAGS.norminter else -uni_ivts / uni_dist
@@ -431,8 +402,8 @@ def get_ballgrid(angles_num):
     z = np.outer(np.cos(theta), np.ones_like(phi)).reshape(-1)
     return np.stack([x, y, z], axis=1)
 
-def ballsample_pnts(sess, ops, roundnum, angles_num, batch_data, num, threshold=0.1, stdratio=10, stdlwb=0.0, stdupb=0.1):
-    gt_pnts, tries, face_norms, vert_norms = get_normalized_mesh(batch_data["model_file"])
+def ballsample_pnts(sess, ops, roundnum, angles_num, batch_data, modelfile, num, threshold=0.1, stdratio=10, stdlwb=0.0, stdupb=0.1):
+    gt_pnts, tries, face_norms, vert_norms = None, None, None, None
     ballgrid = get_ballgrid(angles_num)
     if not FLAGS.unionly:
         inds = np.random.choice(ballgrid.shape[0], num * 8)
@@ -445,13 +416,14 @@ def ballsample_pnts(sess, ops, roundnum, angles_num, batch_data, num, threshold=
         ball_dist = ball_dist.reshape((-1))
         print("ball_ivts.shape, ball_drcts.shape", ball_ivts.shape, ball_drcts.shape)
     else:
+        gt_pnts, tries, face_norms, vert_norms = get_normalized_mesh(modelfile)
         ball_ivts, ball_drcts = inference_batch(sess, ops, roundnum, batch_data)
         ball_drcts=-ball_drcts
         ball_dist = np.linalg.norm(uni_ivts, axis=1)
     # ind = ball_dist <= threshold
     # ivts = ball_drcts[ind]
     dist, ball_place, std = cal_std_loc(ballgrid, ball_ivts, stdratio, stdlwb=stdlwb, stdupb=stdupb)
-    return ball_place, ball_drcts, std, np.full(std.shape[0], 1), gt_pnts, tries, face_norms,vert_norms, dist
+    return ball_place, ball_drcts, std, np.full(std.shape[0], 1), gt_pnts, tries, face_norms, vert_norms, dist
 
 
 def cal_std_loc(pnts, ivts, stdratio, stdlwb=0.0, stdupb=0.1):
@@ -573,7 +545,7 @@ def nearsample_pnts(sess, ops, roundnum, batch_data, tries, face_norms, vert_nor
 
 
 if __name__ == "__main__":
-    # nohup python -u inference.py --restore_model ../train/checkpoint/global_direct_surfaceonly/chair_evenweight --outdir  chair_drct_even_surfonly_uni --unionly &> global_direct_chair_surf_evenweight_uni.log &
+    # nohup python -u inference.py --restore_model ../train/checkpoint/global_direct_surfaceonly/chair_evenweight --outdir  chair_drct_even_surfonly_uni --unionly --unitype &> global_direct_chair_surf_evenweight_uni.log &
 
 
     # nohup python -u inference.py --gt --outdir  gt_noerrBall --unionly --stdupb 0.3 0.3 0.2 0.1 0.05 --stdlwb 0.01 0.01 0.01 0.01 0.01 &> gt_uni.log &
@@ -700,10 +672,10 @@ if __name__ == "__main__":
                 for render in range(24):
                     cats_limit[cat_id] += 1
                     TEST_LISTINFO += [(cat_id, line.strip(), render)]
-    cats_limit = {"02691156":99999}
+
     # TEST_LISTINFO += [("03001627", "17e916fc863540ee3def89b32cef8e45", 11)]
     # TEST_LISTINFO += [("03001627", "1be38f2624022098f71e06115e9c3b3e", 0)]
-    TEST_LISTINFO += [("02691156", "1beb0776148870d4c511571426f8b16d", 0)]
+    # TEST_LISTINFO += [("02691156", "1beb0776148870d4c511571426f8b16d", 0)]
 
     info = {'rendered_dir': raw_dirs["renderedh5_dir"],
             'ivt_dir': raw_dirs["ivt_dir"]}
@@ -712,14 +684,7 @@ if __name__ == "__main__":
 
     print(info)
 
-    # TEST_DATASET = data_ivt_h5_queue.Pt_sdf_img(FLAGS, listinfo=TEST_LISTINFO, info=info, cats_limit=cats_limit)
-
-    # TEST_DATASET.start()
-    # batch_data = TEST_DATASET.fetch()
-    # TEST_DATASET.shutdown()
-
-    batch_data = TEST_DATASET.get_batch(0)
-    model_file = os.path.join(raw_dirs['norm_mesh_dir'], batch_data["cat_id"][0], batch_data["obj_nm"][0], "pc_norm.obj")
+    TEST_DATASET = data_ivt_h5_queue.Pt_sdf_img(FLAGS, listinfo=TEST_LISTINFO, info=info, cats_limit=cats_limit)
 
 
     # batch_data={"cat_id":["02691156"],"obj_nm":["1beb0776148870d4c511571426f8b16d"]}
@@ -731,13 +696,13 @@ if __name__ == "__main__":
     # batch_data = {"cat_id": ["000"], "obj_nm": ["shirt3"]}
     # model_file = "./shirt.obj"
     # ct.get_normalize_mesh(model_file, "./", "./", "./", 0)
-    model_file = "./pc_norm.obj"
-    batch_data["model_file"] = model_file
+    # model_file = "./pc_norm.obj"
+    # batch_data["model_file"] = model_file
     os.makedirs(FLAGS.outdir, exist_ok=True)
 
     if FLAGS.gt:
-        gt_test(batch_data)
+        gt_test_one_epoch(raw_dirs, TEST_DATASET)
     else:
-        test(batch_data)
+        test(raw_dirs, TEST_DATASET)
     print("done!")
     LOG_FOUT.close()
