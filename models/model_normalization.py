@@ -128,6 +128,7 @@ def get_model(input_pls, is_training, bn=False, bn_decay=None, img_size = 224, F
                     point_conv4 = tf.contrib.resampler.resampler(conv4, sample_img_points)
                     point_img_feat = tf.concat(axis=2, values=[point_conv1, point_conv2, point_conv3, point_conv4]) # small
                 else:
+                    print("smaller vgg")
                     point_img_feat = tf.concat(axis=2, values=[point_conv1, point_conv2, point_conv3]) # small
             elif FLAGS.encoder[:3] == "res":
                 # print(encdr_end_points.keys())
