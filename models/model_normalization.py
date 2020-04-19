@@ -123,9 +123,10 @@ def get_model(input_pls, is_training, bn=False, bn_decay=None, img_size = 224, F
                 point_conv2 = tf.contrib.resampler.resampler(conv2, sample_img_points)
                 conv3 = tf.compat.v1.image.resize_bilinear(encdr_end_points['vgg_16/conv3/conv3_3'], (FLAGS.img_h, FLAGS.img_w))
                 point_conv3 = tf.contrib.resampler.resampler(conv3, sample_img_points)
-                conv4 = tf.compat.v1.image.resize_bilinear(encdr_end_points['vgg_16/conv4/conv4_3'], (FLAGS.img_h, FLAGS.img_w))
-                point_conv4 = tf.contrib.resampler.resampler(conv4, sample_img_points)
-                point_img_feat = tf.concat(axis=2, values=[point_conv1, point_conv2, point_conv3, point_conv4]) # small
+                # conv4 = tf.compat.v1.image.resize_bilinear(encdr_end_points['vgg_16/conv4/conv4_3'], (FLAGS.img_h, FLAGS.img_w))
+                # point_conv4 = tf.contrib.resampler.resampler(conv4, sample_img_points)
+                # point_img_feat = tf.concat(axis=2, values=[point_conv1, point_conv2, point_conv3, point_conv4]) # small
+                point_img_feat = tf.concat(axis=2, values=[point_conv1, point_conv2, point_conv3]) # small
             elif FLAGS.encoder[:3] == "res":
                 # print(encdr_end_points.keys())
                 conv1 = tf.compat.v1.image.resize_bilinear(encdr_end_points[scopelst[0]], (FLAGS.img_h, FLAGS.img_w))

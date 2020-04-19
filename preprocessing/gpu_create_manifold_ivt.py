@@ -280,20 +280,19 @@ def create_ivt_obj(gpu, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_di
     if not os.path.exists(ivt_sub_dir): os.makedirs(ivt_sub_dir)
     if not os.path.exists(norm_mesh_sub_dir): os.makedirs(norm_mesh_sub_dir)
     h5_file = os.path.join(ivt_sub_dir, "ivt_sample.h5")
-    if  os.path.exists(h5_file) and skip_all_exist:
+    if os.path.exists(h5_file) and skip_all_exist:
         print("skip existed: ", h5_file)
     else:
         if version == 1:
             model_file = os.path.join(cat_mesh_dir, obj, "model.obj")
         else:
             model_file = os.path.join(cat_mesh_dir, obj, "models", "model_normalized.obj")
-        if normalize and (not os.path.exists(os.path.join(norm_mesh_sub_dir, "pc_norm.obj")) or not os.path.exists(os.path.join(norm_mesh_sub_dir, "pc_norm.txt"))):
+        if realmodel and normalize and (not os.path.exists(os.path.join(norm_mesh_sub_dir, "pc_norm.obj")) or not os.path.exists(os.path.join(norm_mesh_sub_dir, "pc_norm.txt"))):
             if realmodel:
                 all_tries, all_face_normals, all_vert_normals, params, surfpoints, surfnormals, from_marchingcube = get_normalize_mesh_real(model_file, norm_mesh_sub_dir, pnt_dir, ref_sub_dir, pntnum)
             else:
                 all_tries, all_face_normals, all_vert_normals, params, surfpoints, surfnormals, from_marchingcube = get_normalize_mesh(model_file, norm_mesh_sub_dir, pnt_dir, ref_sub_dir, pntnum)
         else:
-            assert False, "get_mesh"
             all_tries, all_face_normals, all_vert_normals, surfpoints, surfnormals, from_marchingcube = get_mesh(norm_mesh_sub_dir, ref_sub_dir, pnt_dir, pntnum)
             from_marchingcube = os.path.exists(os.path.join(ref_sub_dir, "isosurf.obj"))
             params = np.loadtxt(os.path.join(norm_mesh_sub_dir, "pc_norm.txt"))

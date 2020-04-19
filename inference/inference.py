@@ -692,14 +692,14 @@ if __name__ == "__main__":
         cat_ids.append(cats[FLAGS.category])
         cats_limit[cats[FLAGS.category]] = 0
 
-    # for cat_id in cat_ids:
-    #     test_lst = os.path.join(FLAGS.test_lst_dir, cat_id + "_test.lst")
-    #     with open(test_lst, 'r') as f:
-    #         lines = f.read().splitlines()
-    #         for line in lines:
-    #             for render in range(24):
-    #                 cats_limit[cat_id] += 1
-    #                 TEST_LISTINFO += [(cat_id, line.strip(), render)]
+    for cat_id in cat_ids:
+        test_lst = os.path.join(FLAGS.test_lst_dir, cat_id + "_test.lst")
+        with open(test_lst, 'r') as f:
+            lines = f.read().splitlines()
+            for line in lines:
+                for render in range(24):
+                    cats_limit[cat_id] += 1
+                    TEST_LISTINFO += [(cat_id, line.strip(), render)]
     cats_limit = {"02691156":99999}
     # TEST_LISTINFO += [("03001627", "17e916fc863540ee3def89b32cef8e45", 11)]
     # TEST_LISTINFO += [("03001627", "1be38f2624022098f71e06115e9c3b3e", 0)]
@@ -734,6 +734,7 @@ if __name__ == "__main__":
     model_file = "./pc_norm.obj"
     batch_data["model_file"] = model_file
     os.makedirs(FLAGS.outdir, exist_ok=True)
+
     if FLAGS.gt:
         gt_test(batch_data)
     else:
