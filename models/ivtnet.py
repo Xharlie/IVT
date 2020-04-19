@@ -41,7 +41,7 @@ def get_ivt_basic_imgfeat_onestream_skip(src_pc, globalfeats, point_feat, is_tra
 
     net1 = tf_util.conv2d(tf.expand_dims(src_pc,2), 64, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold1/conv1')
     net2 = tf_util.conv2d(net1, 256, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold1/conv2')
-    net3 = tf_util.conv2d(net2, 256, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold1/conv3')
+    net3 = tf_util.conv2d(net2, 512, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold1/conv3')
 
     globalfeats = tf.reshape(globalfeats, [batch_size, 1, 1, -1])
     globalfeats_expand = tf.tile(globalfeats, [1, src_pc.get_shape()[1], 1, 1])
@@ -49,7 +49,7 @@ def get_ivt_basic_imgfeat_onestream_skip(src_pc, globalfeats, point_feat, is_tra
     print('globalfeats_expand', globalfeats_expand.shape)
     concat = tf.concat(axis=3, values=[net3+net2, globalfeats_expand, point_feat])
 
-    net4 = tf_util.conv2d(concat, 256, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold2/conv1')
+    net4 = tf_util.conv2d(concat, 512, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold2/conv1')
 
     net5 = tf_util.conv2d(net4+net3, 256, [1,1], padding='VALID', stride=[1,1], activation_fn=activation_fn, bn_decay=bn_decay, bn=bn, is_training=is_training, weight_decay=wd, scope='fold2/conv2')
 

@@ -151,33 +151,33 @@ nohup python -u train_ivt.py --gpu 1 --img_feat_onestream --encoder vgg_16 --res
 
 --- vgg_16 onestream_small surf 010000
 
-nowd
+
 nohup python -u train_ivt.py --gpu 3 --img_feat_onestream --encoder vgg_16 --restore_model checkpoint/onestream_small_surf/chair_vgg_16_010000 --log_dir checkpoint/onestream_small_surf/chair_vgg_16_010000 --category chair --uni_num 0 --sphere_num 0 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ --wd 1e-6 &> onestream_small_surf_chair_vgg_010000.log &
 
 
 --- vgg_16 onestream_small elu surf 010000
 
-nowd
+
 nohup python -u train_ivt.py --gpu 2 --img_feat_onestream --encoder vgg_16 --restore_modelcnn checkpoint/onestream_smallelu_surf/chair_vgg_16_010000 --log_dir checkpoint/onestream_smallelu_surf/chair_vgg_16_010000 --category chair --uni_num 0 --sphere_num 0 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ --wd 1e-6 --act elu &> onestream_smallelu_surf_chair_vgg_010000.log &
 
 
 
 
 --- vgg_16 onestream_small surf 010000,   0.02 0.05
-nowd
+
 nohup python -u train_ivt.py --gpu 0 --img_feat_onestream --encoder vgg_16 --restore_model checkpoint/onestream_small0205_surf/chair_vgg_16_010000 --log_dir checkpoint/onestream_small0205_surf/chair_vgg_16_010000 --category chair --uni_num 0 --sphere_num 0 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ --surfrange 0.02 0.05 --wd 1e-6 &> onestream_small0205_surf_chair_vgg_010000.log &
 
 
 
 --- vgg_16 onestream_skip surf 010000,
-nowd
+poor
 nohup python -u train_ivt.py --gpu 2 --img_feat_onestream --encoder vgg_16 --restore_model checkpoint/onestream_skip_surf/chair_vgg_16_010000 --log_dir checkpoint/onestream_skip_surf/chair_vgg_16_010000 --category chair --uni_num 0 --sphere_num 0 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ --wd 1e-6 --decoderskip &> onestream_skip_surf_chair_vgg_010000.log &
 
 
 
 --- vgg_16 onestream sim_res surf 010000
 
-nowd
+
 nohup python -u train_ivt.py --gpu 0 --img_feat_onestream --encoder sim_res --log_dir checkpoint/onestream_simres_surf/chair_vgg_16_010000_nowd --category chair --uni_num 0 --sphere_num 0 --num_pnts 2048 --batch_size 32 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ --wd 0.0 &> onestream_small_surf_simres_vgg_010000_nowd.log &
 
 

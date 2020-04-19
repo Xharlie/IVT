@@ -293,6 +293,7 @@ def create_ivt_obj(gpu, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_di
             else:
                 all_tries, all_face_normals, all_vert_normals, params, surfpoints, surfnormals, from_marchingcube = get_normalize_mesh(model_file, norm_mesh_sub_dir, pnt_dir, ref_sub_dir, pntnum)
         else:
+            assert False, "get_mesh"
             all_tries, all_face_normals, all_vert_normals, surfpoints, surfnormals, from_marchingcube = get_mesh(norm_mesh_sub_dir, ref_sub_dir, pnt_dir, pntnum)
             from_marchingcube = os.path.exists(os.path.join(ref_sub_dir, "isosurf.obj"))
             params = np.loadtxt(os.path.join(norm_mesh_sub_dir, "pc_norm.txt"))
@@ -302,6 +303,7 @@ def create_ivt_obj(gpu, cat_mesh_dir, cat_norm_mesh_dir, cat_ivt_dir, cat_pnt_di
         ungridsamples = sample_uni(ungrid, int(uni_ratio*num_sample))
         ball_samples = sample_balluni(ballgrid, int((1.0-uni_ratio-surf_ratio)*num_sample))
         create_h5_ivt_pt(gpu, cat_id, h5_file, all_tries, all_face_normals, all_vert_normals, surfpoints_sample, surfnormals_sample, ball_samples, ungridsamples, params, from_marchingcube, normalgt)
+
 
 def create_ivt(num_sample, pntnum, res, angles_num, cats, raw_dirs, lst_dir, uni_ratio=0.3, surf_ratio=0.4, normalize=True, version=1, skip_all_exist=False, normalgt=True, realmodel=False):
 
@@ -576,7 +578,7 @@ if __name__ == "__main__":
     FLAGS = parser.parse_args()
 
     # nohup python -u gpu_create_manifold_ivt.py --thread_num 12 --shuffle --category all &> create_ivt.log &
-    # nohup python -u gpu_create_manifold_ivt.py --thread_num 4 --shuffle --category chair --realmodel &> create_ivt.log &
+    # nohup python -u gpu_create_manifold_ivt.py --thread_num 3 --shuffle --category chair --realmodel &> create_ivt.log &
 
     #  full set
     lst_dir, cats, all_cats, raw_dirs = create_file_lst.get_all_info()
