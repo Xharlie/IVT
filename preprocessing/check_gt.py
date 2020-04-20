@@ -90,13 +90,13 @@ if __name__ == "__main__":
 
     catnm = "chair"
     cat = cats[catnm]
-    obj = "780809a0d1b68f4a8ef4ac3a24abb05b"
+    obj = "4f42be4dd95e5e0c76e9713f57a5fcb6"
     target_dir = "test/check_align"
     os.makedirs(target_dir, exist_ok=True)
 
     model_dir = os.path.join(raw_dirs["mesh_dir"], cat, obj)
     norm_mesh_sub_dir = os.path.join(raw_dirs["real_norm_mesh_dir"], cat, obj)
-    ivf_dir = os.path.join(raw_dirs["ivt_mani_dir"], cat, obj)
+    ivf_dir = os.path.join(raw_dirs["ivt_dir"], cat, obj)
     get_normalize_mesh(model_dir, norm_mesh_sub_dir, target_dir)
 
 

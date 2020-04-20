@@ -168,5 +168,9 @@ avg direction_abs_avg_diff: 0.873114707753714
 
 
 
+-------------------- new
+
+
+nohup python -u test_ivt.py --gpu 0 --img_feat_onestream --encoder vgg_16smaller  --log_dir ../train/checkpoint/onestream_small_surf/chair_vgg_16_010000 --category chair --uni_num 0 --sphere_num 0 --num_pnts 2048 --batch_size 64 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ --wd 1e-6 &> onestream_smaller_surf_nonmani_chair_vgg_010000.log &
 
 

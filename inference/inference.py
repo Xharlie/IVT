@@ -93,13 +93,11 @@ def load_model(sess, LOAD_MODEL_FILE, prefixs, strict=False):
     for var in tf.trainable_variables():
         if isinstance(prefixs, list):
             for prefix in prefixs:
-                if (var.op.name.startswith(prefix)) and (var.op.name in vars_in_pretrained_model.keys()) and (
-                        'logits' not in var.op.name):
+                if (var.op.name.startswith(prefix)) and (var.op.name in vars_in_pretrained_model.keys()) and ('logits' not in var.op.name):
                     if (list(var.shape) == vars_in_pretrained_model[var.op.name]):
                         vars_in_defined_model.append(var)
         else:
-            if (var.op.name.startswith(prefixs)) and (var.op.name in vars_in_pretrained_model.keys()) and (
-                    'logits' not in var.op.name):
+            if (var.op.name.startswith(prefixs)) and (var.op.name in vars_in_pretrained_model.keys()) and ('logits' not in var.op.name):
                 if (list(var.shape) == vars_in_pretrained_model[var.op.name]):
                     vars_in_defined_model.append(var)
     # print(vars_in_defined_model)
