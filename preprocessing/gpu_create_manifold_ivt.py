@@ -203,10 +203,13 @@ def create_h5_ivt_pt(gpu, cat_id, h5_file, tries, face_norms, vert_norms, surfpo
     if tries.shape[0] > 2000000:
         print(cat_id,h5_file,"is too big!!! faces_size", faces.shape[0])
         return
+    elif tries.shape[0] > 35000:
+        from_marchingcube = True
     print("tries.shape", tries.shape)
     ball_samples = add_jitters(ball_samples, std=0.01, type="uniform")
     ungridsamples = add_jitters(ungridsamples, std=0.005, type="uniform")
     surfpoints_sample = add_normal_jitters(surfpoints_sample, surfnormals_sample, height=0.1)
+
     if not normalgt:
         sphere_ivts,_ = gpu_calculate_ivt(ball_samples, tries,gpu,from_marchingcube)  # (N*8)x4 (x,y,z)
         uni_ivts,_ = gpu_calculate_ivt(ungridsamples, tries,gpu,from_marchingcube)  # (N*8)x4 (x,y,z)
