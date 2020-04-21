@@ -398,13 +398,13 @@ def ballsample_pnts(sess, ops, roundnum, angles_num, batch_data, modelfile, num,
         ballgrid = ballgrid[inds]
     batch_data["pnts"] = np.array([ballgrid])
     if sess is None:
+        gt_pnts, tries, face_norms, vert_norms = get_normalized_mesh(modelfile)
         ball_ivts, ball_inter_norm = ct.gpu_calculate_ivt_norm(batch_data["pnts"][0], tries, face_norms, vert_norms, int(FLAGS.gpu), tries.shape[0]>700)
         ball_dist = np.linalg.norm(ball_ivts, axis=1, keepdims=True)
         ball_drcts = ball_inter_norm if FLAGS.norminter else -ball_ivts / ball_dist
         ball_dist = ball_dist.reshape((-1))
         print("ball_ivts.shape, ball_drcts.shape", ball_ivts.shape, ball_drcts.shape)
     else:
-        gt_pnts, tries, face_norms, vert_norms = get_normalized_mesh(modelfile)
         ball_ivts, ball_drcts = inference_batch(sess, ops, roundnum, batch_data)
         ball_drcts=-ball_drcts
         ball_dist = np.linalg.norm(uni_ivts, axis=1)

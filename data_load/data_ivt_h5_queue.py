@@ -112,9 +112,9 @@ class Pt_sdf_img(threading.Thread):
 
     def get_ivt_h5(self, ivt_h5_file, cat_id, obj):
         # print(ivt_h5_file)
-        h5_f = h5py.File(ivt_h5_file, 'r')
         uni_pnts, surf_pnts, sphere_pnts, uni_ivts, surf_ivts, sphere_ivts = None, None, None, None, None, None
         try:
+            h5_f = h5py.File(ivt_h5_file, 'r')
             norm_params = h5_f['norm_params'][:].astype(np.float32)
             if self.FLAGS.uni_num >0:
                 if 'uni_pnts' in h5_f.keys() and 'uni_ivts' in h5_f.keys():
@@ -134,6 +134,8 @@ class Pt_sdf_img(threading.Thread):
                     sphere_ivts = h5_f['sphere_ivts'][:].astype(np.float32)
                 else:
                     raise Exception(cat_id, obj, "no uni ivt and sample")
+        except:
+            print("h5py wrong:", ivt_h5_file)
         finally:
             h5_f.close()
         return uni_pnts, surf_pnts, sphere_pnts, uni_ivts, surf_ivts, sphere_ivts, norm_params

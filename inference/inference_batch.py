@@ -147,7 +147,7 @@ def test(raw_dirs, TEST_LISTINFO, info, cats_limit):
             FLAGS.batch_size = batch_size
             TEST_DATASET = data_ivt_h5_queue.Pt_sdf_img(FLAGS, listinfo=TEST_LISTINFO, info=info, cats_limit=cats_limit, shuffle=False)
             TEST_DATASET.start()
-            test_uni_epoch(sess, ops, TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE)
+            test_uni_epoch(sess, ops, grid, TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE)
             TEST_DATASET.shutdown()
             ######## ---------------------------   surface
 
@@ -155,30 +155,44 @@ def test(raw_dirs, TEST_LISTINFO, info, cats_limit):
 
             print("Done!")
 
-def test_uni_epoch(sess, ops, TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE):
+def test_uni_epoch(sess, ops, grid, TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE):
     num_batches = int(len(TEST_DATASET) / FLAGS.batch_size)
     for batch_idx in range(num_batches):
         batch_data = TEST_DATASET.fetch()
         if FLAGS.unitype == "uni":
-            locs, norms, stds, weights, gt_pcs, tries, face_norms, vert_norms, dists = unisample_pnts(sess, ops, -1, batch_data, None, unigrid, nums, num_in_gpu, SPLIT_SIZE, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
+            locs, norms, stds, weights, gt_pcs, tries, face_norms, vert_norms, dists = unisample_pnts(sess, ops, -1, batch_data, grid, nums, num_in_gpu, SPLIT_SIZE, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
         elif FLAGS.unitype == "ball":
-            locs, norms, stds, weights, gt_pcs, tries, face_norms, vert_norms, dists = ballsample_pnts(sess, ops, FLAGS.anglenums, -1, batch_data, None, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
+            locs, norms, stds, weights, gt_pcs, tries, face_norms, vert_norms, dists = ballsample_pnts(sess, ops, -1, batch_data, grid, nums, num_in_gpu, SPLIT_SIZE, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
         save_data(batch_data, locs, norms)
 
-def unisample_pnts(sess, ops, roundnum, batch_data, modelfile, unigrid, nums, num_in_gpu, SPLIT_SIZE, threshold=0.1, stdratio=10, stdlwb=0.0, stdupb=0.1):
+def unisample_pnts(sess, ops, roundnum, batch_data, unigrid, nums, num_in_gpu, SPLIT_SIZE, threshold=0.1, stdratio=10, stdlwb=0.0, stdupb=0.1):
     gt_pnts, tries, face_norms, vert_norms = None, None, None, None
     if not FLAGS.unionly:
         inds = np.random.choice(unigrid.shape[1], (unigrid.shape[0], nums))
-        unigrid = grid[inds]  # uni_ivts = ct.gpu_calculate_ivt(unigrid, tries, gpu)
-    batch_data["pnts"] = np.array(unigrid)
+        unigrid = unigrid[inds]
+    batch_data["pnts"] = unigrid
     uni_ivts, uni_drcts = inference_batch(sess, ops, roundnum, batch_data, num_in_gpu, SPLIT_SIZE)
     uni_drcts = -uni_drcts
-    uni_dist = np.linalg.norm(uni_ivts, axis=1)
+    uni_dist = np.linalg.norm(uni_ivts, axis=2)
 
     ind = uni_dist <= threshold
     uni_drcts = uni_drcts[ind]
-    dist, uni_place, std = cal_std_loc(unigrid[ind], uni_ivts[ind], stdratio, stdlwb=stdlwb, stdupb=stdupb)
-    return uni_place, -uni_drcts, std, np.full(std.shape[0], 1), gt_pnts, tries, face_norms, vert_norms, dist
+    dist, uni_place, std = cal_std_loc(unigrid[ind], uni_ivts[ind], stdratio, stdlwb=stdlwb, stdupb=stdupb, dist=uni_dist[ind])
+    return uni_place, -uni_drcts, std, np.full((std.shape[0],std.shape[1]), 1), gt_pnts, tries, face_norms, vert_norms, dist
+
+def ballsample_pnts(sess, ops, roundnum, batch_data, ballgrid, nums, num_in_gpu, SPLIT_SIZE, threshold=0.1, stdratio=10, stdlwb=0.0, stdupb=0.1):
+    gt_pnts, tries, face_norms, vert_norms = None, None, None, None
+    if not FLAGS.unionly:
+        inds = np.random.choice(ballgrid.shape[1], (ballgrid.shape[0], nums))
+        ballgrid = ballgrid[inds]
+    batch_data["pnts"] = ballgrid
+    ball_ivts, ball_drcts = inference_batch(sess, ops, roundnum, batch_data, num_in_gpu, SPLIT_SIZE)
+    ball_drcts = -ball_drcts
+    # ball_dist = np.linalg.norm(uni_ivts, axis=1)
+    # ind = ball_dist <= threshold
+    # ivts = ball_drcts[ind]
+    dist, ball_place, std = cal_std_loc(ballgrid, ball_ivts, stdratio, stdlwb=stdlwb, stdupb=stdupb)
+    return ball_place, ball_drcts, std, np.full(std.shape[0], 1), gt_pnts, tries, face_norms, vert_norms, dist
 
 def save_data(batch_data, locs, norms):
     for i in range(locs.shape[0]):
@@ -312,6 +326,7 @@ def inference_batch(sess, ops, roundnum, batch_data, num_in_gpu, SPLIT_SIZE):
     is_training = False
     log_string(str(datetime.now()))
     totalnum = batch_data['pnts'].shape[1]
+    batch_size = batch_data['pnts'].shape[0]
     extra_pts = np.zeros((1, SPLIT_SIZE * num_in_gpu - totalnum, 3), dtype=np.float32)
     batch_points = np.concatenate([batch_data['pnts'], extra_pts], axis = 1).reshape((SPLIT_SIZE, 1, -1, 3))
     pred_ivt_lst = []
@@ -330,8 +345,8 @@ def inference_batch(sess, ops, roundnum, batch_data, num_in_gpu, SPLIT_SIZE):
         pred_xyz_val, pred_dist_val, pred_direction_val, _ = outputs[:]
         pred_ivt_lst.append(pred_xyz_val)
         pred_drct_lst.append(pred_direction_val)
-    pred_ivts = np.concatenate(pred_ivt_lst, axis=1).reshape(-1,3)[:totalnum,:]
-    pred_directions = np.concatenate(pred_drct_lst, axis=1).reshape(-1,3)[:totalnum,:]
+    pred_ivts = np.concatenate(pred_ivt_lst, axis=1).reshape(batch_size, -1, 3)[:,:totalnum,:]
+    pred_directions = np.concatenate(pred_drct_lst, axis=1).reshape(batch_size, -1, 3)[:,:totalnum,:]
     outstr = ' -----rounds %d, %d points ------ ' % (roundnum, totalnum)
     outstr += ' time per obj: %.02f, ' % (time.time() - tic)
     log_string(outstr)
@@ -384,34 +399,12 @@ def get_ballgrid(angles_num):
     z = np.outer(np.cos(theta), np.ones_like(phi)).reshape(-1)
     return np.stack([x, y, z], axis=1)
 
-def ballsample_pnts(sess, ops, roundnum, angles_num, batch_data, modelfile, num, threshold=0.1, stdratio=10, stdlwb=0.0, stdupb=0.1):
-    gt_pnts, tries, face_norms, vert_norms = None, None, None, None
-    ballgrid = get_ballgrid(angles_num)
-    if not FLAGS.unionly:
-        inds = np.random.choice(ballgrid.shape[0], num * 8)
-        ballgrid = ballgrid[inds]
-    batch_data["pnts"] = np.array([ballgrid])
-    if sess is None:
-        ball_ivts, ball_inter_norm = ct.gpu_calculate_ivt_norm(batch_data["pnts"][0], tries, face_norms, vert_norms, int(FLAGS.gpu), tries.shape[0]>700)
-        ball_dist = np.linalg.norm(ball_ivts, axis=1, keepdims=True)
-        ball_drcts = ball_inter_norm if FLAGS.norminter else -ball_ivts / ball_dist
-        ball_dist = ball_dist.reshape((-1))
-        print("ball_ivts.shape, ball_drcts.shape", ball_ivts.shape, ball_drcts.shape)
-    else:
-        gt_pnts, tries, face_norms, vert_norms = get_normalized_mesh(modelfile)
-        ball_ivts, ball_drcts = inference_batch(sess, ops, roundnum, batch_data)
-        ball_drcts=-ball_drcts
-        ball_dist = np.linalg.norm(uni_ivts, axis=1)
-    # ind = ball_dist <= threshold
-    # ivts = ball_drcts[ind]
-    dist, ball_place, std = cal_std_loc(ballgrid, ball_ivts, stdratio, stdlwb=stdlwb, stdupb=stdupb)
-    return ball_place, ball_drcts, std, np.full(std.shape[0], 1), gt_pnts, tries, face_norms, vert_norms, dist
 
-
-def cal_std_loc(pnts, ivts, stdratio, stdlwb=0.0, stdupb=0.1):
+def cal_std_loc(pnts, ivts, stdratio, stdlwb=0.0, stdupb=0.1, dist=None):
     loc = pnts + ivts
     # print("ivts.shape",ivts.shape)
-    dist = np.linalg.norm(ivts, axis=1)
+    if dist is None:
+        dist = np.linalg.norm(ivts, axis=2)
     print("stdupb,stdlwb",stdupb,stdlwb)
     std = np.minimum(stdupb, np.maximum(np.minimum(stdlwb, dist), dist / stdratio))
     # print("np.amax(std)",np.amax(std))
