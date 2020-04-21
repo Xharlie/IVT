@@ -22,6 +22,7 @@ import output_utils
 import create_file_lst
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../preprocessing'))
 from normal_gen import save_norm
+from normal_gen import save_dist
 import gpu_create_manifold_ivt as ct
 import argparse
 import pymesh
@@ -99,7 +100,6 @@ def test(raw_dirs, TEST_LISTINFO, info, cats_limit):
             is_training_pl = tf.compat.v1.placeholder(tf.bool, shape=())
             print(is_training_pl)
             batch = tf.Variable(0, name='batch')
-
             print("--- Get model and loss")
             # Get model and loss
             end_points = model.get_model(input_pls, is_training_pl, bn=False, FLAGS=FLAGS)
@@ -110,18 +110,14 @@ def test(raw_dirs, TEST_LISTINFO, info, cats_limit):
             config.allow_soft_placement = True
             config.log_device_placement = False
             sess = tf.compat.v1.Session(config=config)
-
             ##### all
             # Init variables
             init = tf.compat.v1.global_variables_initializer()
             sess.run(init)
-
             ######### Loading Checkpoint ###############
             # Overall
             saver = tf.compat.v1.train.Saver([v for v in tf.compat.v1.get_collection_ref(tf.compat.v1.GraphKeys.GLOBAL_VARIABLES) if ('lr' not in v.name) and ('batch' not in v.name)])
-
             ###########################################
-
             ops = {'input_pls': input_pls,
                    'is_training_pl': is_training_pl,
                    'loss': loss,
@@ -129,9 +125,7 @@ def test(raw_dirs, TEST_LISTINFO, info, cats_limit):
                    'saver': saver,
                    'end_points': end_points}
             sys.stdout.flush()
-
             sess = load_model_strict(sess, ops["saver"], FLAGS.restore_model)
-
             print('**** Uni INFERENCE  ****')
             sys.stdout.flush()
             ######## ---------------------------   uni or ball
@@ -140,9 +134,7 @@ def test(raw_dirs, TEST_LISTINFO, info, cats_limit):
             elif FLAGS.unitype == "ball":
                 grid = np.array([get_ballgrid(angles_num)])
             nums = grid.shape[1] if FLAGS.unionly else FLAGS.initnums
-            num_in_gpu = min(nums, MAX_NUM)
-            batch_size = MAX_NUM // num_in_gpu
-            SPLIT_SIZE = int(np.ceil(nums / num_in_gpu))
+            num_in_gpu, SPLIT_SIZE, batch_size = cal_size(nums)
             print("nums {}, num_in_gpu {}, batch_size {}, SPLIT_SIZE {}", nums, num_in_gpu, batch_size, SPLIT_SIZE)
             FLAGS.batch_size = batch_size
             TEST_DATASET = data_ivt_h5_queue.Pt_sdf_img(FLAGS, listinfo=TEST_LISTINFO, info=info, cats_limit=cats_limit, shuffle=False)
@@ -150,134 +142,93 @@ def test(raw_dirs, TEST_LISTINFO, info, cats_limit):
             test_uni_epoch(sess, ops, grid, TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE)
             TEST_DATASET.shutdown()
             ######## ---------------------------   surface
+            for i in range(FLAGS.rounds):
+                if FLAGS.rounds > 2 and i == (FLAGS.rounds - 2):
+                    weightform = "even"
+                    num_ratio = 1
+                else:
+                    num_ratio = FLAGS.num_ratio
+                nums = nums * num_ratio
+                num_in_gpu, SPLIT_SIZE, batch_size = cal_size(nums)
+                FLAGS.batch_size = batch_size
+                TEST_DATASET = data_ivt_h5_queue.Pt_sdf_img(FLAGS, listinfo=TEST_LISTINFO, info=info, cats_limit=cats_limit, shuffle=False)
+                TEST_DATASET.start()
+                test_near_epoch(sess, ops, TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE, FLAGS.stdratio, FLAGS.stdlwb[i], FLAGS.stdupb[i])
+                TEST_DATASET.shutdown()
 
-
-
+            sys.stdout.flush()
             print("Done!")
+
+def cal_size(nums):
+    num_in_gpu = min(nums, MAX_NUM)
+    batch_size = MAX_NUM // num_in_gpu
+    SPLIT_SIZE = int(np.ceil(nums / num_in_gpu))
+    return num_in_gpu, SPLIT_SIZE, batch_size
 
 def test_uni_epoch(sess, ops, grid, TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE):
     num_batches = int(len(TEST_DATASET) / FLAGS.batch_size)
     for batch_idx in range(num_batches):
         batch_data = TEST_DATASET.fetch()
         if FLAGS.unitype == "uni":
-            locs, norms, stds, weights, gt_pcs, tries, face_norms, vert_norms, dists = unisample_pnts(sess, ops, -1, batch_data, grid, nums, num_in_gpu, SPLIT_SIZE, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
+            locs, norms, dists = unisample_pnts(sess, ops, -1, batch_data, grid, nums, num_in_gpu, SPLIT_SIZE, threshold=FLAGS.uni_thresh)
         elif FLAGS.unitype == "ball":
-            locs, norms, stds, weights, gt_pcs, tries, face_norms, vert_norms, dists = ballsample_pnts(sess, ops, -1, batch_data, grid, nums, num_in_gpu, SPLIT_SIZE, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
-        save_data(batch_data, locs, norms)
+            locs, norms, dists = ballsample_pnts(sess, ops, -1, batch_data, grid, nums, num_in_gpu, SPLIT_SIZE)
+        save_data_h5(batch_data, locs, norms, dists, FLAGS.unitype)
 
-def unisample_pnts(sess, ops, roundnum, batch_data, unigrid, nums, num_in_gpu, SPLIT_SIZE, threshold=0.1, stdratio=10, stdlwb=0.0, stdupb=0.1):
-    gt_pnts, tries, face_norms, vert_norms = None, None, None, None
+
+def test_near_epoch(sess, ops, TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE, stdratio, stdlwb, stdupb):
+    num_batches = int(len(TEST_DATASET) / FLAGS.batch_size)
+    for batch_idx in range(num_batches):
+        batch_data = TEST_DATASET.fetch()
+        locs, norms, dists = batch_data["locs"], batch_data["norms"], batch_data["dists"]
+        stds = cal_std(dists, stdratio, stdlwb=stdlwb, stdupb=stdupb)
+        if weightform == "even":
+            weights = np.full((stds.shape[0], stds.shape[1]), 1)
+        elif weightform == "reverse":
+            weights = 1.0 / np.maximum(dists, 5e-3)
+        pcs = sample_from_MM(locs, norms, stds, weights, nums, dists, distr=distr, gridsize=FLAGS.gridsize)
+        batch_data['pnts'] = pcs
+        locs, norms, dists = nearsample_pnts(sess, ops, i, batch_data, num_in_gpu, SPLIT_SIZE)
+        # np.savetxt(os.path.join(outdir, "surf_samp{}.txt".format(i)), pc, delimiter=";")
+        save_data_h5(batch_data, locs, norms, dists, "surf_{}".format(i))
+
+
+def unisample_pnts(sess, ops, roundnum, batch_data, unigrid, nums, num_in_gpu, SPLIT_SIZE, threshold=0.1):
     if not FLAGS.unionly:
         inds = np.random.choice(unigrid.shape[1], (unigrid.shape[0], nums))
         unigrid = unigrid[inds]
     batch_data["pnts"] = unigrid
     uni_ivts, uni_drcts = inference_batch(sess, ops, roundnum, batch_data, num_in_gpu, SPLIT_SIZE)
-    uni_drcts = -uni_drcts
     uni_dist = np.linalg.norm(uni_ivts, axis=2)
-
     ind = uni_dist <= threshold
     uni_drcts = uni_drcts[ind]
-    dist, uni_place, std = cal_std_loc(unigrid[ind], uni_ivts[ind], stdratio, stdlwb=stdlwb, stdupb=stdupb, dist=uni_dist[ind])
-    return uni_place, -uni_drcts, std, np.full((std.shape[0],std.shape[1]), 1), gt_pnts, tries, face_norms, vert_norms, dist
+    locs = unigrid[ind] + uni_ivts[ind]
+    return locs, -uni_drcts, uni_dist[ind]
 
-def ballsample_pnts(sess, ops, roundnum, batch_data, ballgrid, nums, num_in_gpu, SPLIT_SIZE, threshold=0.1, stdratio=10, stdlwb=0.0, stdupb=0.1):
-    gt_pnts, tries, face_norms, vert_norms = None, None, None, None
+
+def ballsample_pnts(sess, ops, roundnum, batch_data, ballgrid, nums, num_in_gpu, SPLIT_SIZE):
     if not FLAGS.unionly:
         inds = np.random.choice(ballgrid.shape[1], (ballgrid.shape[0], nums))
         ballgrid = ballgrid[inds]
     batch_data["pnts"] = ballgrid
     ball_ivts, ball_drcts = inference_batch(sess, ops, roundnum, batch_data, num_in_gpu, SPLIT_SIZE)
-    ball_drcts = -ball_drcts
-    # ball_dist = np.linalg.norm(uni_ivts, axis=1)
-    # ind = ball_dist <= threshold
-    # ivts = ball_drcts[ind]
-    dist, ball_place, std = cal_std_loc(ballgrid, ball_ivts, stdratio, stdlwb=stdlwb, stdupb=stdupb)
-    return ball_place, ball_drcts, std, np.full(std.shape[0], 1), gt_pnts, tries, face_norms, vert_norms, dist
+    ball_dist = np.linalg.norm(uni_ivts, axis=2)
+    locs = ballgrid + ball_ivts
+    return locs, -ball_drcts, ball_dist
 
-def save_data(batch_data, locs, norms):
+
+def save_data_h5(batch_data, locs, norms, dists, name):
     for i in range(locs.shape[0]):
         view_id = batch_data["view_id"][i]
         outdir = os.path.join(FLAGS.outdir, batch_data["cat_id"][i], batch_data["obj_nm"][i], str(view_id), FLAGS.unitype)
         os.makedirs(outdir, exist_ok=True)
-        save_norm(locs[i], norms[i], os.path.join(outdir, "{}.ply".format(FLAGS.unitype)))
-
-def test_one_epoch_all(sess, ops, raw_dirs, TEST_DATASET):
-    num_batches = int(len(TEST_DATASET) / FLAGS.batch_size)
-    print('num_batches', num_batches)
-    for batch_idx in range(num_batches):
-        start_fetch_tic = time.time()
-        batch_data = TEST_DATASET.fetch()
-        view_id = batch_data["view_id"][0]
-        outdir = os.path.join(FLAGS.outdir, batch_data["cat_id"][0], batch_data["obj_nm"][0], str(view_id), FLAGS.unitype)
-        os.makedirs(outdir, exist_ok=True)
-        nums = FLAGS.initnums
-        weightform = FLAGS.weightform
-        distr = FLAGS.distr
-
-        sess = load_model_strict(sess,  ops["saver"], FLAGS.restore_model)
-
-        if FLAGS.unitype == "uni":
-            loc, norm, std, weights, gt_pc, tries, face_norms, vert_norms, dist = unisample_pnts(sess, ops, -1, batch_data, None, FLAGS.res, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
-            save_norm(loc, norm, os.path.join(outdir, "uni.ply"))
-        elif FLAGS.unitype == "ball":
-            loc, norm, std, weights, gt_pc, tries, face_norms, vert_norms, dist = ballsample_pnts(sess, ops, FLAGS.anglenums, -1, batch_data, None, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
-            save_norm(loc, norm, os.path.join(outdir, "ball.ply"))
-        if FLAGS.restore_surfmodel != "":
-            sess = load_model_strict(sess, ops["saver"], FLAGS.restore_surfmodel)
-
-        for i in range(FLAGS.rounds):
-            if FLAGS.rounds > 2 and i == (FLAGS.rounds - 2):
-                weightform = "even"
-                num_ratio = 1
-            else:
-                num_ratio = FLAGS.num_ratio
-            nums = nums * num_ratio
-            pc = sample_from_MM(loc, norm, std, weights, nums, num_ratio, dist, distr=distr, gridsize=FLAGS.gridsize)
-            batch_data['pnts'] = np.array([pc])
-            # print("batch_data['pnts'].shape", batch_data['pnts'].shape)
-            loc, norm, std, weights, dist = nearsample_pnts(sess, ops, i, batch_data, tries, face_norms, vert_norms, stdratio=FLAGS.stdratio, weightform=weightform, stdlwb=FLAGS.stdlwb[i+1], stdupb=FLAGS.stdupb[i+1])
-            np.savetxt(os.path.join(outdir, "surf_samp{}.txt".format(i)), pc, delimiter=";")
-            save_norm(loc, norm, os.path.join(outdir, "surf_{}.ply".format(i)))
-        sys.stdout.flush()
-        print("finished inference {}/{}".format(batch_idx+1, num_batches))
+        h5_file = os.path.join(outdir, "{}.h5".format(name))
+        with h5py.File(h5_file, 'w') as f1:
+            f1.create_dataset('locs', data=locs[i].astype(np.float32), compression='gzip', compression_opts=4)
+            f1.create_dataset('norms', data=norms[i].astype(np.float32), compression='gzip', compression_opts=4)
+            f1.create_dataset('dists', data=dists[i].astype(np.float32), compression='gzip', compression_opts=4)
 
 
-
-def gt_test_one_epoch(raw_dirs, TEST_DATASET):
-    num_batches = int(len(TEST_DATASET) / FLAGS.batch_size)
-    print('num_batches', num_batches)
-    log_string(FLAGS.log_dir)
-    for batch_idx in range(num_batches):
-        start_fetch_tic = time.time()
-        batch_data = TEST_DATASET.fetch()
-        view_id = batch_data["view_id"][0]
-        outdir = os.path.join(FLAGS.outdir, batch_data["cat_id"][0], batch_data["obj_nm"][0], str(view_id), FLAGS.unitype)
-        os.makedirs(outdir, exist_ok=True)
-        nums = FLAGS.initnums
-        weightform = FLAGS.weightform
-        distr = FLAGS.distr
-        modelfile = os.path.join(raw_dirs['norm_mesh_dir'], batch_data["cat_id"][0], batch_data["obj_nm"][0], "pc_norm.obj")
-
-        if FLAGS.unitype == "uni":
-            loc, norm, std, weights, gt_pc, tries, face_norms, vert_norms, dist = unisample_pnts(None, None, -1, batch_data, modelfile, FLAGS.res, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
-            save_norm(loc, norm, os.path.join(outdir, "uni.ply"))
-        elif FLAGS.unitype == "ball":
-            loc, norm, std, weights, gt_pc, tries, face_norms, vert_norms, dist = ballsample_pnts(None, None, -1,  FLAGS.anglenums, batch_data, modelfile, nums, threshold=FLAGS.uni_thresh, stdratio=FLAGS.stdratio, stdlwb=FLAGS.stdlwb[0], stdupb=FLAGS.stdupb[0])
-            save_norm(loc, norm, os.path.join(outdir, "ball.ply"))
-
-        for i in range(FLAGS.rounds):
-            num_ratio = FLAGS.num_ratio
-            nums = nums * num_ratio
-            pc = sample_from_MM(loc, norm, std, weights, nums, num_ratio, dist, distr=distr, gridsize=FLAGS.gridsize)
-            batch_data['pnts'] = np.array([pc])
-            print("batch_data['pnts'].shape", batch_data['pnts'].shape)
-            loc, norm, std, weights, dist = nearsample_pnts(None, None, i, batch_data, tries, face_norms, vert_norms, stdratio=FLAGS.stdratio, weightform=weightform, stdlwb=FLAGS.stdlwb[i+1], stdupb=FLAGS.stdupb[i+1])
-            # print("pc.shape", pc.shape, "loc.shape", loc.shape, "std.shape", std.shape, "weights.shape", weights.shape)
-            np.savetxt(os.path.join(FLAGS.outdir, "surf_samp{}.txt".format(i)), pc, delimiter=";")
-            save_norm(loc, norm, os.path.join(outdir, "surf_{}.ply".format(i)))
-        sys.stdout.flush()
-        print("finished gt {}/{}".format(batch_idx+1, num_batches))
-    print("Done!")
 
 def rectify(norm, right_drct):
     cosim = np.dot(norm, right_drct)
@@ -400,6 +351,13 @@ def get_ballgrid(angles_num):
     return np.stack([x, y, z], axis=1)
 
 
+
+def cal_std(dists, stdratio, stdlwb=0.0, stdupb=0.1):
+    print("stdupb, stdlwb", stdupb, stdlwb)
+    stds = np.minimum(stdupb, np.maximum(np.minimum(stdlwb, dists), dists / stdratio))
+    return stds
+
+
 def cal_std_loc(pnts, ivts, stdratio, stdlwb=0.0, stdupb=0.1, dist=None):
     loc = pnts + ivts
     # print("ivts.shape",ivts.shape)
@@ -411,77 +369,69 @@ def cal_std_loc(pnts, ivts, stdratio, stdlwb=0.0, stdupb=0.1, dist=None):
     return dist, loc, std
 
 
-def sample_from_MM(locs, norm, std, weights, nums, num_ratio, dist, distr="gaussian", gridsize=-1.0):
+def sample_from_MM(locs, norm, std, weights, nums, dist, distr="gaussian", gridsize=-1.0):
     if np.sum(std) != 0:
-        print(locs.shape, norm.shape, std.shape, weights.shape)
-        times = nums*2 // locs.shape[0]
+        print("locs.shape, norm.shape, std.shape, weights.shape", locs.shape, norm.shape, std.shape, weights.shape)
+        times = nums*2 // locs.shape[1]
         if times > 0:
-            locs = np.tile(locs, (times, 1))
-            norm = np.tile(norm, (times, 1))
-            std = np.tile(std, (times))
-            dist = np.tile(dist, (times))
-            weights = np.tile(weights, (times))
-        print(locs.shape, norm.shape, std.shape, weights.shape)
-        sampled_pnts = np.zeros((locs.shape[0], 3))
+            locs,norm,std,dist,weights = np.tile(locs, (1, times, 1)), np.tile(norm, (1, times, 1)), np.tile(std, (1, times)), np.tile(dist, (1, times)), np.tile(weights, (1, times))
+            print("after tile: locs.shape, norm.shape, std.shape, weights.shape",locs.shape, norm.shape, std.shape, weights.shape)
         if distr == "gaussian" or distr == "ball":
-            std = np.tile(np.expand_dims(std, axis=1), (1, 3))
-            for i in range(nums):
-                ind = inds[i]
-                if distr == "gaussian":
-                    p_loc = np.random.normal(locs[ind], std[ind])
-                elif distr == "ball":
-                    p_loc = ball_sample(locs[ind], std[ind])
-                sampled_pnts[i, :] = p_loc
+            std = np.tile(np.expand_dims(std, axis=2), (1, 1, 3))
+            if distr == "gaussian":
+                sampled_pnts = np.random.normal(locs, std)
+            elif distr == "ball":
+                sampled_pnts = ball_sample(locs, std)
         else:
-            back = float(distr)
-            sampled_pnts[:,:] = normback_sample(locs, norm, std, np.sqrt(np.maximum(0,2*np.multiply(dist,std)- np.square(std)))) # dist*0.8)
-            print("max shift",np.amax(np.sqrt(2*np.multiply(dist,std)- np.square(std))))
-
+            sampled_pnts = normback_sample(locs, norm, std, np.sqrt(np.maximum(0,2*np.multiply(dist,std)- np.square(std)))) # dist*0.8)
+            # print("max shift",np.amax(np.sqrt(2*np.multiply(dist,std)- np.square(std))))
         if gridsize > 0:
             print("weights.shape", weights.shape)
             weights = grid_weight(sampled_pnts, gridsize, weights)
-            print("weights.shape", weights.shape)
-        weights = weights / np.sum(weights)
-        print("weights.shape", weights.shape)
-        print("locs.shape", locs.shape)
-        print("std.shape", std.shape)
-        print("nums", nums)
-        inds = np.random.choice(weights.shape[0], nums, p=weights)
-        return sampled_pnts[inds]
+        weights = weights / np.sum(weights, axis=1, keepdims=True)
+        print("weights.shape", weights.shape, "locs.shape", locs.shape, "std.shape", std.shape, "nums", nums)
+        picked_pnts = []
+        for i in range(weights.shape[0]):
+            inds = np.random.choice(weights.shape[1], nums, p=weights)
+            picked_pnts.append(sampled_pnts[i][inds])
+        return np.array(picked_pnts)
     else:
         print("std == 0, no samples")
         return locs
 
+
 def grid_weight(loc, gridsize, weights):
-    minXYZ, maxXYZ = np.min(loc, axis=0), np.max(loc, axis=0)
+    minXYZ, maxXYZ = np.min(loc, axis=1, keepdims=True), np.max(loc, axis=1, keepdims=True)
     xyzDims = np.floor((maxXYZ - minXYZ) / gridsize)
     norm_loc = loc - minXYZ
     norm_loc_xyzind = np.floor(norm_loc / gridsize)
-    norm_loc_ind = norm_loc_xyzind[:,0] * xyzDims[1] * xyzDims[2] + norm_loc_xyzind[:,1] * xyzDims[2] + norm_loc_xyzind[:,2]
-    unique, reverse_index, counts = np.unique(norm_loc_ind, return_inverse=True, return_counts=True)
-    weight_count = counts[reverse_index]
-    weights = weights / (1.0 * weight_count)
+    norm_loc_ind = norm_loc_xyzind[:,:,0] * xyzDims[:,[1]] * xyzDims[:,[2]] + norm_loc_xyzind[:,:,[1]] * xyzDims[:,[2]] + norm_loc_xyzind[:,:,2]
+    for i in range(norm_loc_ind.shape[0]):
+        unique, reverse_index, counts = np.unique(norm_loc_ind[i], return_inverse=True, return_counts=True)
+        weight_count = counts[reverse_index]
+        weights[i] = weights[i] / (1.0 * weight_count)
     return weights
 
 
 def ball_sample(xyzmean, radius):
-    uvw = np.random.normal(np.array([0, 0, 0]), np.array([1, 1, 1]))
-    e = np.random.exponential(0.5)
-    denom = (e + np.dot(uvw, uvw)) ** 0.5
-    return xyzmean + uvw / denom * radius
+    uvw = np.random.normal(np.zeros_like(xyzmean), np.ones_like(xyzmean))
+    e = np.random.exponential(0.5, size=(xyzmean.shape[0],xyzmean.shape[1]))
+    denom = np.sqrt(e + np.sum(np.square(uvw),axis=2, keepdims=True))
+    return xyzmean + uvw * radius / denom
 
 def normback_sample(xyzmean, norm, back, radius):
-    xyzmean = xyzmean + np.multiply(norm,np.expand_dims(back, axis=1))
-    num = xyzmean.shape[0]
-    r = np.multiply(radius, np.sqrt(np.random.uniform(0, 1, size=num)))
-    a = np.random.uniform(0, np.pi * 2, size=num)
-    xyzround = np.expand_dims(np.stack([np.multiply(r, np.cos(a)), np.multiply(r, np.sin(a)), np.zeros_like(r)], axis=1), axis=2)
-    R = z_norm_matrix(norm)
+    xyzmean = xyzmean + np.multiply(norm,np.expand_dims(back, axis=2))
+    size = (xyzmean.shape[0],xyzmean.shape[1])
+    r = np.multiply(radius, np.sqrt(np.random.uniform(0, 1, size=size)))
+    a = np.random.uniform(0, np.pi * 2, size=size)
+    xyzround = np.expand_dims(np.stack([np.multiply(r, np.cos(a)), np.multiply(r, np.sin(a)), np.zeros_like(r)], axis=2), axis=3)
+    R = z_norm_matrix(norm).reshape((xyzmean.shape[0], xyzmean.shape[1], 3, 3))
     print(R.shape, xyzround.shape)
-    xyzround = np.matmul(R, xyzround).reshape((-1,3))
+    xyzround = np.matmul(R, xyzround).reshape((xyzmean.shape[0],xyzmean.shape[1],3))
     return xyzmean + xyzround
 
 def z_norm_matrix(norm):
+    norm = norm.reshape(-1,3)
     bs = norm.shape[0]
     z_b = np.repeat(np.array([(0., 0., 1.)]), bs, axis=0)
     normal = np.cross(z_b, norm)
@@ -500,23 +450,12 @@ def z_norm_matrix(norm):
     R = I + W + np.expand_dims(C, axis=2) * Wsqr
     return R
 
-def nearsample_pnts(sess, ops, roundnum, batch_data, tries, face_norms, vert_norms, stdratio=10, weightform="reverse", stdlwb=0.04, stdupb=0.1):
-    if sess is None:
-        surface_ivts, surf_inter_norm = ct.gpu_calculate_ivt_norm(batch_data["pnts"][0], tries, face_norms, vert_norms, int(FLAGS.gpu), tries.shape[0]>700)
-        dist = np.linalg.norm(surface_ivts, axis=1, keepdims=True)
-        surf_norm = surf_inter_norm if FLAGS.norminter else -surface_ivts / dist
-        print("surface_ivts.shape, surface_ivts.shape", surface_ivts.shape, surface_ivts.shape)
-    else:
-        surface_ivts, surf_norm = inference_batch(sess, ops, roundnum, batch_data)
-        surf_norm=-surf_norm
-    # print("batch_data[pnts][0], surface_ivts",batch_data["pnts"][0].shape, surface_ivts.shape)
-    dist, surface_place, std = cal_std_loc(batch_data["pnts"][0], surface_ivts, stdratio, stdlwb=stdlwb, stdupb=stdupb)
-    if weightform == "even":
-        weights = np.full(std.shape[0], 1)
-    elif weightform == "reverse":
-        weights = 1.0 / np.maximum(dist, 5e-3)
-
-    return surface_place, surf_norm, std, weights, dist
+def nearsample_pnts(sess, ops, roundnum, batch_data, num_in_gpu, SPLIT_SIZE):
+    surface_ivts, surf_norm = inference_batch(sess, ops, roundnum, batch_data, num_in_gpu, SPLIT_SIZE)
+    surf_norm=-surf_norm
+    surface_place = batch_data["pnts"] + surface_ivts
+    dist = np.linalg.norm(surface_ivts, axis=2)
+    return surface_place, surf_norm, dist
 
 
 
@@ -688,7 +627,7 @@ if __name__ == "__main__":
     os.makedirs(FLAGS.outdir, exist_ok=True)
 
     if FLAGS.gt:
-        gt_test_one_epoch(raw_dirs, TEST_DATASET)
+        print("no gt implemented")
     else:
         test(raw_dirs, TEST_LISTINFO, info, cats_limit)
     print("done!")

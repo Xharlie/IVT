@@ -22,6 +22,7 @@ def save_norm(loc, norm, outfile):
         columns=["x", "y", "z", "nx", "ny", "nz"]))
     cloud.to_file(outfile)
 
+
 START = 0
 CUR_PATH = os.path.dirname(os.path.realpath(__file__))
 FLAGS=None
