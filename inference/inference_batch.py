@@ -201,6 +201,7 @@ def test_near_epoch(TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE, stdratio, stdlwb
 
             num_batches = int(len(TEST_DATASET) / FLAGS.batch_size)
             for batch_idx in range(num_batches):
+                tic=time.time()
                 batch_data = TEST_DATASET.fetch()
                 locs, norms, dists = batch_data["locs"], batch_data["norms"], batch_data["dists"]
                 stds = cal_std(dists, stdratio, stdlwb=stdlwb, stdupb=stdupb)
@@ -213,6 +214,7 @@ def test_near_epoch(TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE, stdratio, stdlwb
                 locs, norms, dists = nearsample_pnts(sess, ops, round, batch_data, num_in_gpu, SPLIT_SIZE)
                 # np.savetxt(os.path.join(outdir, "surf_samp{}.txt".format(i)), pc, delimiter=";")
                 save_data_h5(batch_data, locs, norms, dists, "surf_{}".format(round+1))
+                outstr += ' time per batch: %.02f, ' % (time.time() - tic)
 
 
 def unisample_pnts(sess, ops, roundnum, batch_data, unigrid, nums, num_in_gpu, SPLIT_SIZE, threshold=0.1):
@@ -329,7 +331,6 @@ def inference_batch(sess, ops, roundnum, batch_data, num_in_gpu, SPLIT_SIZE):
     pred_ivts = np.concatenate(pred_ivt_lst, axis=1).reshape(batch_size, -1, 3)[:,:totalnum,:]
     pred_directions = np.concatenate(pred_drct_lst, axis=1).reshape(batch_size, -1, 3)[:,:totalnum,:]
     outstr = ' -----rounds %d, %d points ------ ' % (roundnum, totalnum)
-    outstr += ' time per obj: %.02f, ' % (time.time() - tic)
     log_string(outstr)
     return pred_ivts, pred_directions
 
