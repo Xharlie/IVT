@@ -38,7 +38,7 @@ BN_INIT_DECAY = 0.5
 BN_DECAY_DECAY_RATE = 0.5
 BN_DECAY_DECAY_STEP = None
 BN_DECAY_CLIP = 0.99
-MAX_NUM = 274625 #  320000
+MAX_NUM = 274625 # 300000
 
 def log_string(out_str):
     LOG_FOUT.write(out_str + '\n')
@@ -113,6 +113,7 @@ def test(raw_dirs, TEST_LISTINFO, info, cats_limit):
         num_in_gpu, SPLIT_SIZE, batch_size = cal_size(nums)
         FLAGS.batch_size = batch_size
         FLAGS.filename = "surf_{}".format(i)
+        FLAGS.surf_num = nums
         TEST_DATASET = data_ivt_h5_queue.Pt_sdf_img(FLAGS, listinfo=TEST_LISTINFO, info=info, cats_limit=cats_limit, shuffle=False)
         TEST_DATASET.start()
         test_near_epoch(TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE, FLAGS.stdratio, FLAGS.stdlwb[i], FLAGS.stdupb[i], weightform, i)
@@ -214,7 +215,7 @@ def test_near_epoch(TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE, stdratio, stdlwb
                 locs, norms, dists = nearsample_pnts(sess, ops, round, batch_data, num_in_gpu, SPLIT_SIZE)
                 # np.savetxt(os.path.join(outdir, "surf_samp{}.txt".format(i)), pc, delimiter=";")
                 save_data_h5(batch_data, locs, norms, dists, "surf_{}".format(round+1))
-                outstr += ' time per batch: %.02f, ' % (time.time() - tic)
+                print( ' time per batch: %.02f, ' % (time.time() - tic))
 
 
 def unisample_pnts(sess, ops, roundnum, batch_data, unigrid, nums, num_in_gpu, SPLIT_SIZE, threshold=0.1):
