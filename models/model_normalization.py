@@ -154,13 +154,13 @@ def get_model(input_pls, is_training, bn=False, bn_decay=None, img_size = 224, F
             print("point_img_feat.shape", point_img_feat.get_shape())
             point_img_feat = tf.expand_dims(point_img_feat, axis=2)
             if FLAGS.decoderskip:
-                ivts_feat = ivtnet.get_ivt_basic_imgfeat_onestream_skip(input_pnts_rot, ref_feats_embedding, point_img_feat, is_training, batch_size, FLAGS.num_pnts, bn, bn_decay, wd=FLAGS.wd, activation_fn=activation_fn)
+                ivts_feat = ivtnet.get_ivt_basic_imgfeat_onestream_skip(input_pnts_rot, ref_feats_embedding, point_img_feat, is_training, batch_size, bn, bn_decay, wd=FLAGS.wd, activation_fn=activation_fn)
             else:
-                ivts_feat = ivtnet.get_ivt_basic_imgfeat_onestream(input_pnts_rot, ref_feats_embedding, point_img_feat, is_training, batch_size, FLAGS.num_pnts, bn, bn_decay, wd=FLAGS.wd, activation_fn=activation_fn)
+                ivts_feat = ivtnet.get_ivt_basic_imgfeat_onestream(input_pnts_rot, ref_feats_embedding, point_img_feat, is_training, batch_size, bn, bn_decay, wd=FLAGS.wd, activation_fn=activation_fn)
     else:
         if not FLAGS.multi_view:
             with tf.compat.v1.variable_scope("sdfprediction") as scope:
-                ivts_feat = ivtnet.get_ivt_basic(input_pnts_rot, ref_feats_embedding, is_training, batch_size, FLAGS.num_pnts, bn, bn_decay,wd=FLAGS.wd, activation_fn=activation_fn)
+                ivts_feat = ivtnet.get_ivt_basic(input_pnts_rot, ref_feats_embedding, is_training, batch_size, bn, bn_decay,wd=FLAGS.wd, activation_fn=activation_fn)
     end_points['pred_ivts_xyz'], end_points['pred_ivts_dist'], end_points['pred_ivts_direction'] = None, None, None
     if FLAGS.XYZ:
         end_points['pred_ivts_xyz'] = ivtnet.xyz_ivthead(ivts_feat, batch_size, wd=FLAGS.wd, activation_fn=activation_fn)

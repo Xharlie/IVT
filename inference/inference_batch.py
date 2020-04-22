@@ -17,12 +17,11 @@ sys.path.append(os.path.join(BASE_DIR, 'utils'))
 sys.path.append(os.path.join(BASE_DIR, 'data_load'))
 sys.path.append(os.path.join(BASE_DIR, 'preprocessing'))
 import model_normalization as model
-import data_ivt_h5_queue  # as data
+import data_inf_ivt_h5_queue as data_ivt_h5_queue # as data
 import output_utils
 import create_file_lst
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../preprocessing'))
 from normal_gen import save_norm
-from normal_gen import save_dist
 import gpu_create_manifold_ivt as ct
 import argparse
 import pymesh
@@ -32,6 +31,7 @@ import normal_gen
 from sklearn.neighbors import DistanceMetric as dm
 from sklearn.neighbors import NearestNeighbors
 from random import sample
+import h5py
 lst_dir, cats, all_cats, raw_dirs = create_file_lst.get_all_info()
 
 slim = tf.contrib.slim
@@ -47,7 +47,7 @@ BN_INIT_DECAY = 0.5
 BN_DECAY_DECAY_RATE = 0.5
 BN_DECAY_DECAY_STEP = None
 BN_DECAY_CLIP = 0.99
-MAX_NUM = 274625
+MAX_NUM = 320000 # 274625
 
 def log_string(out_str):
     LOG_FOUT.write(out_str + '\n')
@@ -94,9 +94,49 @@ def load_model_strict(sess, saver, restore_model):
 
 def test(raw_dirs, TEST_LISTINFO, info, cats_limit):
     log_string(FLAGS.log_dir)
+    ######## ---------------------------   uni or ball
+    if FLAGS.unitype == "uni":
+        grid = np.array([get_unigrid(FLAGS.res)])
+    elif FLAGS.unitype == "ball":
+        grid = np.array([get_ballgrid(FLAGS.anglenums)])
+    nums = grid.shape[1] if FLAGS.unionly else FLAGS.initnums
+    num_in_gpu, SPLIT_SIZE, batch_size = cal_size(nums)
+    print("nums {}, num_in_gpu {}, batch_size {}, SPLIT_SIZE {}", nums, num_in_gpu, batch_size, SPLIT_SIZE)
+    FLAGS.batch_size = 1
+    FLAGS.filename = None
+    TEST_DATASET = data_ivt_h5_queue.Pt_sdf_img(FLAGS, listinfo=TEST_LISTINFO, info=info, cats_limit=cats_limit, shuffle=False)
+    TEST_DATASET.start()
+    test_uni_epoch(grid, TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE)
+    TEST_DATASET.shutdown()
+    ######## ---------------------------   surface
+
+    for i in range(FLAGS.rounds):
+        if FLAGS.rounds > 2 and i == (FLAGS.rounds - 2):
+            # weightform = "even"
+            num_ratio = 1
+        else:
+            num_ratio = FLAGS.num_ratio
+        nums = nums * num_ratio
+        num_in_gpu, SPLIT_SIZE, batch_size = cal_size(nums)
+        FLAGS.batch_size = batch_size
+        FLAGS.filename = "surf_{}".format(i)
+        TEST_DATASET = data_ivt_h5_queue.Pt_sdf_img(FLAGS, listinfo=TEST_LISTINFO, info=info, cats_limit=cats_limit, shuffle=False)
+        TEST_DATASET.start()
+        test_near_epoch(TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE, FLAGS.stdratio, FLAGS.stdlwb[i], FLAGS.stdupb[i])
+        TEST_DATASET.shutdown()
+    sys.stdout.flush()
+    print("Done!")
+
+def cal_size(nums):
+    num_in_gpu = min(nums, MAX_NUM)
+    batch_size = MAX_NUM // num_in_gpu
+    SPLIT_SIZE = int(np.ceil(nums / num_in_gpu))
+    return num_in_gpu, SPLIT_SIZE, batch_size
+
+def test_uni_epoch(grid, TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE):
     with tf.Graph().as_default():
         with tf.device('/gpu:0'):
-            input_pls = model.placeholder_inputs(scope='inputs_pl', FLAGS=FLAGS, num_pnts=NUM_INPUT_POINTS)
+            input_pls = model.placeholder_inputs(scope='inputs_pl', FLAGS=FLAGS, num_pnts=num_in_gpu)
             is_training_pl = tf.compat.v1.placeholder(tf.bool, shape=())
             print(is_training_pl)
             batch = tf.Variable(0, name='batch')
@@ -118,86 +158,75 @@ def test(raw_dirs, TEST_LISTINFO, info, cats_limit):
             # Overall
             saver = tf.compat.v1.train.Saver([v for v in tf.compat.v1.get_collection_ref(tf.compat.v1.GraphKeys.GLOBAL_VARIABLES) if ('lr' not in v.name) and ('batch' not in v.name)])
             ###########################################
-            ops = {'input_pls': input_pls,
-                   'is_training_pl': is_training_pl,
-                   'loss': loss,
-                   'step': batch,
-                   'saver': saver,
-                   'end_points': end_points}
+            ops = {'input_pls': input_pls, 'is_training_pl': is_training_pl, 'loss': loss, 'step': batch, 'saver': saver, 'end_points': end_points}
             sys.stdout.flush()
             sess = load_model_strict(sess, ops["saver"], FLAGS.restore_model)
             print('**** Uni INFERENCE  ****')
             sys.stdout.flush()
-            ######## ---------------------------   uni or ball
-            if FLAGS.unitype == "uni":
-                grid = np.array([get_unigrid(FLAGS.res)])
-            elif FLAGS.unitype == "ball":
-                grid = np.array([get_ballgrid(angles_num)])
-            nums = grid.shape[1] if FLAGS.unionly else FLAGS.initnums
-            num_in_gpu, SPLIT_SIZE, batch_size = cal_size(nums)
-            print("nums {}, num_in_gpu {}, batch_size {}, SPLIT_SIZE {}", nums, num_in_gpu, batch_size, SPLIT_SIZE)
-            FLAGS.batch_size = batch_size
-            TEST_DATASET = data_ivt_h5_queue.Pt_sdf_img(FLAGS, listinfo=TEST_LISTINFO, info=info, cats_limit=cats_limit, shuffle=False)
-            TEST_DATASET.start()
-            test_uni_epoch(sess, ops, grid, TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE)
-            TEST_DATASET.shutdown()
-            ######## ---------------------------   surface
-            for i in range(FLAGS.rounds):
-                if FLAGS.rounds > 2 and i == (FLAGS.rounds - 2):
-                    weightform = "even"
-                    num_ratio = 1
-                else:
-                    num_ratio = FLAGS.num_ratio
-                nums = nums * num_ratio
-                num_in_gpu, SPLIT_SIZE, batch_size = cal_size(nums)
-                FLAGS.batch_size = batch_size
-                TEST_DATASET = data_ivt_h5_queue.Pt_sdf_img(FLAGS, listinfo=TEST_LISTINFO, info=info, cats_limit=cats_limit, shuffle=False)
-                TEST_DATASET.start()
-                test_near_epoch(sess, ops, TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE, FLAGS.stdratio, FLAGS.stdlwb[i], FLAGS.stdupb[i])
-                TEST_DATASET.shutdown()
 
+            num_batches = int(len(TEST_DATASET) / FLAGS.batch_size)
+            for batch_idx in range(num_batches):
+                batch_data = TEST_DATASET.fetch()
+                if FLAGS.unitype == "uni":
+                    locs, norms, dists = unisample_pnts(sess, ops, -1, batch_data, grid, nums, num_in_gpu, SPLIT_SIZE, threshold=FLAGS.uni_thresh)
+                elif FLAGS.unitype == "ball":
+                    locs, norms, dists = ballsample_pnts(sess, ops, -1, batch_data, grid, nums, num_in_gpu, SPLIT_SIZE)
+                save_data_h5(batch_data, locs, norms, dists, FLAGS.unitype)
+                save_data_h5(batch_data, locs, norms, dists, "surf_{}".format(0), num_limit=FLAGS.initnums*4)
+    return
+
+def test_near_epoch(TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE, stdratio, stdlwb, stdupb):
+    with tf.Graph().as_default():
+        with tf.device('/gpu:0'):
+            input_pls = model.placeholder_inputs(scope='inputs_pl', FLAGS=FLAGS, num_pnts=num_in_gpu)
+            is_training_pl = tf.compat.v1.placeholder(tf.bool, shape=())
+            print(is_training_pl)
+            batch = tf.Variable(0, name='batch')
+            print("--- Get model and loss")
+            # Get model and loss
+            end_points = model.get_model(input_pls, is_training_pl, bn=False, FLAGS=FLAGS)
+            loss, end_points = model.get_loss(end_points, FLAGS=FLAGS)
+            gpu_options = tf.compat.v1.GPUOptions()  # (per_process_gpu_memory_fraction=0.99)
+            config = tf.compat.v1.ConfigProto(gpu_options=gpu_options)
+            config.gpu_options.allow_growth = True
+            config.allow_soft_placement = True
+            config.log_device_placement = False
+            sess = tf.compat.v1.Session(config=config)
+            ##### all
+            # Init variables
+            init = tf.compat.v1.global_variables_initializer()
+            sess.run(init)
+            ######### Loading Checkpoint ###############
+            # Overall
+            saver = tf.compat.v1.train.Saver([v for v in tf.compat.v1.get_collection_ref(tf.compat.v1.GraphKeys.GLOBAL_VARIABLES) if ('lr' not in v.name) and ('batch' not in v.name)])
+            ###########################################
+            ops = {'input_pls': input_pls, 'is_training_pl': is_training_pl, 'loss': loss, 'step': batch, 'saver': saver, 'end_points': end_points}
             sys.stdout.flush()
-            print("Done!")
+            sess = load_model_strict(sess, ops["saver"], FLAGS.restore_surfmodel)
+            print('**** Uni INFERENCE  ****')
+            sys.stdout.flush()
 
-def cal_size(nums):
-    num_in_gpu = min(nums, MAX_NUM)
-    batch_size = MAX_NUM // num_in_gpu
-    SPLIT_SIZE = int(np.ceil(nums / num_in_gpu))
-    return num_in_gpu, SPLIT_SIZE, batch_size
-
-def test_uni_epoch(sess, ops, grid, TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE):
-    num_batches = int(len(TEST_DATASET) / FLAGS.batch_size)
-    for batch_idx in range(num_batches):
-        batch_data = TEST_DATASET.fetch()
-        if FLAGS.unitype == "uni":
-            locs, norms, dists = unisample_pnts(sess, ops, -1, batch_data, grid, nums, num_in_gpu, SPLIT_SIZE, threshold=FLAGS.uni_thresh)
-        elif FLAGS.unitype == "ball":
-            locs, norms, dists = ballsample_pnts(sess, ops, -1, batch_data, grid, nums, num_in_gpu, SPLIT_SIZE)
-        save_data_h5(batch_data, locs, norms, dists, FLAGS.unitype)
-
-
-def test_near_epoch(sess, ops, TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE, stdratio, stdlwb, stdupb):
-    num_batches = int(len(TEST_DATASET) / FLAGS.batch_size)
-    for batch_idx in range(num_batches):
-        batch_data = TEST_DATASET.fetch()
-        locs, norms, dists = batch_data["locs"], batch_data["norms"], batch_data["dists"]
-        stds = cal_std(dists, stdratio, stdlwb=stdlwb, stdupb=stdupb)
-        if weightform == "even":
-            weights = np.full((stds.shape[0], stds.shape[1]), 1)
-        elif weightform == "reverse":
-            weights = 1.0 / np.maximum(dists, 5e-3)
-        pcs = sample_from_MM(locs, norms, stds, weights, nums, dists, distr=distr, gridsize=FLAGS.gridsize)
-        batch_data['pnts'] = pcs
-        locs, norms, dists = nearsample_pnts(sess, ops, i, batch_data, num_in_gpu, SPLIT_SIZE)
-        # np.savetxt(os.path.join(outdir, "surf_samp{}.txt".format(i)), pc, delimiter=";")
-        save_data_h5(batch_data, locs, norms, dists, "surf_{}".format(i))
+            num_batches = int(len(TEST_DATASET) / FLAGS.batch_size)
+            for batch_idx in range(num_batches):
+                batch_data = TEST_DATASET.fetch()
+                locs, norms, dists = batch_data["locs"], batch_data["norms"], batch_data["dists"]
+                stds = cal_std(dists, stdratio, stdlwb=stdlwb, stdupb=stdupb)
+                if weightform == "even":
+                    weights = np.full((stds.shape[0], stds.shape[1]), 1)
+                elif weightform == "reverse":
+                    weights = 1.0 / np.maximum(dists, 5e-3)
+                pcs = sample_from_MM(locs, norms, stds, weights, nums, dists, distr=distr, gridsize=FLAGS.gridsize)
+                batch_data['locs'] = pcs
+                locs, norms, dists = nearsample_pnts(sess, ops, i, batch_data, num_in_gpu, SPLIT_SIZE)
+                # np.savetxt(os.path.join(outdir, "surf_samp{}.txt".format(i)), pc, delimiter=";")
+                save_data_h5(batch_data, locs, norms, dists, "surf_{}".format(i+1))
 
 
 def unisample_pnts(sess, ops, roundnum, batch_data, unigrid, nums, num_in_gpu, SPLIT_SIZE, threshold=0.1):
     if not FLAGS.unionly:
         inds = np.random.choice(unigrid.shape[1], (unigrid.shape[0], nums))
         unigrid = unigrid[inds]
-    batch_data["pnts"] = unigrid
+    batch_data["locs"] = unigrid
     uni_ivts, uni_drcts = inference_batch(sess, ops, roundnum, batch_data, num_in_gpu, SPLIT_SIZE)
     uni_dist = np.linalg.norm(uni_ivts, axis=2)
     ind = uni_dist <= threshold
@@ -210,14 +239,22 @@ def ballsample_pnts(sess, ops, roundnum, batch_data, ballgrid, nums, num_in_gpu,
     if not FLAGS.unionly:
         inds = np.random.choice(ballgrid.shape[1], (ballgrid.shape[0], nums))
         ballgrid = ballgrid[inds]
-    batch_data["pnts"] = ballgrid
+    batch_data["locs"] = ballgrid
     ball_ivts, ball_drcts = inference_batch(sess, ops, roundnum, batch_data, num_in_gpu, SPLIT_SIZE)
-    ball_dist = np.linalg.norm(uni_ivts, axis=2)
+    ball_dist = np.linalg.norm(ball_ivts, axis=2)
     locs = ballgrid + ball_ivts
     return locs, -ball_drcts, ball_dist
 
 
-def save_data_h5(batch_data, locs, norms, dists, name):
+def save_data_h5(batch_data, locs, norms, dists, name, num_limit=None):
+    if num_limit is not None:
+        locs_lst,norms_lst,dists_lst = [],[],[]
+        for i in range(locs.shape[0]):
+            inds = np.random.choice(locs.shape[1], num_limit)
+            locs_lst.append(locs[i][inds])
+            norms_lst.append(norms[i][inds])
+            dists_lst.append(dists[i][inds])
+        locs, norms, dists = np.array(locs_lst), np.array(norms_lst), np.array(dists_lst)
     for i in range(locs.shape[0]):
         view_id = batch_data["view_id"][i]
         outdir = os.path.join(FLAGS.outdir, batch_data["cat_id"][i], batch_data["obj_nm"][i], str(view_id), FLAGS.unitype)
@@ -227,8 +264,8 @@ def save_data_h5(batch_data, locs, norms, dists, name):
             f1.create_dataset('locs', data=locs[i].astype(np.float32), compression='gzip', compression_opts=4)
             f1.create_dataset('norms', data=norms[i].astype(np.float32), compression='gzip', compression_opts=4)
             f1.create_dataset('dists', data=dists[i].astype(np.float32), compression='gzip', compression_opts=4)
-
-
+            # f1.create_dataset('norm_params', data=batch_data["norm_params"][i].astype(np.float32), compression='gzip', compression_opts=4)
+        print("saved in: ", h5_file)
 
 def rectify(norm, right_drct):
     cosim = np.dot(norm, right_drct)
@@ -276,10 +313,10 @@ def inference_batch(sess, ops, roundnum, batch_data, num_in_gpu, SPLIT_SIZE):
     """ ops: dict mapping from string to tf ops """
     is_training = False
     log_string(str(datetime.now()))
-    totalnum = batch_data['pnts'].shape[1]
-    batch_size = batch_data['pnts'].shape[0]
+    totalnum = batch_data['locs'].shape[1]
+    batch_size = batch_data['locs'].shape[0]
     extra_pts = np.zeros((1, SPLIT_SIZE * num_in_gpu - totalnum, 3), dtype=np.float32)
-    batch_points = np.concatenate([batch_data['pnts'], extra_pts], axis = 1).reshape((SPLIT_SIZE, 1, -1, 3))
+    batch_points = np.concatenate([batch_data['locs'], extra_pts], axis = 1).reshape((SPLIT_SIZE, 1, -1, 3))
     pred_ivt_lst = []
     pred_drct_lst = []
     tic = time.time()
@@ -311,35 +348,6 @@ def get_unigrid(ivt_res):
     x, y, z = np.meshgrid(x_, y_, z_, indexing='ij')
     return np.stack([x.reshape(-1), y.reshape(-1), z.reshape(-1)], axis=1)
 
-def get_normalized_mesh(model_file):
-    total = 16384 * 5
-    print("trimesh_load:", model_file)
-    mesh_list = trimesh.load_mesh(model_file, process=False)
-    if not isinstance(mesh_list, list):
-        mesh_list = [mesh_list]
-    area_sum = 0
-    area_lst = []
-    for idx, mesh in enumerate(mesh_list):
-        area = np.sum(mesh.area_faces)
-        area_lst.append(area)
-        area_sum += area
-    area_lst = np.asarray(area_lst)
-    amount_lst = (area_lst * total / area_sum).astype(np.int32)
-    points_all = np.zeros((0, 3), dtype=np.float32)
-    all_face_normals = np.zeros((0, 3), dtype=np.float32)
-    all_vert_normals = np.zeros((0, 3, 3), dtype=np.float32)
-    all_tries = np.zeros((0, 3, 3), dtype=np.float32)
-    for i in range(amount_lst.shape[0]):
-        mesh = mesh_list[i]
-        # print("start sample surface of ", mesh.faces.shape[0])
-        points, index = trimesh.sample.sample_surface(mesh, amount_lst[i])
-        vert_ind = mesh.faces.reshape(-1)
-        # print("end sample surface")
-        all_tries = np.concatenate([all_tries, mesh.vertices[vert_ind].reshape([-1, 3, 3])], axis=0)
-        all_face_normals = np.concatenate([all_face_normals, mesh.face_normals], axis=0)
-        all_vert_normals = np.concatenate([all_vert_normals, mesh.vertex_normals[vert_ind].reshape([-1, 3, 3])], axis=0)
-        points_all = np.concatenate([points_all, points], axis=0)
-    return points_all, all_tries, all_face_normals, all_vert_normals
 
 
 def get_ballgrid(angles_num):
@@ -453,14 +461,14 @@ def z_norm_matrix(norm):
 def nearsample_pnts(sess, ops, roundnum, batch_data, num_in_gpu, SPLIT_SIZE):
     surface_ivts, surf_norm = inference_batch(sess, ops, roundnum, batch_data, num_in_gpu, SPLIT_SIZE)
     surf_norm=-surf_norm
-    surface_place = batch_data["pnts"] + surface_ivts
+    surface_place = batch_data["locs"] + surface_ivts
     dist = np.linalg.norm(surface_ivts, axis=2)
     return surface_place, surf_norm, dist
 
 
 
 if __name__ == "__main__":
-    # nohup python -u inference.py --gpu 3 --img_feat_onestream --category chair  --restore_model ../train/checkpoint/onestream_small_spheregrid/chair_vgg_16_010000 --restore_surfmodel ../train/checkpoint/onestream_small_surf/chair_vgg_16_010000 --outdir  chair_drct_even_surfonly_uni --unionly --unitype uni --XYZ &> global_direct_chair_surf_evenweight_uni.log &
+    # nohup python -u inference_batch.py --gpu 0 --img_feat_onestream --category chair  --restore_model ../train/checkpoint/onestream_small_spheregrid/chair_vgg_16_010000 --restore_surfmodel ../train/checkpoint/onestream_small_surf/chair_vgg_16_010000 --outdir  chair_drct_even_surfonly_uni --unionly --unitype ball --XYZ &> global_direct_chair_surf_evenweight_uni.log &
 
 
     # nohup python -u inference.py --gt --outdir  gt_noerrBall --unionly --stdupb 0.3 0.3 0.2 0.1 0.05 --stdlwb 0.01 0.01 0.01 0.01 0.01 &> gt_uni.log &
@@ -473,9 +481,7 @@ if __name__ == "__main__":
     parser.add_argument('--gpu', type=str, default='0', help='GPU to use [default: GPU 0]')
     parser.add_argument('--category', type=str, default="all", help='Which single class to train on [default: None]')
     parser.add_argument('--log_dir', default='checkpoint', help='Log dir [default: log]')
-    parser.add_argument('--num_pnts', type=int, default=0, help='Point Number [default: 2048]')
-    parser.add_argument('--uni_num', type=int, default=0, help='Point Number [default: 2048]')
-    parser.add_argument('--sphere_num', type=int, default=0, help='Point Number [default: 2048]')
+    parser.add_argument('--surf_num', type=int, default=10000000, help='Point Number [default: 2048]')
     parser.add_argument('--num_classes', type=int, default=1024, help='vgg dim')
     parser.add_argument("--beta1", type=float, dest="beta1", default=0.5, help="beta1 of adams")
     parser.add_argument('--batch_size', type=int, default=1, help='Batch Size during training [default: 32]')
@@ -534,10 +540,7 @@ if __name__ == "__main__":
     parser.add_argument('--decoderskip', action='store_true')
     parser.add_argument('--lossw', nargs='+', action='store', default=[0.0, 1.0, 0.0, 0.0, 1.0, 0.0],
                         help="xyz, locnorm, locsqrnorm, dist, dirct, drct_abs")
-    parser.add_argument('--distlimit', nargs='+', action='store', type=str,
-                        default=[1.0, 0.9, 0.9, 0.8, 0.8, 0.7, 0.7, 0.6, 0.6, 0.5, 0.5, 0.4, 0.4, 0.3, 0.3, 0.2, 0.2,
-                                 0.18, 0.18, 0.16, 0.16, 0.14, 0.14, 0.12, 0.12, 0.1, 0.1, 0.08, 0.08, 0.06, 0.06, 0.05,
-                                 0.05, 0.04, 0.04, 0.03, 0.03, 0.02, 0.02, 0.01, 0.01, -0.01])
+    parser.add_argument('--distlimit', nargs='+', action='store', type=str, default=[1.0, 0.9, 0.9, 0.8, 0.8, 0.7, 0.7, 0.6, 0.6, 0.5, 0.5, 0.4, 0.4, 0.3, 0.3, 0.2, 0.2, 0.18, 0.18, 0.16, 0.16, 0.14, 0.14, 0.12, 0.12, 0.1, 0.1, 0.08, 0.08, 0.06, 0.06, 0.05, 0.05, 0.04, 0.04, 0.03, 0.03, 0.02, 0.02, 0.01, 0.01, -0.01])
     parser.add_argument('--surfrange', nargs='+', action='store', default=[0.0, 0.15], help="lower bound, upperbound")
     FLAGS = parser.parse_args()
     FLAGS.stdupb = [float(i) for i in FLAGS.stdupb]
@@ -605,7 +608,7 @@ if __name__ == "__main__":
     # TEST_LISTINFO += [("02691156", "1beb0776148870d4c511571426f8b16d", 0)]
 
     info = {'rendered_dir': raw_dirs["renderedh5_dir"],
-            'ivt_dir': raw_dirs["ivt_mani_dir"]}
+            'ivt_dir': FLAGS.outdir}
     if FLAGS.cam_est:
         info['rendered_dir'] = raw_dirs["renderedh5_dir_est"]
 
