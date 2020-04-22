@@ -4,10 +4,8 @@ import warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
 import tensorflow as tf
 import os
-import cv2
 import sys
 import time
-from tensorflow.contrib.framework.python.framework import checkpoint_utils
 BASE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 print("PID:", os.getpid())
 print(os.path.join(BASE_DIR, 'models'))
@@ -18,16 +16,9 @@ sys.path.append(os.path.join(BASE_DIR, 'data_load'))
 sys.path.append(os.path.join(BASE_DIR, 'preprocessing'))
 import model_normalization as model
 import data_inf_ivt_h5_queue as data_ivt_h5_queue # as data
-import output_utils
 import create_file_lst
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../preprocessing'))
-from normal_gen import save_norm
-import gpu_create_manifold_ivt as ct
 import argparse
-import pymesh
-import trimesh
-import pandas as pd
-import normal_gen
 from sklearn.neighbors import DistanceMetric as dm
 from sklearn.neighbors import NearestNeighbors
 from random import sample
@@ -47,7 +38,7 @@ BN_INIT_DECAY = 0.5
 BN_DECAY_DECAY_RATE = 0.5
 BN_DECAY_DECAY_STEP = None
 BN_DECAY_CLIP = 0.99
-MAX_NUM = 320000 # 274625
+MAX_NUM = 274625 #  320000
 
 def log_string(out_str):
     LOG_FOUT.write(out_str + '\n')
@@ -95,24 +86,26 @@ def load_model_strict(sess, saver, restore_model):
 def test(raw_dirs, TEST_LISTINFO, info, cats_limit):
     log_string(FLAGS.log_dir)
     ######## ---------------------------   uni or ball
-    if FLAGS.unitype == "uni":
-        grid = np.array([get_unigrid(FLAGS.res)])
-    elif FLAGS.unitype == "ball":
-        grid = np.array([get_ballgrid(FLAGS.anglenums)])
-    nums = grid.shape[1] if FLAGS.unionly else FLAGS.initnums
-    num_in_gpu, SPLIT_SIZE, batch_size = cal_size(nums)
-    print("nums {}, num_in_gpu {}, batch_size {}, SPLIT_SIZE {}", nums, num_in_gpu, batch_size, SPLIT_SIZE)
-    FLAGS.batch_size = 1
-    FLAGS.filename = None
-    TEST_DATASET = data_ivt_h5_queue.Pt_sdf_img(FLAGS, listinfo=TEST_LISTINFO, info=info, cats_limit=cats_limit, shuffle=False)
-    TEST_DATASET.start()
-    test_uni_epoch(grid, TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE)
-    TEST_DATASET.shutdown()
+    # if FLAGS.unitype == "uni":
+    #     grid = np.array([get_unigrid(FLAGS.res)])
+    # elif FLAGS.unitype == "ball":
+    #     grid = np.array([get_ballgrid(FLAGS.anglenums)])
+    # nums = grid.shape[1] if FLAGS.unionly else FLAGS.initnums
+    # num_in_gpu, SPLIT_SIZE, batch_size = cal_size(nums)
+    # print("nums {}, num_in_gpu {}, batch_size {}, SPLIT_SIZE {}", nums, num_in_gpu, batch_size, SPLIT_SIZE)
+    # FLAGS.batch_size = 1
+    # FLAGS.filename = None
+    # TEST_DATASET = data_ivt_h5_queue.Pt_sdf_img(FLAGS, listinfo=TEST_LISTINFO, info=info, cats_limit=cats_limit, shuffle=False)
+    # TEST_DATASET.start()
+    # test_uni_epoch(grid, TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE)
+    # TEST_DATASET.shutdown()
     ######## ---------------------------   surface
-
+    weightform = FLAGS.weightform
+    nums = FLAGS.initnums
     for i in range(FLAGS.rounds):
+        print("################ rounds,", str(i))
         if FLAGS.rounds > 2 and i == (FLAGS.rounds - 2):
-            # weightform = "even"
+            weightform = "even"
             num_ratio = 1
         else:
             num_ratio = FLAGS.num_ratio
@@ -122,7 +115,7 @@ def test(raw_dirs, TEST_LISTINFO, info, cats_limit):
         FLAGS.filename = "surf_{}".format(i)
         TEST_DATASET = data_ivt_h5_queue.Pt_sdf_img(FLAGS, listinfo=TEST_LISTINFO, info=info, cats_limit=cats_limit, shuffle=False)
         TEST_DATASET.start()
-        test_near_epoch(TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE, FLAGS.stdratio, FLAGS.stdlwb[i], FLAGS.stdupb[i])
+        test_near_epoch(TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE, FLAGS.stdratio, FLAGS.stdlwb[i], FLAGS.stdupb[i], weightform, i)
         TEST_DATASET.shutdown()
     sys.stdout.flush()
     print("Done!")
@@ -175,7 +168,7 @@ def test_uni_epoch(grid, TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE):
                 save_data_h5(batch_data, locs, norms, dists, "surf_{}".format(0), num_limit=FLAGS.initnums*4)
     return
 
-def test_near_epoch(TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE, stdratio, stdlwb, stdupb):
+def test_near_epoch(TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE, stdratio, stdlwb, stdupb, weightform, round):
     with tf.Graph().as_default():
         with tf.device('/gpu:0'):
             input_pls = model.placeholder_inputs(scope='inputs_pl', FLAGS=FLAGS, num_pnts=num_in_gpu)
@@ -215,11 +208,11 @@ def test_near_epoch(TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE, stdratio, stdlwb
                     weights = np.full((stds.shape[0], stds.shape[1]), 1)
                 elif weightform == "reverse":
                     weights = 1.0 / np.maximum(dists, 5e-3)
-                pcs = sample_from_MM(locs, norms, stds, weights, nums, dists, distr=distr, gridsize=FLAGS.gridsize)
+                pcs = sample_from_MM(locs, norms, stds, weights, nums, dists, distr=FLAGS.distr, gridsize=FLAGS.gridsize)
                 batch_data['locs'] = pcs
-                locs, norms, dists = nearsample_pnts(sess, ops, i, batch_data, num_in_gpu, SPLIT_SIZE)
+                locs, norms, dists = nearsample_pnts(sess, ops, round, batch_data, num_in_gpu, SPLIT_SIZE)
                 # np.savetxt(os.path.join(outdir, "surf_samp{}.txt".format(i)), pc, delimiter=";")
-                save_data_h5(batch_data, locs, norms, dists, "surf_{}".format(i+1))
+                save_data_h5(batch_data, locs, norms, dists, "surf_{}".format(round+1))
 
 
 def unisample_pnts(sess, ops, roundnum, batch_data, unigrid, nums, num_in_gpu, SPLIT_SIZE, threshold=0.1):
@@ -315,8 +308,8 @@ def inference_batch(sess, ops, roundnum, batch_data, num_in_gpu, SPLIT_SIZE):
     log_string(str(datetime.now()))
     totalnum = batch_data['locs'].shape[1]
     batch_size = batch_data['locs'].shape[0]
-    extra_pts = np.zeros((1, SPLIT_SIZE * num_in_gpu - totalnum, 3), dtype=np.float32)
-    batch_points = np.concatenate([batch_data['locs'], extra_pts], axis = 1).reshape((SPLIT_SIZE, 1, -1, 3))
+    extra_pts = np.zeros((batch_size, SPLIT_SIZE * num_in_gpu - totalnum, 3), dtype=np.float32)
+    batch_points = np.concatenate([batch_data['locs'], extra_pts], axis = 1).reshape((SPLIT_SIZE, batch_size, -1, 3))
     pred_ivt_lst = []
     pred_drct_lst = []
     tic = time.time()
@@ -400,7 +393,7 @@ def sample_from_MM(locs, norm, std, weights, nums, dist, distr="gaussian", grids
         print("weights.shape", weights.shape, "locs.shape", locs.shape, "std.shape", std.shape, "nums", nums)
         picked_pnts = []
         for i in range(weights.shape[0]):
-            inds = np.random.choice(weights.shape[1], nums, p=weights)
+            inds = np.random.choice(weights.shape[1], nums, p=weights[i])
             picked_pnts.append(sampled_pnts[i][inds])
         return np.array(picked_pnts)
     else:
@@ -413,7 +406,8 @@ def grid_weight(loc, gridsize, weights):
     xyzDims = np.floor((maxXYZ - minXYZ) / gridsize)
     norm_loc = loc - minXYZ
     norm_loc_xyzind = np.floor(norm_loc / gridsize)
-    norm_loc_ind = norm_loc_xyzind[:,:,0] * xyzDims[:,[1]] * xyzDims[:,[2]] + norm_loc_xyzind[:,:,[1]] * xyzDims[:,[2]] + norm_loc_xyzind[:,:,2]
+    # print("norm_loc.shape, norm_loc_xyzind.shape, xyzDims.shape ", norm_loc.shape, norm_loc_xyzind.shape, xyzDims.shape)
+    norm_loc_ind = norm_loc_xyzind[:,:,0] * xyzDims[:,0,[1]] * xyzDims[:,0,[2]] + norm_loc_xyzind[:,:,1] * xyzDims[:,0,[2]] + norm_loc_xyzind[:,:,2]
     for i in range(norm_loc_ind.shape[0]):
         unique, reverse_index, counts = np.unique(norm_loc_ind[i], return_inverse=True, return_counts=True)
         weight_count = counts[reverse_index]

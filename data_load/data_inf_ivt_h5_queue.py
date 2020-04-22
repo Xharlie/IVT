@@ -64,8 +64,8 @@ class Pt_sdf_img(threading.Thread):
         return img_dir, None
 
 
-    def get_ivt_h5_filenm(self, cat_id, obj):
-        return os.path.join(self.ivt_dir, cat_id, obj, "{}.h5".format(self.FLAGS.filename))
+    def get_ivt_h5_filenm(self, cat_id, obj, view_id):
+        return os.path.join(self.ivt_dir, cat_id, obj, view_id, self.FLAGS.unitype, "{}.h5".format(self.FLAGS.filename))
 
     def pc_normalize(self, pc, centroid=None):
 
@@ -107,7 +107,7 @@ class Pt_sdf_img(threading.Thread):
         locs, norms, dists =None,None,None
         cat_id, obj, num = self.listinfo[index]
         if self.FLAGS.filename is not None:
-            ivt_file = self.get_ivt_h5_filenm(cat_id, obj)
+            ivt_file = self.get_ivt_h5_filenm(cat_id, obj, str(num))
             locs, norms, dists = self.get_ivt_h5(ivt_file)
         img_dir, img_file_lst = self.get_img_dir(cat_id, obj)
         return locs, norms, dists, img_dir, img_file_lst, cat_id, obj, num
