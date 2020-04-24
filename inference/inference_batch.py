@@ -83,7 +83,7 @@ def load_model_strict(sess, saver, restore_model):
         saver.restore(sess, LOAD_MODEL_FILE)
     return sess
 
-def test(raw_dirs, TEST_LISTINFO, info, cats_limit):
+def test(raw_dirs, info, cats_limit):
     log_string(FLAGS.log_dir)
     ######## ---------------------------   uni or ball
     if FLAGS.start_round == -1:
@@ -92,14 +92,17 @@ def test(raw_dirs, TEST_LISTINFO, info, cats_limit):
         elif FLAGS.unitype == "ball":
             grid = np.array([get_ballgrid(FLAGS.anglenums)])
         nums = grid.shape[1] if FLAGS.unionly else FLAGS.initnums
+        TEST_LISTINFO = get_list(cats_limit, "surf_0.h5")
         num_in_gpu, SPLIT_SIZE, batch_size = cal_size(nums)
-        print("nums {}, num_in_gpu {}, batch_size {}, SPLIT_SIZE {}", nums, num_in_gpu, batch_size, SPLIT_SIZE)
-        FLAGS.batch_size = 1
-        FLAGS.filename = None
-        TEST_DATASET = data_ivt_h5_queue.Pt_sdf_img(FLAGS, listinfo=TEST_LISTINFO, info=info, cats_limit=cats_limit, shuffle=False)
-        TEST_DATASET.start()
-        test_uni_epoch(grid, TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE)
-        TEST_DATASET.shutdown()
+        batch_size = min(batch_size, len(TEST_LISTINFO))
+        if batch_size > 0:
+            print("nums {}, num_in_gpu {}, batch_size {}, SPLIT_SIZE {}", nums, num_in_gpu, batch_size, SPLIT_SIZE)
+            FLAGS.batch_size = 1
+            FLAGS.filename = None
+            TEST_DATASET = data_ivt_h5_queue.Pt_sdf_img(FLAGS, listinfo=TEST_LISTINFO, info=info, cats_limit=cats_limit, shuffle=False)
+            TEST_DATASET.start()
+            test_uni_epoch(grid, TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE)
+            TEST_DATASET.shutdown()
         FLAGS.start_round = 0
     ######## ---------------------------   surface
     weightform = FLAGS.weightform
@@ -113,14 +116,17 @@ def test(raw_dirs, TEST_LISTINFO, info, cats_limit):
         else:
             num_ratio = FLAGS.num_ratio
         nums = nums * num_ratio
-        num_in_gpu, SPLIT_SIZE, batch_size = cal_size(nums)
-        FLAGS.batch_size = batch_size
         FLAGS.filename = "surf_{}".format(i)
-        FLAGS.surf_num = nums
-        TEST_DATASET = data_ivt_h5_queue.Pt_sdf_img(FLAGS, listinfo=TEST_LISTINFO, info=info, cats_limit=cats_limit, shuffle=False)
-        TEST_DATASET.start()
-        test_near_epoch(TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE, FLAGS.stdratio, FLAGS.stdlwb[i], FLAGS.stdupb[i], weightform, i)
-        TEST_DATASET.shutdown()
+        TEST_LISTINFO = get_list(cats_limit, "surf_{}.h5".format(i+1))
+        num_in_gpu, SPLIT_SIZE, batch_size = cal_size(nums)
+        batch_size = min(batch_size, len(TEST_LISTINFO))
+        if batch_size > 0:
+            FLAGS.batch_size = batch_size
+            FLAGS.surf_num = nums
+            TEST_DATASET = data_ivt_h5_queue.Pt_sdf_img(FLAGS, listinfo=TEST_LISTINFO, info=info, cats_limit=cats_limit, shuffle=False)
+            TEST_DATASET.start()
+            test_near_epoch(TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE, FLAGS.stdratio, FLAGS.stdlwb[i], FLAGS.stdupb[i], weightform, i)
+            TEST_DATASET.shutdown()
     sys.stdout.flush()
     print("Done!")
 
@@ -143,7 +149,7 @@ def test_uni_epoch(grid, TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE):
             loss, end_points = model.get_loss(end_points, FLAGS=FLAGS)
             gpu_options = tf.compat.v1.GPUOptions()  # (per_process_gpu_memory_fraction=0.99)
             config = tf.compat.v1.ConfigProto(gpu_options=gpu_options)
-            config.gpu_options.allow_growth = True
+            config.gpu_options.allow_growth = False
             config.allow_soft_placement = True
             config.log_device_placement = False
             sess = tf.compat.v1.Session(config=config)
@@ -163,6 +169,7 @@ def test_uni_epoch(grid, TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE):
 
             num_batches = int(len(TEST_DATASET) / FLAGS.batch_size)
             for batch_idx in range(num_batches):
+                tic=time.time()
                 batch_data = TEST_DATASET.fetch()
                 if FLAGS.unitype == "uni":
                     locs, norms, dists = unisample_pnts(sess, ops, -1, batch_data, grid, nums, num_in_gpu, SPLIT_SIZE, threshold=FLAGS.uni_thresh)
@@ -170,6 +177,7 @@ def test_uni_epoch(grid, TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE):
                     locs, norms, dists = ballsample_pnts(sess, ops, -1, batch_data, grid, nums, num_in_gpu, SPLIT_SIZE)
                 save_data_h5(batch_data, locs, norms, dists, FLAGS.unitype)
                 save_data_h5(batch_data, locs, norms, dists, "surf_{}".format(0), num_limit=FLAGS.initnums*4)
+                print( ' time per batch: %.02f, ' % (time.time() - tic))
             sess.close()
     return
 
@@ -207,7 +215,9 @@ def test_near_epoch(TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE, stdratio, stdlwb
             num_batches = int(len(TEST_DATASET) / FLAGS.batch_size)
             for batch_idx in range(num_batches):
                 tic=time.time()
+                print("pre fetch")
                 batch_data = TEST_DATASET.fetch()
+                print("post fetch")
                 locs, norms, dists = batch_data["locs"], batch_data["norms"], batch_data["dists"]
                 stds = cal_std(dists, stdratio, stdlwb=stdlwb, stdupb=stdupb)
                 if weightform == "even":
@@ -234,7 +244,7 @@ def unisample_pnts(sess, ops, roundnum, batch_data, unigrid, nums, num_in_gpu, S
     ind = uni_dist <= threshold
     uni_drcts = uni_drcts[ind]
     locs = unigrid[ind] + uni_ivts[ind]
-    return locs, -uni_drcts, uni_dist[ind]
+    return np.array([locs]), -np.array([uni_drcts]), np.array([uni_dist[ind]])
 
 
 def ballsample_pnts(sess, ops, roundnum, batch_data, ballgrid, nums, num_in_gpu, SPLIT_SIZE):
@@ -257,6 +267,7 @@ def save_data_h5(batch_data, locs, norms, dists, name, num_limit=None):
             norms_lst.append(norms[i][inds])
             dists_lst.append(dists[i][inds])
         locs, norms, dists = np.array(locs_lst), np.array(norms_lst), np.array(dists_lst)
+    # print("locs.shape, norms.shape, dists.shape",locs.shape, norms.shape, dists.shape)
     for i in range(locs.shape[0]):
         view_id = batch_data["view_id"][i]
         outdir = os.path.join(FLAGS.outdir, batch_data["cat_id"][i], batch_data["obj_nm"][i], str(view_id), FLAGS.unitype)
@@ -466,10 +477,24 @@ def nearsample_pnts(sess, ops, roundnum, batch_data, num_in_gpu, SPLIT_SIZE):
     dist = np.linalg.norm(surface_ivts, axis=2)
     return surface_place, surf_norm, dist
 
-
+def get_list(cats_limit, filename):
+    TEST_LISTINFO = []
+    for cat_id in cat_ids:
+        test_lst = os.path.join(FLAGS.test_lst_dir, cat_id + "_test.lst")
+        with open(test_lst, 'r') as f:
+            lines = f.read().splitlines()
+            for line in lines:
+                obj = line.strip()
+                for render in range(24):
+                    if FLAGS.skipexist and os.path.exists(
+                            os.path.join(FLAGS.outdir, cat_id, obj, str(render), FLAGS.unitype, filename)):
+                        continue
+                    cats_limit[cat_id] += 1
+                    TEST_LISTINFO += [(cat_id, obj, render)]
+    return TEST_LISTINFO
 
 if __name__ == "__main__":
-    # nohup python -u inference_batch.py --gpu 0 --img_feat_onestream --category chair  --restore_model ../train/checkpoint/onestream_small_spheregrid/chair_vgg_16_010000 --restore_surfmodel ../train/checkpoint/onestream_small_surf/chair_vgg_16_010000 --outdir  chair_drct_even_surfonly_uni --unionly --unitype ball --XYZ --start_round 2 &> global_direct_chair_surf_evenweight_uni.log &
+    # nohup python -u inference_batch.py --skipexist --gpu 0 --img_feat_onestream --category chair  --restore_model ../train/checkpoint/onestream_small_grid/chair_vgg_16_010000/model.ckpt.data-00000-of-00001 --restore_surfmodel ../train/checkpoint/onestream_small_surf_nonmani/chair_vgg_16_010000/model.ckpt.data-00000-of-00001 --outdir  inf_new --unionly --unitype uni --XYZ --start_round -1 --distr ball &> global_direct_chair_surf_evenweight_uni.log &
 
 
     # nohup python -u inference.py --gt --outdir  gt_noerrBall --unionly --stdupb 0.3 0.3 0.2 0.1 0.05 --stdlwb 0.01 0.01 0.01 0.01 0.01 &> gt_uni.log &
@@ -535,6 +560,7 @@ if __name__ == "__main__":
     parser.add_argument('--gt', action='store_true')
     parser.add_argument('--norminter', action='store_true')
     parser.add_argument('--smaller', action='store_true')
+    parser.add_argument('--skipexist', action='store_true')
     parser.add_argument('--act', type=str, default="relu")
     parser.add_argument('--encoder', type=str, default='vgg_16',
                         help='encoder model: vgg_16, resnet_v1_50, resnet_v1_101, resnet_v2_50, resnet_v2_101')
@@ -584,7 +610,6 @@ if __name__ == "__main__":
             FLAGS.category:cats[FLAGS.category]
         }
 
-    TEST_LISTINFO = []
     cats_limit = {}
 
     cat_ids = []
@@ -595,15 +620,6 @@ if __name__ == "__main__":
     else:
         cat_ids.append(cats[FLAGS.category])
         cats_limit[cats[FLAGS.category]] = 0
-
-    for cat_id in cat_ids:
-        test_lst = os.path.join(FLAGS.test_lst_dir, cat_id + "_test.lst")
-        with open(test_lst, 'r') as f:
-            lines = f.read().splitlines()
-            for line in lines:
-                for render in range(24):
-                    cats_limit[cat_id] += 1
-                    TEST_LISTINFO += [(cat_id, line.strip(), render)]
 
     # TEST_LISTINFO += [("03001627", "17e916fc863540ee3def89b32cef8e45", 11)]
     # TEST_LISTINFO += [("03001627", "1be38f2624022098f71e06115e9c3b3e", 0)]
@@ -634,6 +650,6 @@ if __name__ == "__main__":
     if FLAGS.gt:
         print("no gt implemented")
     else:
-        test(raw_dirs, TEST_LISTINFO, info, cats_limit)
+        test(raw_dirs, info, cats_limit)
     print("done!")
     LOG_FOUT.close()

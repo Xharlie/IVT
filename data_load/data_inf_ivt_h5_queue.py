@@ -121,6 +121,7 @@ class Pt_sdf_img(threading.Thread):
             dists = h5_f['dists'][:].astype(np.float32)
         except:
             print("h5py wrong:", ivt_h5_file)
+            sys.stdout.flush()
         finally:
             h5_f.close()
         return locs, norms, dists
