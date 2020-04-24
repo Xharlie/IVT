@@ -177,6 +177,8 @@ def test_uni_epoch(grid, TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE):
                     locs, norms, dists = ballsample_pnts(sess, ops, -1, batch_data, grid, nums, num_in_gpu, SPLIT_SIZE)
                 save_data_h5(batch_data, locs, norms, dists, FLAGS.unitype)
                 save_data_h5(batch_data, locs, norms, dists, "surf_{}".format(0), num_limit=FLAGS.initnums*4)
+                print(' -----rounds %d, %d points ------ %d/%d' % (-1, locs.shape[1], batch_idx+1, num_batches))
+
                 print( ' time per batch: %.02f, ' % (time.time() - tic))
             sess.close()
     return
