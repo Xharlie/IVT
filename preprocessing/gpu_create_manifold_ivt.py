@@ -94,15 +94,15 @@ def gpu_calculate_ivt(points, tries, gpu, from_marchingcube):
         topk_tries = np.take(tries, topk_ind, axis=0)
         print("finish, pick topk_ind", topk_ind.shape, topk_tries.shape, "time diff:", time.time() - ind_start)
         ivtround_start = time.time()
-        ivt, dist = ptdcuda.pnts_tries_ivts(points, None, topk_tries=topk_tries, gpu=gpu)
+        ivt, dist, on_edge = ptdcuda.pnts_tries_ivts(points, None, topk_tries=topk_tries, gpu=gpu)
         print("finish ptdcuda ivt, dist:", ivt.shape, dist.shape, "time diff:", time.time() - ivtround_start)
-        vcts_part, minind = ptdcuda.closet(ivt, dist)
+        vcts_part, minind, on_edge_closest = ptdcuda.closet(ivt, dist, on_edge)
         minind = np.arange(minind.shape[0]) * 10 + minind
         closest_ind = np.take(topk_ind, minind)
         # print("closest_ind,minind",closest_ind.shape,minind.shape,minind)
         vcts.append(vcts_part)
     else:
-        times = points.shape[0] * num_tries // (25000 * 6553 * 4) + 1
+        times = points.shape[0] * num_tries // (25000 * 6553 * 3) + 1
         span = points.shape[0] // times + 1
         vcts = []
         print("points.shape, tries.shape", points.shape, tries.shape)
@@ -112,18 +112,19 @@ def gpu_calculate_ivt(points, tries, gpu, from_marchingcube):
             lgindx = min(points.shape[0], (i+1) * span)
             pnts = points[smindx:lgindx,:]
             ivtround_start = time.time()
-            ivt, dist = ptdcuda.pnts_tries_ivts(pnts, tries, gpu=gpu)
+            ivt, dist, on_edge = ptdcuda.pnts_tries_ivts(pnts, tries, gpu=gpu)
             print("finish, ivt, dist", ivt.shape, dist.shape, "time diff:", time.time() - ivtround_start)
-            vcts_part, minind = ptdcuda.closet(ivt, dist)
+            vcts_part, minind, on_edge_closest = ptdcuda.closet(ivt, dist, on_edge)
             closest_ind = np.concatenate([closest_ind, minind],axis=0)
             vcts.append(vcts_part)
             print("end ptdcuda: {}/{}".format(i+1, times))
     ivt_closest = vcts[0] if len(vcts) == 0 else np.concatenate(vcts, axis=0)
     print("ivt_closest.shape", ivt_closest.shape, "time diff:", time.time() - start)
-    return ivt_closest, closest_ind
+    return ivt_closest, on_edge_closest, closest_ind
+
 
 def gpu_calculate_ivt_norm(points, tries, face_norms, vert_norms, gpu, from_marchingcube):
-    ivt_closest, closest_ind = gpu_calculate_ivt(points, tries, gpu, from_marchingcube)
+    ivt_closest, on_edge_closest, closest_ind = gpu_calculate_ivt(points, tries, gpu, from_marchingcube)
     # print("uniq face ind",np.unique(closest_ind))
     tries = tries[closest_ind]
     face_norms = face_norms[closest_ind]
@@ -131,7 +132,7 @@ def gpu_calculate_ivt_norm(points, tries, face_norms, vert_norms, gpu, from_marc
     print("gpu_calculate_ivt_norm : face_norms.shape, vert_norms.shape",face_norms.shape, vert_norms.shape)
     points_surf = points + ivt_closest
     inter_norm = normal_gen.interp(points_surf, face_norms, tries, vert_norms)
-    return ivt_closest, inter_norm
+    return ivt_closest, on_edge_closest, inter_norm
 
 
 
@@ -211,13 +212,13 @@ def create_h5_ivt_pt(gpu, cat_id, h5_file, tries, face_norms, vert_norms, surfpo
     surfpoints_sample = add_normal_jitters(surfpoints_sample, surfnormals_sample, height=0.1)
 
     if not normalgt:
-        sphere_ivts,_ = gpu_calculate_ivt(ball_samples, tries,gpu,from_marchingcube)  # (N*8)x4 (x,y,z)
-        uni_ivts,_ = gpu_calculate_ivt(ungridsamples, tries,gpu,from_marchingcube)  # (N*8)x4 (x,y,z)
-        surf_ivts,_ = gpu_calculate_ivt(surfpoints_sample, tries, gpu,from_marchingcube)  # (N*8)x4 (x,y,z)
+        sphere_ivts, sphere_onedge, _ = gpu_calculate_ivt(ball_samples, tries,gpu,from_marchingcube)  # (N*8)x4 (x,y,z)
+        uni_ivts, uni_onedge, __ = gpu_calculate_ivt(ungridsamples, tries,gpu,from_marchingcube)  # (N*8)x4 (x,y,z)
+        surf_ivts, surf_onedge, __ = gpu_calculate_ivt(surfpoints_sample, tries, gpu,from_marchingcube)  # (N*8)x4 (x,y,z)
     else:
-        sphere_ivts, sphere_norm = gpu_calculate_ivt_norm(ball_samples, tries, face_norms, vert_norms, gpu, from_marchingcube)  # (N*8)x4 (x,y,z)
-        uni_ivts, uni_norm = gpu_calculate_ivt_norm(ungridsamples, tries, face_norms, vert_norms, gpu, from_marchingcube)  # (N*8)x4 (x,y,z)
-        surf_ivts, surf_norm = gpu_calculate_ivt_norm(surfpoints_sample, tries, face_norms, vert_norms, gpu, from_marchingcube)  # (N*8)x4 (x,y,z)
+        sphere_ivts, sphere_onedge, sphere_norm = gpu_calculate_ivt_norm(ball_samples, tries, face_norms, vert_norms, gpu, from_marchingcube)  # (N*8)x4 (x,y,z)
+        uni_ivts, uni_onedge, uni_norm = gpu_calculate_ivt_norm(ungridsamples, tries, face_norms, vert_norms, gpu, from_marchingcube)  # (N*8)x4 (x,y,z)
+        surf_ivts, surf_onedge, surf_norm = gpu_calculate_ivt_norm(surfpoints_sample, tries, face_norms, vert_norms, gpu, from_marchingcube)  # (N*8)x4 (x,y,z)
     print("start to write", h5_file)
     with h5py.File(h5_file, 'w') as f1:
         f1.create_dataset('uni_pnts', data=ungridsamples.astype(np.float32), compression='gzip', compression_opts=4)
@@ -226,6 +227,9 @@ def create_h5_ivt_pt(gpu, cat_id, h5_file, tries, face_norms, vert_norms, surfpo
         f1.create_dataset('uni_ivts', data=uni_ivts.astype(np.float32), compression='gzip', compression_opts=4)
         f1.create_dataset('sphere_ivts', data=sphere_ivts.astype(np.float32), compression='gzip', compression_opts=4)
         f1.create_dataset('surf_ivts', data=surf_ivts.astype(np.float32), compression='gzip', compression_opts=4)
+        f1.create_dataset('uni_onedge', data=uni_onedge.astype(np.float32), compression='gzip', compression_opts=4)
+        f1.create_dataset('sphere_onedge', data=sphere_onedge.astype(np.float32), compression='gzip', compression_opts=4)
+        f1.create_dataset('surf_onedge', data=surf_onedge.astype(np.float32), compression='gzip', compression_opts=4)
         f1.create_dataset('norm_params', data=norm_params, compression='gzip', compression_opts=4)
         if normalgt:
             f1.create_dataset('uni_norm', data=uni_norm.astype(np.float32), compression='gzip', compression_opts=4)
@@ -581,7 +585,7 @@ if __name__ == "__main__":
     FLAGS = parser.parse_args()
 
     # nohup python -u gpu_create_manifold_ivt.py --thread_num 12 --shuffle --category all &> create_ivt.log &
-    # nohup python -u gpu_create_manifold_ivt.py --thread_num 2 --shuffle --category chair --realmodel &> create_ivt.log &
+    # nohup python -u gpu_create_manifold_ivt.py --thread_num 3 --shuffle --category chair --realmodel &> create_ivt.log &
 
     #  full set
     lst_dir, cats, all_cats, raw_dirs = create_file_lst.get_all_info()

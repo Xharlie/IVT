@@ -437,7 +437,7 @@ def grid_weight(loc, gridsize, weights):
 
 def ball_sample(xyzmean, radius):
     uvw = np.random.normal(np.zeros_like(xyzmean), np.ones_like(xyzmean))
-    e = np.random.exponential(0.5, size=(xyzmean.shape[0],xyzmean.shape[1]))
+    e = np.random.exponential(0.5, size=(xyzmean.shape[0],xyzmean.shape[1],1))
     denom = np.sqrt(e + np.sum(np.square(uvw),axis=2, keepdims=True))
     return xyzmean + uvw * radius / denom
 

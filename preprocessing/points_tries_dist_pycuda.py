@@ -23,9 +23,9 @@ def pnts_tries_ivts(pnts, tries, topk_tries=None, gpu=0):
     mod = SourceModule("""
     #define CLAMP(x, low, high)  (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
 
-    __device__ void closesPointOnTriangle(float *triangle, float *point, float ivt[4])
+    __device__ void closesPointOnTriangle(float *triangle, float *point, float ivt[5])
     {
-
+            
         float edge0x = triangle[3] - triangle[0];
         float edge0y = triangle[4] - triangle[1];
         float edge0z = triangle[5] - triangle[2];
@@ -47,7 +47,7 @@ def pnts_tries_ivts(pnts, tries, topk_tries=None, gpu=0):
         float det = a*c - b*b;
         float s = b*e - c*d;
         float t = b*d - a*e;
-
+        ivt[4] = 1.0;
         if ( s + t < det )
         {
             if ( s < 0.f )
@@ -105,6 +105,7 @@ def pnts_tries_ivts(pnts, tries, topk_tries=None, gpu=0):
                 float invDet = 1.f / det;
                 s = s * invDet;
                 t = t * invDet;
+                ivt[4] = 0.0;
             }
         }
         else
@@ -190,7 +191,7 @@ def pnts_tries_ivts(pnts, tries, topk_tries=None, gpu=0):
         ivt[3] = sqrt(ivt[0]*ivt[0] + ivt[1]*ivt[1] + ivt[2]*ivt[2]);
     }
 
-    __global__ void p2t(float *ivts, float *dist, float *pnts, float *tries, int pnt_num, int tries_num)
+    __global__ void p2t(float *ivts, float *dist, float *on_edge, float *pnts, float *tries, int pnt_num, int tries_num)
     {
         long i = blockIdx.x * blockDim.x + threadIdx.x;
         int p_id = i / tries_num;
@@ -198,28 +199,30 @@ def pnts_tries_ivts(pnts, tries, topk_tries=None, gpu=0):
             int t_id = i - p_id * tries_num;
             float triangle[9] = {tries[t_id*9], tries[t_id*9+1], tries[t_id*9+2],tries[t_id*9+3], tries[t_id*9+4], tries[t_id*9+5],tries[t_id*9+6], tries[t_id*9+7], tries[t_id*9+8]};
             float point[3] = {pnts[p_id*3], pnts[p_id*3+1], pnts[p_id*3+2]};
-            float ivt[4];
+            float ivt[5];
             closesPointOnTriangle(triangle, point, ivt);
             ivts[i*3] = ivt[0];
             ivts[i*3+1] = ivt[1];
             ivts[i*3+2] = ivt[2];
             dist[i] = ivt[3];
+            on_edge[i] = ivt[4];
         }
     }
     
-    __global__ void p2ttop(float *ivts, float *dist, float *pnts, float *tries, int pnt_num, int top_num)
+    __global__ void p2ttop(float *ivts, float *dist, float *on_edge, float *pnts, float *tries, int pnt_num, int top_num)
     {
         int t_id = blockIdx.x * blockDim.x + threadIdx.x;
         int p_id = t_id / top_num;
         if (p_id < pnt_num) {
             float triangle[9] = {tries[t_id*9], tries[t_id*9+1], tries[t_id*9+2],tries[t_id*9+3], tries[t_id*9+4], tries[t_id*9+5],tries[t_id*9+6], tries[t_id*9+7], tries[t_id*9+8]};
             float point[3] = {pnts[p_id*3], pnts[p_id*3+1], pnts[p_id*3+2]};
-            float ivt[4];
+            float ivt[5];
             closesPointOnTriangle(triangle, point, ivt);
             ivts[t_id*3] = ivt[0];
             ivts[t_id*3+1] = ivt[1];
             ivts[t_id*3+2] = ivt[2];
             dist[t_id] = ivt[3];
+            on_edge[t_id] = ivt[4];
         }
     }
     """)
@@ -231,17 +234,19 @@ def pnts_tries_ivts(pnts, tries, topk_tries=None, gpu=0):
         top_num = topk_tries.shape[1]
         ivt = np.zeros((pnt_num, top_num, 3)).astype(np.float32)
         dist = 10.0 * np.ones((pnt_num, top_num)).astype(np.float32)
+        on_edge = np.zeros((pnt_num, top_num)).astype(np.float32)
         gridSize = int((pnt_num * top_num + kMaxThreadsPerBlock - 1) / kMaxThreadsPerBlock)
         pnts_tries_ivt = mod.get_function("p2ttop")
-        pnts_tries_ivt(drv.Out(ivt), drv.Out(dist), drv.In(np.float32(pnts)), drv.In(np.float32(topk_tries)),np.int32(pnt_num), np.int32(top_num), block=(kMaxThreadsPerBlock, 1, 1), grid=(gridSize, 1))
+        pnts_tries_ivt(drv.Out(ivt), drv.Out(dist), drv.Out(on_edge), drv.In(np.float32(pnts)), drv.In(np.float32(topk_tries)),np.int32(pnt_num), np.int32(top_num), block=(kMaxThreadsPerBlock, 1, 1), grid=(gridSize, 1))
     else:
         print("start to cal ivf", tries.shape)
         tries_num = tries.shape[0]
         ivt = np.zeros((pnt_num, tries_num, 3)).astype(np.float32)
         dist = 10.0 * np.ones((pnt_num, tries_num)).astype(np.float32)
+        on_edge = np.zeros((pnt_num, tries_num)).astype(np.float32)
         gridSize = int((pnt_num * tries_num + kMaxThreadsPerBlock - 1) / kMaxThreadsPerBlock)
         pnts_tries_ivt = mod.get_function("p2t")
-        pnts_tries_ivt(drv.Out(ivt), drv.Out(dist), drv.In(np.float32(pnts)), drv.In(np.float32(tries)), np.int32(pnt_num), np.int32(tries_num), block=(kMaxThreadsPerBlock,1,1), grid=(gridSize,1))
+        pnts_tries_ivt(drv.Out(ivt), drv.Out(dist), drv.Out(on_edge), drv.In(np.float32(pnts)), drv.In(np.float32(tries)), np.int32(pnt_num), np.int32(tries_num), block=(kMaxThreadsPerBlock,1,1), grid=(gridSize,1))
     # print("ivt[0,0,:]", ivt[0,0,:])
     if gpu >= 0: 
         ctx1.pop()
@@ -255,7 +260,7 @@ def pnts_tries_ivts(pnts, tries, topk_tries=None, gpu=0):
     # print("PP1", PP1)
     # print("PP2", PP2)
     # print("PP3", PP3)
-    return ivt, dist
+    return ivt, dist, on_edge
 
 def cal_topkind(pnts, avg_points, gpu=0):
     if gpu < 0:
@@ -314,9 +319,10 @@ def cal_topkind(pnts, avg_points, gpu=0):
         ctx1.pop()
     return topk_ind
 
-def closet(ivt, dist):
+def closet(ivt, dist, on_edge):
     # index = (np.arange(ivt.shape[0]) * dist.shape[1] + np.argmin(dist, axis=1))[:,np.newaxis]
     minind = np.argmin(dist, axis=1)
+    edge_index = np.arange(on_edge.shape[0]) * on_edge.shape[1] + minind
     ivt_index0 = 3*(np.arange(ivt.shape[0]) * dist.shape[1] + minind)[:,np.newaxis]
     ivt_index1 = ivt_index0 + 1
     ivt_index2 = ivt_index1 + 1
@@ -325,10 +331,11 @@ def closet(ivt, dist):
     # print("index",index)
     # dist_closest = np.take(dist, index)
     ivt_closest = np.take(ivt, ivt_indices)
+    on_edge_closest = np.take(on_edge, edge_index)
     # print(index.shape, dist_closest.shape, ivt_closest.shape)
     # print(dist_closest, dist)
     # print(ivt_closest, ivt)
-    return ivt_closest, minind
+    return ivt_closest, minind, on_edge_closest
 
 
 
