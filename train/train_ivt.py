@@ -58,9 +58,7 @@ parser.add_argument('--img_feat_twostream', action='store_true')
 parser.add_argument('--binary', action='store_true')
 parser.add_argument('--alpha', action='store_true')
 parser.add_argument('--act', type=str, default="relu")
-# parser.add_argument('--augcolorfore', action='store_true')
-# parser.add_argument('--augcolorback', action='store_true')
-# parser.add_argument('--backcolorwhite', action='store_true')
+parser.add_argument('--edgeweight', type=float, default=1.0)
 parser.add_argument('--rot', action='store_true')
 parser.add_argument('--XYZ', action='store_true')
 parser.add_argument('--decoderskip', action='store_true')
@@ -377,6 +375,11 @@ def train_one_epoch(sess, ops, epoch):
     direction_avg_diff_epoch = 0
     direction_abs_avg_diff_epoch = 0
 
+    locnorm_onedge_sum_diff_epoch = 0
+    locnorm_ontri_sum_diff_epoch = 0
+    onedge_count_epoch = 0
+    ontri_count_epoch = 0
+
     for batch_idx in range(num_batches):
         start_fetch_tic = time.time()
         batch_data = TRAIN_DATASET.fetch()
@@ -387,6 +390,8 @@ def train_one_epoch(sess, ops, epoch):
                      ops['input_pls']['imgs']: batch_data['imgs'],
                      ops['input_pls']['obj_rot_mats']: batch_data['obj_rot_mats'],
                      ops['input_pls']['trans_mats']: batch_data['trans_mats']}
+        if FLAGS.edgeweight != 1.0:
+            feed_dict[ops['input_pls']['onedge']] = batch_data['onedge']
         output_list = [ops['train_op'], ops['step'], ops['lr'],  ops['end_points']['pnts_rot'], ops['end_points']['gt_ivts_xyz'], ops['end_points']['gt_ivts_dist'], ops['end_points']['gt_ivts_direction'], ops['end_points']['pred_ivts_xyz'], ops['end_points']['pred_ivts_dist'],ops['end_points']['pred_ivts_direction'], ops['end_points']['sample_img_points'], ops['end_points']['imgs'], ops['end_points']['weighed_mask']]
 
         loss_list = []
@@ -411,6 +416,14 @@ def train_one_epoch(sess, ops, epoch):
                 locnorm_avg_diff_epoch += outputs[len(output_list) + il]
             if lossname == "ivts_locsqrnorm_avg_diff":
                 locsqrnorm_avg_diff_epoch += outputs[len(output_list) + il]
+            if lossname == "ivts_locnorm_onedge_sum_diff":
+                locnorm_onedge_sum_diff_epoch += outputs[len(output_list) + il]
+            if lossname == "ivts_locnorm_ontri_sum_diff":
+                locnorm_ontri_sum_diff_epoch += outputs[len(output_list) + il]
+            if lossname == "onedge_count":
+                onedge_count_epoch += outputs[len(output_list) + il]
+            if lossname == "ontri_count":
+                ontri_count_epoch += outputs[len(output_list) + il]
             losses[lossname] += outputs[len(output_list) + il]
 
         # outstr = "   "
@@ -426,6 +439,7 @@ def train_one_epoch(sess, ops, epoch):
             # sampling
             outstr = ' -- %03d / %03d -- ' % (batch_idx+1, num_batches)
             for lossname in losses.keys():
+                if lossname == ""
                 outstr += '%s: %f, ' % (lossname, losses[lossname] / verbose_freq)
                 losses[lossname] = 0
             outstr += "lr: %f" % (lr_val)

@@ -24,12 +24,14 @@ def placeholder_inputs(scope='', FLAGS=None, num_pnts=None):
         ivts_pl = tf.compat.v1.placeholder(tf.float32, shape=(FLAGS.batch_size, num_pnts, 3))
         obj_rot_mat_pl = tf.compat.v1.placeholder(tf.float32, shape=(FLAGS.batch_size, 3, 3))
         trans_mat_pl = tf.compat.v1.placeholder(tf.float32, shape=(FLAGS.batch_size, 4, 3))
+        onedge_pl = tf.compat.v1.placeholder(tf.float32, shape=(FLAGS.batch_size, num_pnts, 1))
     ivt = {}
     ivt['pnts'] = pnts_pl
     ivt['ivts'] = ivts_pl
     ivt['imgs'] = imgs_pl
     ivt['obj_rot_mats'] = obj_rot_mat_pl
     ivt['trans_mats'] = trans_mat_pl
+    ivt['onedge'] = onedge_pl
     return ivt
 
 
@@ -53,6 +55,7 @@ def get_model(input_pls, is_training, bn=False, bn_decay=None, img_size = 224, F
     input_imgs = input_pls['imgs']
     input_pnts = input_pls['pnts']
     input_ivts = input_pls['ivts']
+    input_onedge = input_pls['onedge']
     input_trans_mat = input_pls['trans_mats']
     input_obj_rot_mats = input_pls['obj_rot_mats']
 
@@ -67,6 +70,8 @@ def get_model(input_pls, is_training, bn=False, bn_decay=None, img_size = 224, F
     else:
         end_points['gt_ivts_xyz'] = input_ivts #* 10
         end_points['pnts_rot'] = input_pnts
+    if FLAGS.edgeweight != 1.0:
+        end_points['onedge'] = input_onedge
     input_pnts_rot = end_points['pnts_rot']
     end_points['imgs'] = input_imgs # B*H*W*3|4
 
@@ -191,6 +196,7 @@ def get_img_points(sample_pc, trans_mat_right):
 
 def get_loss(end_points, regularization=True, FLAGS=None):
 
+    onedge = end_points['onedge']
     gt_ivts_xyz = end_points['gt_ivts_xyz']
     gt_ivts_dist = tf.sqrt(tf.reduce_sum(tf.square(gt_ivts_xyz), axis=2, keepdims=True))
     print("gt_ivts_dist.get_shape().as_list(): ", gt_ivts_dist.get_shape().as_list())
@@ -220,10 +226,15 @@ def get_loss(end_points, regularization=True, FLAGS=None):
     ivts_xyz_avg_diff = tf.reduce_mean(ivts_xyz_diff)
 
     ivts_locnorm_diff = tf.norm(ivts_xyz_diff, ord='euclidean', axis=2, keepdims=True)
-    ivts_locnorm_avg_diff = tf.reduce_mean(ivts_locnorm_diff)
-
     ivts_locsqrnorm_diff = tf.reduce_sum(tf.square(ivts_xyz_diff), axis=2, keepdims=True)
+    ivts_locnorm_avg_diff = tf.reduce_mean(ivts_locnorm_diff)
     ivts_locsqrnorm_avg_diff = tf.reduce_mean(ivts_locsqrnorm_diff)
+    if FLAGS.edgeweight != 1.0:
+        onedge_count = tf.reduce_sum(onedge)
+        ontri= 1.0 - onedge
+        ontri_count = tf.reduce_sum(ontri)
+        ivts_locnorm_onedge_sum_diff = tf.reduce_sum(tf.multiply(onedge, ivts_locnorm_diff))
+        ivts_locnorm_ontri_sum_diff = tf.reduce_sum(tf.multiply(ontri, ivts_locnorm_diff))
 
     ivts_dist_diff = tf.abs(gt_ivts_dist - end_points['pred_ivts_dist'])
     ivts_dist_avg_diff = tf.reduce_mean(ivts_dist_diff)
@@ -241,42 +252,47 @@ def get_loss(end_points, regularization=True, FLAGS=None):
     if FLAGS.lossw[0] !=0:
         if FLAGS.weight_type == "non":
             ivts_xyz_loss = ivts_xyz_avg_diff
+            if FLAGS.edgeweight != 1.0:
+                ivts_xyz_loss = tf.reduce_mean(tf.multiply(onedge, ivts_xyz_avg_diff) * FLAGS.edgeweight + tf.multiply(ontri, ivts_xyz_avg_diff))
         else:
             ivts_xyz_loss = tf.reduce_mean(ivts_xyz_diff * weight_mask)
         end_points['losses']['ivts_xyz_loss'] = ivts_xyz_loss
     if FLAGS.lossw[1] != 0:
         if FLAGS.weight_type == "non":
             ivts_locnorm_loss = ivts_locnorm_avg_diff
+            if FLAGS.edgeweight != 1.0:
+                ivts_locnorm_loss = tf.reduce_mean(tf.multiply(onedge, ivts_locnorm_diff) * FLAGS.edgeweight + tf.multiply(ontri, ivts_locnorm_diff))
         else:
             ivts_locnorm_loss = tf.reduce_mean(ivts_locnorm_diff * weight_mask)
         end_points['losses']['ivts_locnorm_loss'] = ivts_locnorm_loss
     if FLAGS.lossw[2] != 0:
         if FLAGS.weight_type == "non":
             ivts_locsqrnorm_loss = ivts_locsqrnorm_avg_diff
+            if FLAGS.edgeweight != 1.0:
+                ivts_locsqrnorm_loss = tf.reduce_mean(tf.multiply(onedge, ivts_locsqrnorm_diff) * FLAGS.edgeweight + tf.multiply(ontri, ivts_locsqrnorm_diff))
         else:
             ivts_locsqrnorm_loss = tf.reduce_mean(ivts_locsqrnorm_diff * weight_mask)
         end_points['losses']['ivts_locsqrnorm_loss'] = ivts_locsqrnorm_loss
     if FLAGS.lossw[3] != 0:
         if FLAGS.weight_type == "non":
             ivts_dist_loss = ivts_dist_avg_diff
+            if FLAGS.edgeweight != 1.0:
+                ivts_dist_loss = tf.reduce_mean(tf.multiply(onedge, ivts_dist_diff) * FLAGS.edgeweight + tf.multiply(ontri, ivts_dist_diff))
         else:
             ivts_dist_loss = tf.reduce_mean(ivts_dist_diff * weight_mask)
         end_points['losses']['ivts_dist_loss'] = ivts_dist_loss
     if FLAGS.lossw[4] != 0:
-        ivts_direction_loss = tf.reduce_mean((1.0-ivts_direction_diff))
+        if FLAGS.edgeweight != 1.0:
+            ivts_direction_loss = tf.reduce_mean(tf.multiply(onedge, (1.0-ivts_direction_diff)) * FLAGS.edgeweight + tf.multiply(ontri, (1.0-ivts_direction_diff)))
+        else:
+            ivts_direction_loss = tf.reduce_mean((1.0-ivts_direction_diff))
         end_points['losses']['ivts_direction_loss'] = ivts_direction_loss
     if FLAGS.lossw[5] != 0:
-        ivts_direction_abs_loss = tf.reduce_mean((1.0-ivts_direction_abs_diff))
+        if FLAGS.edgeweight != 1.0:
+            ivts_direction_abs_loss = tf.reduce_mean(tf.multiply(onedge, (1.0-ivts_direction_abs_diff)) * FLAGS.edgeweight + tf.multiply(ontri, (1.0-ivts_direction_abs_diff)))
+        else:
+            ivts_direction_abs_loss = tf.reduce_mean((1.0-ivts_direction_abs_diff))
         end_points['losses']['ivts_direction_abs_loss'] = ivts_direction_abs_loss
-
-
-    # print("weight_mask.get_shape().as_list(): ", weight_mask.get_shape().as_list())
-    # print("ivts_xyz_diff.get_shape().as_list(): ", ivts_xyz_diff.get_shape().as_list())
-    # print("ivts_xyz_avg_diff.get_shape().as_list(): ", ivts_xyz_avg_diff.get_shape().as_list())
-    # print("ivts_dist_diff.get_shape().as_list(): ", ivts_dist_diff.get_shape().as_list())
-    # print("ivts_dist_avg_diff.get_shape().as_list(): ", ivts_dist_avg_diff.get_shape().as_list())
-    # print("ivts_direction_diff.get_shape().as_list(): ", ivts_direction_diff.get_shape().as_list())
-    # print("ivts_direction_avg_diff.get_shape().as_list(): ", ivts_direction_diff.get_shape().as_list())
 
     loss = FLAGS.lossw[0] * ivts_xyz_loss + FLAGS.lossw[1] * ivts_locnorm_loss + FLAGS.lossw[2] * ivts_locsqrnorm_loss + FLAGS.lossw[3] * ivts_dist_loss + FLAGS.lossw[4] * ivts_direction_loss + FLAGS.lossw[5] * ivts_direction_abs_loss
     end_points['losses']['ivts_xyz_avg_diff'] = ivts_xyz_avg_diff
@@ -286,6 +302,11 @@ def get_loss(end_points, regularization=True, FLAGS=None):
     end_points['losses']['ivts_locnorm_avg_diff'] = ivts_locnorm_avg_diff
     end_points['losses']['ivts_locsqrnorm_avg_diff'] = ivts_locsqrnorm_avg_diff
     end_points['losses']['loss'] = loss
+    if FLAGS.edgeweight != 1.0:
+        end_points['losses']['ivts_locnorm_onedge_sum_diff'] = ivts_locnorm_onedge_sum_diff
+        end_points['losses']['ivts_locnorm_ontri_sum_diff'] = ivts_locnorm_ontri_sum_diff
+        end_points['losses']['onedge_count'] = onedge_count
+        end_points['losses']['ontri_count'] = ontri_count
     ############### weight decay
     if regularization and FLAGS.wd>0:
         vgg_regularization_loss = tf.add_n(tf.compat.v1.losses.get_regularization_losses())
