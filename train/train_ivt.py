@@ -317,7 +317,7 @@ def train():
                 if epoch == 0 and FLAGS.restore_model:
                     test_one_epoch(sess, ops, epoch)
                 xyz_avg_diff, _, _ = train_one_epoch(sess, ops, epoch)
-                if epoch % 10 == 0 and epoch > 1:
+                if epoch % 5 == 0 and epoch > 1:
                     locnorm_avg_diff, direction_avg_diff = test_one_epoch(sess, ops, epoch)
                 # Save the variables to disk.
                     if locnorm_avg_diff < best_locnorm_diff:
