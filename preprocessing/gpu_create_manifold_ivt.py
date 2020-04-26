@@ -87,6 +87,7 @@ def gpu_calculate_ivt(points, tries, gpu, from_marchingcube):
     num_tries = tries.shape[0]
     vcts = []
     closest_ind = np.zeros((0),dtype=np.int)
+    closest_onedge = np.zeros((0),dtype=np.float)
     if from_marchingcube:
         ind_start = time.time()
         avg_points = np.mean(tries, axis=1)
@@ -96,7 +97,7 @@ def gpu_calculate_ivt(points, tries, gpu, from_marchingcube):
         ivtround_start = time.time()
         ivt, dist, on_edge = ptdcuda.pnts_tries_ivts(points, None, topk_tries=topk_tries, gpu=gpu)
         print("finish ptdcuda ivt, dist:", ivt.shape, dist.shape, "time diff:", time.time() - ivtround_start)
-        vcts_part, minind, on_edge_closest = ptdcuda.closet(ivt, dist, on_edge)
+        vcts_part, minind, closest_onedge = ptdcuda.closet(ivt, dist, on_edge)
         minind = np.arange(minind.shape[0]) * 10 + minind
         closest_ind = np.take(topk_ind, minind)
         # print("closest_ind,minind",closest_ind.shape,minind.shape,minind)
@@ -116,11 +117,12 @@ def gpu_calculate_ivt(points, tries, gpu, from_marchingcube):
             print("finish, ivt, dist", ivt.shape, dist.shape, "time diff:", time.time() - ivtround_start)
             vcts_part, minind, on_edge_closest = ptdcuda.closet(ivt, dist, on_edge)
             closest_ind = np.concatenate([closest_ind, minind],axis=0)
+            closest_onedge = np.concatenate([closest_onedge, on_edge_closest],axis=0)
             vcts.append(vcts_part)
             print("end ptdcuda: {}/{}".format(i+1, times))
     ivt_closest = vcts[0] if len(vcts) == 0 else np.concatenate(vcts, axis=0)
     print("ivt_closest.shape", ivt_closest.shape, "time diff:", time.time() - start)
-    return ivt_closest, on_edge_closest, closest_ind
+    return ivt_closest, closest_onedge, closest_ind
 
 
 def gpu_calculate_ivt_norm(points, tries, face_norms, vert_norms, gpu, from_marchingcube):
@@ -215,6 +217,7 @@ def create_h5_ivt_pt(gpu, cat_id, h5_file, tries, face_norms, vert_norms, surfpo
         sphere_ivts, sphere_onedge, _ = gpu_calculate_ivt(ball_samples, tries,gpu,from_marchingcube)  # (N*8)x4 (x,y,z)
         uni_ivts, uni_onedge, __ = gpu_calculate_ivt(ungridsamples, tries,gpu,from_marchingcube)  # (N*8)x4 (x,y,z)
         surf_ivts, surf_onedge, __ = gpu_calculate_ivt(surfpoints_sample, tries, gpu,from_marchingcube)  # (N*8)x4 (x,y,z)
+        print("save sphere_onedge.shape, uni_onedge.shape, surf_onedge.shape", sphere_onedge.shape, uni_onedge.shape, surf_onedge.shape)
     else:
         sphere_ivts, sphere_onedge, sphere_norm = gpu_calculate_ivt_norm(ball_samples, tries, face_norms, vert_norms, gpu, from_marchingcube)  # (N*8)x4 (x,y,z)
         uni_ivts, uni_onedge, uni_norm = gpu_calculate_ivt_norm(ungridsamples, tries, face_norms, vert_norms, gpu, from_marchingcube)  # (N*8)x4 (x,y,z)

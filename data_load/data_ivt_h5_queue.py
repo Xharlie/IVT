@@ -112,7 +112,7 @@ class Pt_sdf_img(threading.Thread):
 
     def get_ivt_h5(self, ivt_h5_file, cat_id, obj):
         # print(ivt_h5_file)
-        uni_pnts, surf_pnts, sphere_pnts, uni_ivts, surf_ivts, sphere_ivts, uni_onedge, surf_onedge, sphere_onedge = None, None, None, None, None, None, None, None, None
+        uni_pnts, surf_pnts, sphere_pnts, uni_ivts, surf_ivts, sphere_ivts, uni_onedge, surf_onedge, sphere_onedge, norm_params = None, None, None, None, None, None, None, None, None, None
         try:
             h5_f = h5py.File(ivt_h5_file, 'r')
             norm_params = h5_f['norm_params'][:].astype(np.float32)
@@ -249,7 +249,7 @@ class Pt_sdf_img(threading.Thread):
             img, trans_mat, obj_rot_mat = self.get_img(img_dir, num)
             pnts = np.zeros((0, 3))
             ivts = np.zeros((0, 3))
-            onedge = np.zeros((0, 1))
+            onedge = np.zeros((0))
             if self.FLAGS.uni_num > 0:
                 if self.FLAGS.uni_num > uni_pnts.shape[0]:
                     uni_choice = np.random.randint(uni_pnts.shape[0], size=self.FLAGS.uni_num)
@@ -258,7 +258,7 @@ class Pt_sdf_img(threading.Thread):
                 pnts = np.concatenate([pnts, uni_pnts[uni_choice, :]],axis=0)
                 ivts = np.concatenate([ivts, uni_ivts[uni_choice, :]],axis=0)
                 if self.FLAGS.edgeweight != 1.0:
-                    onedge = np.concatenate([onedge, uni_onedge[uni_choice, :]],axis=0)
+                    onedge = np.concatenate([onedge, uni_onedge[uni_choice]],axis=0)
             if self.FLAGS.sphere_num > 0:
                 if self.FLAGS.sphere_num > sphere_pnts.shape[0]:
                     sphere_choice = np.random.randint(sphere_pnts.shape[0], size=self.FLAGS.sphere_num)
@@ -267,7 +267,7 @@ class Pt_sdf_img(threading.Thread):
                 pnts = np.concatenate([pnts, sphere_pnts[sphere_choice, :]], axis=0)
                 ivts = np.concatenate([ivts, sphere_ivts[sphere_choice, :]], axis=0)
                 if self.FLAGS.edgeweight != 1.0:
-                    onedge = np.concatenate([onedge, sphere_onedge[sphere_choice, :]],axis=0)
+                    onedge = np.concatenate([onedge, sphere_onedge[sphere_choice]],axis=0)
             if (self.FLAGS.num_pnts - self.FLAGS.uni_num - self.FLAGS.sphere_num) > 0:
                 indexlen = surf_pnts.shape[0]
                 if self.FLAGS.surfrange[0] > 0.0 or self.FLAGS.surfrange[1] < 0.15:
@@ -283,7 +283,7 @@ class Pt_sdf_img(threading.Thread):
                 pnts = np.concatenate([pnts, surf_pnts[surf_choice, :]], axis=0)
                 ivts = np.concatenate([ivts, surf_ivts[surf_choice, :]], axis=0)
                 if self.FLAGS.edgeweight != 1.0:
-                    onedge = np.concatenate([onedge, surf_onedge[surf_choice, :]], axis=0)
+                    onedge = np.concatenate([onedge, surf_onedge[surf_choice]], axis=0)
             batch_pnts[cnt, ...] = pnts
             batch_ivts[cnt, ...] = ivts
             batch_norm_params[cnt, ...] = norm_params
@@ -291,7 +291,7 @@ class Pt_sdf_img(threading.Thread):
             batch_obj_rot_mat[cnt, ...] = obj_rot_mat
             batch_trans_mat[cnt, ...] = trans_mat
             if self.FLAGS.edgeweight != 1.0:
-                batch_onedge[cnt, ...] = onedge
+                batch_onedge[cnt, ...] = np.expand_dims(onedge, axis=1)
             batch_cat_id.append(cat_id)
             batch_obj_nm.append(obj)
             batch_view_id.append(num)
@@ -300,7 +300,7 @@ class Pt_sdf_img(threading.Thread):
                     'norm_params': batch_norm_params, 'imgs': batch_img,
                     'obj_rot_mats': batch_obj_rot_mat, 'trans_mats': batch_trans_mat, \
                     'cat_id': batch_cat_id, 'obj_nm': batch_obj_nm,  'view_id': batch_view_id}
-        if self.edgeweight != 1.0:
+        if self.FLAGS.edgeweight != 1.0:
             batch_data["onedge"] = batch_onedge
         return batch_data
 

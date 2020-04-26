@@ -383,6 +383,7 @@ def train_one_epoch(sess, ops, epoch):
     for batch_idx in range(num_batches):
         start_fetch_tic = time.time()
         batch_data = TRAIN_DATASET.fetch()
+        continue
         fetch_time += (time.time() - start_fetch_tic)
         feed_dict = {ops['is_training_pl']: is_training,
                      ops['input_pls']['pnts']: batch_data['pnts'],
@@ -439,8 +440,12 @@ def train_one_epoch(sess, ops, epoch):
             # sampling
             outstr = ' -- %03d / %03d -- ' % (batch_idx+1, num_batches)
             for lossname in losses.keys():
-                if lossname == ""
-                outstr += '%s: %f, ' % (lossname, losses[lossname] / verbose_freq)
+                if lossname == "ivts_locnorm_onedge_sum_diff":
+                    outstr += '%s: %f, ' % ("locnorm_onedge_diff", losses[lossname] / losses["onedge_count"])
+                elif lossname == "ivts_locnorm_ontri_sum_diff":
+                    outstr += '%s: %f, ' % ("locnorm_ontri_diff", losses[lossname] / losses["ontri_count"])
+                else:
+                    outstr += '%s: %f, ' % (lossname, losses[lossname] / verbose_freq)
                 losses[lossname] = 0
             outstr += "lr: %f" % (lr_val)
             outstr += ' time per b: %.02f, ' % ((time.time() - tic)/verbose_freq)
@@ -472,6 +477,9 @@ def train_one_epoch(sess, ops, epoch):
     print("avg dist_avg_diff:", dist_avg_diff_epoch / num_batches)
     print("avg direction_avg_diff:", direction_avg_diff_epoch / num_batches)
     print("avg direction_abs_avg_diff:", direction_abs_avg_diff_epoch / num_batches)
+    if FLAGS.edgeweight != 1.0:
+        print("avg locnorm_onedge_diff:", locnorm_onedge_sum_diff_epoch / onedge_count_epoch)
+        print("avg locnorm_ontri_diff:", ivts_locnorm_ontri_sum_diff / ontri_count_epoch)
     return xyz_avg_diff_epoch / num_batches, dist_avg_diff_epoch / num_batches, direction_avg_diff_epoch / num_batches
 
 
