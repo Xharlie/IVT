@@ -284,7 +284,7 @@ def train():
             ckptstate = tf.train.get_checkpoint_state(FLAGS.restore_model)
 
             if ckptstate is not None:
-                LOAD_MODEL_FILE = os.path.join(FLAGS.restore_model, os.path.basename(ckptstate.model_checkpoint_path))
+                LOAD_MODEL_FILE = os.path.join(FLAGS.restore_model, os.path.basename(ckptstate.all_model_checkpoint_paths))
                 load_model_all(saver,sess, LOAD_MODEL_FILE)
                 print("Model loaded in file: %s" % LOAD_MODEL_FILE)
                 # try:
@@ -383,7 +383,6 @@ def train_one_epoch(sess, ops, epoch):
     for batch_idx in range(num_batches):
         start_fetch_tic = time.time()
         batch_data = TRAIN_DATASET.fetch()
-        continue
         fetch_time += (time.time() - start_fetch_tic)
         feed_dict = {ops['is_training_pl']: is_training,
                      ops['input_pls']['pnts']: batch_data['pnts'],
@@ -444,6 +443,8 @@ def train_one_epoch(sess, ops, epoch):
                     outstr += '%s: %f, ' % ("locnorm_onedge_diff", losses[lossname] / losses["onedge_count"])
                 elif lossname == "ivts_locnorm_ontri_sum_diff":
                     outstr += '%s: %f, ' % ("locnorm_ontri_diff", losses[lossname] / losses["ontri_count"])
+                elif lossname == "onedge_count" or lossname == "ontri_count":
+                    outstr += '%s: %d, ' % (lossname, int(losses[lossname]))
                 else:
                     outstr += '%s: %f, ' % (lossname, losses[lossname] / verbose_freq)
                 losses[lossname] = 0
@@ -479,7 +480,7 @@ def train_one_epoch(sess, ops, epoch):
     print("avg direction_abs_avg_diff:", direction_abs_avg_diff_epoch / num_batches)
     if FLAGS.edgeweight != 1.0:
         print("avg locnorm_onedge_diff:", locnorm_onedge_sum_diff_epoch / onedge_count_epoch)
-        print("avg locnorm_ontri_diff:", ivts_locnorm_ontri_sum_diff / ontri_count_epoch)
+        print("avg locnorm_ontri_diff:", locnorm_ontri_sum_diff_epoch / ontri_count_epoch)
     return xyz_avg_diff_epoch / num_batches, dist_avg_diff_epoch / num_batches, direction_avg_diff_epoch / num_batches
 
 
@@ -513,6 +514,10 @@ def test_one_epoch(sess, ops, epoch):
     dist_lvl_diff_epoch = 0
     direction_lvl_diff_epoch = 0
     direction_abs_lvl_diff_epoch = 0
+    locnorm_onedge_sum_diff_epoch = 0
+    locnorm_ontri_sum_diff_epoch = 0
+    onedge_count_epoch = 0
+    ontri_count_epoch = 0
 
     for batch_idx in range(num_batches):
         start_fetch_tic = time.time()
@@ -524,6 +529,8 @@ def test_one_epoch(sess, ops, epoch):
                      ops['input_pls']['imgs']: batch_data['imgs'],
                      ops['input_pls']['obj_rot_mats']: batch_data['obj_rot_mats'],
                      ops['input_pls']['trans_mats']: batch_data['trans_mats']}
+        if FLAGS.edgeweight != 1.0:
+            feed_dict[ops['input_pls']['onedge']] = batch_data['onedge']
         output_list = [ops['end_points']['pnts_rot'], ops['end_points']['gt_ivts_xyz'],
                        ops['end_points']['gt_ivts_dist'], ops['end_points']['gt_ivts_direction'],
                        ops['end_points']['pred_ivts_xyz'], ops['end_points']['pred_ivts_dist'],
@@ -556,6 +563,14 @@ def test_one_epoch(sess, ops, epoch):
                 locnorm_avg_diff_epoch += outputs[len(output_list) + il]
             if lossname == "ivts_locsqrnorm_avg_diff":
                 locsqrnorm_avg_diff_epoch += outputs[len(output_list) + il]
+            if lossname == "ivts_locnorm_onedge_sum_diff":
+                locnorm_onedge_sum_diff_epoch += outputs[len(output_list) + il]
+            if lossname == "ivts_locnorm_ontri_sum_diff":
+                locnorm_ontri_sum_diff_epoch += outputs[len(output_list) + il]
+            if lossname == "onedge_count":
+                onedge_count_epoch += outputs[len(output_list) + il]
+            if lossname == "ontri_count":
+                ontri_count_epoch += outputs[len(output_list) + il]
             losses[lossname] += outputs[len(output_list) + il]
 
         for il, diffname in enumerate(ops['end_points']['lvl'].keys()):
@@ -580,7 +595,14 @@ def test_one_epoch(sess, ops, epoch):
             # sampling
             outstr = 'TEST epoch %d -- %03d / %03d -- ' % (epoch, batch_idx + 1, num_batches)
             for lossname in losses.keys():
-                outstr += '%s: %f, ' % (lossname, losses[lossname] / verbose_freq)
+                if lossname == "ivts_locnorm_onedge_sum_diff":
+                    outstr += '%s: %f, ' % ("locnorm_onedge_diff", losses[lossname] / losses["onedge_count"])
+                elif lossname == "ivts_locnorm_ontri_sum_diff":
+                    outstr += '%s: %f, ' % ("locnorm_ontri_diff", losses[lossname] / losses["ontri_count"])
+                elif lossname == "onedge_count" or lossname == "ontri_count":
+                    outstr += '%s: %d, ' % (lossname, int(losses[lossname]))
+                else:
+                    outstr += '%s: %f, ' % (lossname, losses[lossname] / verbose_freq)
                 losses[lossname] = 0
             outstr += ' time per b: %.02f, ' % ((time.time() - tic) / verbose_freq)
             outstr += ' fetch time per b: %.02f, ' % (fetch_time / verbose_freq)
@@ -621,13 +643,15 @@ def test_one_epoch(sess, ops, epoch):
             # print(upper, lower, xyz, dist, drct,drct_avg, count,xyz_lvl_diff_epoch.shape)
             print('{:^10.3f}{:^10.3f}{:^10.5f}{:^10.5f}{:^10.5f}{:^10.5f}{:^10.5f}{:^15.5f}{:^8d}'.format(upper, lower, locnorm, locsqrnorm, xyz, dist, drct, drct_avg, count))
 
-    print("TEST avg xyz_avg_diff:", xyz_avg_diff_epoch / num_batches)
-    print("TEST avg locnorm_avg_diff:", locnorm_avg_diff_epoch / num_batches)
-    print("TEST avg locsqrnorm_avg_diff:", locsqrnorm_avg_diff_epoch / num_batches)
-    print("TEST avg dist_avg_diff:", dist_avg_diff_epoch / num_batches)
-    print("TEST avg direction_avg_diff:", direction_avg_diff_epoch / num_batches)
-    print("TEST avg direction_abs_avg_diff:", direction_abs_avg_diff_epoch / num_batches)
-
+    print("test avg xyz_avg_diff:", xyz_avg_diff_epoch / num_batches)
+    print("test avg locnorm_avg_diff:", locnorm_avg_diff_epoch / num_batches)
+    print("test avg locsqrnorm_avg_diff:", locsqrnorm_avg_diff_epoch / num_batches)
+    print("test avg dist_avg_diff:", dist_avg_diff_epoch / num_batches)
+    print("test avg direction_avg_diff:", direction_avg_diff_epoch / num_batches)
+    print("test avg direction_abs_avg_diff:", direction_abs_avg_diff_epoch / num_batches)
+    if FLAGS.edgeweight != 1.0:
+        print("test avg locnorm_onedge_diff:", locnorm_onedge_sum_diff_epoch / onedge_count_epoch)
+        print("test avg locnorm_ontri_diff:", locnorm_ontri_sum_diff_epoch / ontri_count_epoch)
     return locnorm_avg_diff_epoch / num_batches, direction_avg_diff_epoch/num_batches
 
 

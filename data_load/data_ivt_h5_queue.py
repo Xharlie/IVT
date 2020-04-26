@@ -107,6 +107,11 @@ class Pt_sdf_img(threading.Thread):
         cat_id, obj, num = self.listinfo[index]
         ivt_file = self.get_ivt_h5_filenm(cat_id, obj)
         uni_pnts, surf_pnts, sphere_pnts, uni_ivts, surf_ivts, sphere_ivts, uni_onedge, surf_onedge, sphere_onedge, norm_params = self.get_ivt_h5(ivt_file, cat_id, obj)
+        # if surf_onedge is None or surf_onedge.shape[0] != surf_pnts.shape[0]:
+        #     command_str = "rm -rf " + ivt_file
+        #     print("command:", command_str)
+        #     os.system(command_str)
+        #     return None
         img_dir, img_file_lst = self.get_img_dir(cat_id, obj)
         return uni_pnts, surf_pnts, sphere_pnts, uni_ivts, surf_ivts, sphere_ivts, uni_onedge, surf_onedge, sphere_onedge, norm_params, img_dir, img_file_lst, cat_id, obj, num
 
@@ -143,6 +148,7 @@ class Pt_sdf_img(threading.Thread):
         except:
             print("h5py wrong:", ivt_h5_file)
         finally:
+            # return uni_pnts, surf_pnts, sphere_pnts, uni_ivts, surf_ivts, sphere_ivts, uni_onedge, surf_onedge, sphere_onedge, norm_params
             h5_f.close()
         return uni_pnts, surf_pnts, sphere_pnts, uni_ivts, surf_ivts, sphere_ivts, uni_onedge, surf_onedge, sphere_onedge, norm_params
 
