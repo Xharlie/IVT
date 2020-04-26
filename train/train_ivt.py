@@ -284,7 +284,7 @@ def train():
             ckptstate = tf.train.get_checkpoint_state(FLAGS.restore_model)
 
             if ckptstate is not None:
-                LOAD_MODEL_FILE = os.path.join(FLAGS.restore_model, os.path.basename(ckptstate.model_checkpoint_path))
+                LOAD_MODEL_FILE = os.path.join(FLAGS.restore_model, os.path.basename(ckptstate.all_model_checkpoint_paths[0]))
                 load_model_all(saver,sess, LOAD_MODEL_FILE)
                 print("Model loaded in file: %s" % LOAD_MODEL_FILE)
                 # try:
