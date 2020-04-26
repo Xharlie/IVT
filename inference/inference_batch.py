@@ -78,9 +78,10 @@ class NoStdStreams(object):
 
 def load_model_strict(sess, saver, restore_model):
     ckptstate = tf.train.get_checkpoint_state(restore_model)
-    if ckptstate is not None:
-        LOAD_MODEL_FILE = os.path.join(restore_model, os.path.basename(ckptstate.all_model_checkpoint_paths[0]))
-        saver.restore(sess, LOAD_MODEL_FILE)
+    assert ckptstate is not None, "ckpstate None!!! "
+    LOAD_MODEL_FILE = os.path.join(restore_model, os.path.basename(ckptstate.all_model_checkpoint_paths[0]))
+    saver.restore(sess, LOAD_MODEL_FILE)
+    print(LOAD_MODEL_FILE," is loaded!!!")
     return sess
 
 def test(raw_dirs, info, cats_limit):
@@ -482,12 +483,12 @@ def nearsample_pnts(sess, ops, roundnum, batch_data, num_in_gpu, SPLIT_SIZE):
 def get_list(cats_limit, filename):
     TEST_LISTINFO = []
     for cat_id in cat_ids:
-        test_lst = os.path.join(FLAGS.test_lst_dir, cat_id + "_test.lst")
+        test_lst = os.path.join(FLAGS.test_lst_dir, cat_id + "_{}.lst".format(FLAGS.set))
         with open(test_lst, 'r') as f:
             lines = f.read().splitlines()
             for line in lines:
                 obj = line.strip()
-                for render in range(24):
+                for render in range(FLAGS.view_num):
                     if FLAGS.skipexist and os.path.exists(
                             os.path.join(FLAGS.outdir, cat_id, obj, str(render), FLAGS.unitype, filename)):
                         continue
@@ -496,7 +497,11 @@ def get_list(cats_limit, filename):
     return TEST_LISTINFO
 
 if __name__ == "__main__":
-    # nohup python -u inference_batch.py --skipexist --gpu 0 --img_feat_onestream --category chair  --restore_model ../train/checkpoint/onestream_small_grid/chair_vgg_16_010000 --restore_surfmodel ../train/checkpoint/onestream_small_drct_surf_nonmani/chair_vgg_16_110000 --outdir  inf_new --unionly --unitype uni --XYZ --start_round -1 --distr ball &> global_direct_chair_surf_evenweight_uni.log &
+    # nohup python -u inference_batch.py --gpu 0 --img_feat_onestream --category chair  --restore_model ../train/checkpoint/onestream_small_grid/chair_vgg_16_010000 --restore_surfmodel ../train/checkpoint/onestream_small_drct_surf_nonmani/chair_vgg_16_110000 --outdir  inf_new --unionly --unitype uni --XYZ --start_round -1 --distr ball &> global_direct_chair_surf_evenweight_uni.log &
+
+
+    # nohup python -u inference_batch.py --gpu 2 --img_feat_onestream --category chair  --restore_model ../train/checkpoint/onestream_small_grid/chair_vgg_16_010000 --restore_surfmodel ../train/checkpoint/onestream_small_drct_surf_nonmani/chair_vgg_16_110000 --outdir  inf_new --unionly --unitype uni --XYZ --start_round -1 --distr ball --set train --view_num 4 &> train_chair_surf_evenweight_uni.log &
+
 
 
     # nohup python -u inference.py --gt --outdir  gt_noerrBall --unionly --stdupb 0.3 0.3 0.2 0.1 0.05 --stdlwb 0.01 0.01 0.01 0.01 0.01 &> gt_uni.log &
@@ -570,6 +575,8 @@ if __name__ == "__main__":
     parser.add_argument('--distlimit', nargs='+', action='store', type=str, default=[1.0, 0.9, 0.9, 0.8, 0.8, 0.7, 0.7, 0.6, 0.6, 0.5, 0.5, 0.4, 0.4, 0.3, 0.3, 0.2, 0.2, 0.18, 0.18, 0.16, 0.16, 0.14, 0.14, 0.12, 0.12, 0.1, 0.1, 0.08, 0.08, 0.06, 0.06, 0.05, 0.05, 0.04, 0.04, 0.03, 0.03, 0.02, 0.02, 0.01, 0.01, -0.01])
     parser.add_argument('--surfrange', nargs='+', action='store', default=[0.0, 0.15], help="lower bound, upperbound")
     parser.add_argument('--edgeweight', type=float, default=1.0)
+    parser.add_argument('--set', type=str, default="test")
+    parser.add_argument('--view_num', type=int, default=24)
     FLAGS = parser.parse_args()
     FLAGS.stdupb = [float(i) for i in FLAGS.stdupb]
     FLAGS.stdlwb = [float(i) for i in FLAGS.stdlwb]
