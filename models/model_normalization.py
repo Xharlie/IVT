@@ -196,7 +196,6 @@ def get_img_points(sample_pc, trans_mat_right):
 
 def get_loss(end_points, regularization=True, FLAGS=None):
 
-    onedge = end_points['onedge']
     gt_ivts_xyz = end_points['gt_ivts_xyz']
     gt_ivts_dist = tf.sqrt(tf.reduce_sum(tf.square(gt_ivts_xyz), axis=2, keepdims=True))
     print("gt_ivts_dist.get_shape().as_list(): ", gt_ivts_dist.get_shape().as_list())
@@ -230,6 +229,7 @@ def get_loss(end_points, regularization=True, FLAGS=None):
     ivts_locnorm_avg_diff = tf.reduce_mean(ivts_locnorm_diff)
     ivts_locsqrnorm_avg_diff = tf.reduce_mean(ivts_locsqrnorm_diff)
     if FLAGS.edgeweight != 1.0:
+        onedge = end_points['onedge']
         onedge_count = tf.reduce_sum(onedge)
         ontri= 1.0 - onedge
         ontri_count = tf.reduce_sum(ontri)
