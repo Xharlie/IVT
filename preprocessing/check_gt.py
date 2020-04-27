@@ -64,27 +64,37 @@ def get_normalize_mesh(model_dir, norm_mesh_sub_dir, target_dir):
 def get_ivt_h5(ivt_h5_file, cat_id, obj):
     # print(ivt_h5_file)
     h5_f = h5py.File(ivt_h5_file, 'r')
-    uni_pnts, surf_pnts, sphere_pnts, uni_ivts, surf_ivts, sphere_ivts = None, None, None, None, None, None
+    uni_pnts, surf_pnts, sphere_pnts, uni_ivts, surf_ivts, sphere_ivts, norm_params = None, None, None, None, None, None, None
     try:
         norm_params = h5_f['norm_params'][:].astype(np.float32)
         if 'uni_pnts' in h5_f.keys() and 'uni_ivts' in h5_f.keys():
             uni_pnts = h5_f['uni_pnts'][:].astype(np.float32)
             uni_ivts = h5_f['uni_ivts'][:].astype(np.float32)
+            uni_onedge = h5_f['uni_onedge'][:].astype(np.float32)
         else:
             raise Exception(cat_id, obj, "no uni ivt and sample")
         if ('surf_pnts' in h5_f.keys() and 'surf_ivts' in h5_f.keys()):
             surf_pnts = h5_f['surf_pnts'][:].astype(np.float32)
             surf_ivts = h5_f['surf_ivts'][:].astype(np.float32)
+            surf_onedge = h5_f['surf_onedge'][:].astype(np.float32)
         else:
             raise Exception(cat_id, obj, "no surf ivt and sample")
         if ('sphere_pnts' in h5_f.keys() and 'sphere_ivts' in h5_f.keys()):
             sphere_pnts = h5_f['sphere_pnts'][:].astype(np.float32)
             sphere_ivts = h5_f['sphere_ivts'][:].astype(np.float32)
+            sphere_onedge = h5_f['sphere_onedge'][:].astype(np.float32)
         else:
             raise Exception(cat_id, obj, "no uni ivt and sample")
     finally:
         h5_f.close()
-    return uni_pnts, surf_pnts, sphere_pnts, uni_ivts, surf_ivts, sphere_ivts, norm_params
+    return uni_pnts, surf_pnts, sphere_pnts, uni_ivts, surf_ivts, sphere_ivts, norm_params, uni_onedge, surf_onedge, sphere_onedge
+
+def get_onedge(source, onedge):
+    onedgeindex = np.argwhere(onedge > 0.5)[:,0]
+    ontriindex = np.argwhere(onedge < 0.5)[:,0]
+    print(onedge.shape,onedgeindex.shape,ontriindex.shape)
+    return source[onedgeindex], source[ontriindex]
+
 
 if __name__ == "__main__":
 
@@ -101,14 +111,29 @@ if __name__ == "__main__":
 
 
     ivf_file=os.path.join(ivf_dir, "ivt_sample.h5")
-    uni_pnts, surf_pnts, sphere_pnts, uni_ivts, surf_ivts, sphere_ivts, norm_params = get_ivt_h5(ivf_file, cat, obj)
+    uni_pnts, surf_pnts, sphere_pnts, uni_ivts, surf_ivts, sphere_ivts, norm_params, uni_onedge, surf_onedge, sphere_onedge = get_ivt_h5(ivf_file, cat, obj)
 
     save_norm(uni_pnts, uni_ivts, os.path.join(target_dir, "uni_l.ply"))
     save_norm(surf_pnts, surf_ivts, os.path.join(target_dir, "surf_l.ply"))
     save_norm(sphere_pnts, sphere_ivts, os.path.join(target_dir, "sphere_l.ply"))
 
-    save_norm(uni_pnts+uni_ivts, uni_ivts, os.path.join(target_dir, "uni_t.ply"))
-    save_norm(surf_pnts+surf_ivts, surf_ivts, os.path.join(target_dir, "surf_t.ply"))
-    save_norm(sphere_pnts+sphere_ivts, sphere_ivts, os.path.join(target_dir, "sphere_t.ply"))
+    save_norm(uni_pnts+uni_ivts, uni_ivts, os.path.join(target_dir, "uni_s.ply"))
+    save_norm(surf_pnts+surf_ivts, surf_ivts, os.path.join(target_dir, "surf_s.ply"))
+    save_norm(sphere_pnts+sphere_ivts, sphere_ivts, os.path.join(target_dir, "sphere_s.ply"))
+
+    uni_e_pnts, uni_t_pnts = get_onedge(uni_pnts, uni_onedge)
+    uni_e_ivts, uni_t_ivts = get_onedge(uni_ivts, uni_onedge)
+    surf_e_pnts, surf_t_pnts = get_onedge(surf_pnts, surf_onedge)
+    surf_e_ivts, surf_t_ivts = get_onedge(surf_ivts, surf_onedge)
+    sphere_e_pnts, sphere_t_pnts = get_onedge(sphere_pnts, sphere_onedge)
+    sphere_e_ivts, sphere_t_ivts = get_onedge(sphere_ivts, sphere_onedge)
+
+    save_norm(uni_e_pnts, uni_e_ivts, os.path.join(target_dir, "uni_e.ply"))
+    save_norm(surf_e_pnts, surf_e_ivts, os.path.join(target_dir, "surf_e.ply"))
+    save_norm(sphere_e_pnts, sphere_e_ivts, os.path.join(target_dir, "sphere_e.ply"))
+
+    save_norm(uni_t_pnts, uni_t_ivts, os.path.join(target_dir, "uni_t.ply"))
+    save_norm(surf_t_pnts, surf_t_ivts, os.path.join(target_dir, "surf_t.ply"))
+    save_norm(sphere_t_pnts, sphere_t_ivts, os.path.join(target_dir, "sphere_t.ply"))
 
     print("done!")

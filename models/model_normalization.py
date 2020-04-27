@@ -158,7 +158,9 @@ def get_model(input_pls, is_training, bn=False, bn_decay=None, img_size = 224, F
                 point_img_feat = tf.concat(axis=2, values=[point_conv1, point_conv2, point_conv3])
             print("point_img_feat.shape", point_img_feat.get_shape())
             point_img_feat = tf.expand_dims(point_img_feat, axis=2)
-            if FLAGS.decoderskip:
+            if FLAGS.decoder == "att":
+                ivts_feat = ivtnet.get_ivt_att_imgfeat(input_pnts_rot, ref_feats_embedding, point_img_feat, is_training, batch_size, bn, bn_decay, wd=FLAGS.wd, activation_fn=activation_fn)
+            elif FLAGS.decoder == "skip":
                 ivts_feat = ivtnet.get_ivt_basic_imgfeat_onestream_skip(input_pnts_rot, ref_feats_embedding, point_img_feat, is_training, batch_size, bn, bn_decay, wd=FLAGS.wd, activation_fn=activation_fn)
             else:
                 ivts_feat = ivtnet.get_ivt_basic_imgfeat_onestream(input_pnts_rot, ref_feats_embedding, point_img_feat, is_training, batch_size, bn, bn_decay, wd=FLAGS.wd, activation_fn=activation_fn)

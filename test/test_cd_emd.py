@@ -218,7 +218,7 @@ def cd_emd_cat(cat_id, cat_nm, pred_dir_cat, gt_dir, test_lst_f):
             config.log_device_placement = False
             sess = tf.Session(config=config)
             sampled_pc = tf.placeholder(tf.float32, shape=(FLAGS.batch_size+1, FLAGS.num_sample_points, 3))
-            avg_cf_loss, min_cf_loss, arg_min_cf, avg_em_loss, min_em_loss, arg_min_em, avg_fcf_loss,avg_dcf_loss = get_points_loss(sampled_pc)
+            avg_cf_loss, min_cf_loss, arg_min_cf, avg_em_loss, min_em_loss, arg_min_em, avg_fcf_loss, avg_bcf_loss = get_points_loss(sampled_pc)
             count = 0
             with open(test_lst_f, "r") as f:
                 test_objs = f.readlines()
@@ -354,8 +354,15 @@ if __name__ == "__main__":
     #            "/ssd1/datasets/ShapeNet/march_cube_objs_v1/", "/ssd1/datasets/ShapeNet/filelists/",
     #            num_points=FLAGS.num_points, maxnverts=1000000, maxntris=1000000, num_view=4)
 
-# nohup python -u test_cd_emd.py --gpu 1 --batch_size 24 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/chair_drct_even_surfonly_uni --unitype ball --round 3 &> ballr3_2048.log &
+# nohup python -u test_cd_emd.py --gpu 3 --batch_size 8 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/inf_new --unitype uni --round 4 --view_num 8 &> ballr4_2048.log &
 
+# nohup python -u test_cd_emd.py --gpu 3 --batch_size 8 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/inf_new --unitype uni --round 0 --view_num 8 &> ballr0_2048.log &
+
+# nohup python -u test_cd_emd.py --gpu 3 --batch_size 8 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/inf_new --unitype uni --round 1 --view_num 8 &> ballr1_2048.log &
+
+# nohup python -u test_cd_emd.py --gpu 3 --batch_size 8 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/inf_new --unitype uni --round 2 --view_num 8 &> ballr2_2048.log &
+
+# nohup python -u test_cd_emd.py --gpu 3 --batch_size 8 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/inf_new --unitype uni --round 3 --view_num 8 &> ballr3_2048.log &
 
     # lst_dir, cats, all_cats, raw_dirs = create_file_lst.get_all_info(version=2)
     # cd_emd_all(cats,

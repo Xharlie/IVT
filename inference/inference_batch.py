@@ -168,7 +168,7 @@ def test_uni_epoch(grid, TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE):
             print('**** Uni INFERENCE  ****')
             sys.stdout.flush()
 
-            num_batches = int(len(TEST_DATASET) / FLAGS.batch_size)
+            num_batches = int(np.ceil(len(TEST_DATASET) / FLAGS.batch_size))
             for batch_idx in range(num_batches):
                 tic=time.time()
                 batch_data = TEST_DATASET.fetch()
@@ -215,7 +215,7 @@ def test_near_epoch(TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE, stdratio, stdlwb
             print('**** Near INFERENCE  ****')
             sys.stdout.flush()
 
-            num_batches = int(len(TEST_DATASET) / FLAGS.batch_size)
+            num_batches = int(np.ceil(len(TEST_DATASET) / FLAGS.batch_size))
             for batch_idx in range(num_batches):
                 tic=time.time()
                 print("pre fetch")
@@ -497,10 +497,10 @@ def get_list(cats_limit, filename):
     return TEST_LISTINFO
 
 if __name__ == "__main__":
-    # nohup python -u inference_batch.py --gpu 0 --img_feat_onestream --category chair  --restore_model ../train/checkpoint/onestream_small_grid/chair_vgg_16_010000 --restore_surfmodel ../train/checkpoint/onestream_small_drct_surf_nonmani/chair_vgg_16_110000 --outdir  inf_new --unionly --unitype uni --XYZ --start_round -1 --distr ball &> global_direct_chair_surf_evenweight_uni.log &
+    # nohup python -u inference_batch.py --gpu 0 --img_feat_onestream --category chair  --restore_model ../train/checkpoint/onestream_small_grid/chair_vgg_16_010000 --restore_surfmodel ../train/checkpoint/onestream_small_drct_surf_nonmani/chair_vgg_16_110000 --outdir  inf_new --unionly --unitype uni --start_round 0 --distr ball --set test --view_num 8 --skipexist &> global_direct_chair_surf_evenweight_uni.log &
 
 
-    # nohup python -u inference_batch.py --gpu 2 --img_feat_onestream --category chair  --restore_model ../train/checkpoint/onestream_small_grid/chair_vgg_16_010000 --restore_surfmodel ../train/checkpoint/onestream_small_drct_surf_nonmani/chair_vgg_16_110000 --outdir  inf_new --unionly --unitype uni --XYZ --start_round -1 --distr ball --set train --view_num 4 &> train_chair_surf_evenweight_uni.log &
+    # nohup python -u inference_batch.py --gpu 1 --img_feat_onestream --category chair  --restore_model ../train/checkpoint/onestream_small_grid/chair_vgg_16_010000 --restore_surfmodel ../train/checkpoint/onestream_small_drct_surf_nonmani/chair_vgg_16_110000 --outdir  inf_new_train --unionly --unitype uni --XYZ --start_round -1 --distr ball --set train --view_num 4 &> train_chair_surf_evenweight_uni.log &
 
 
 
@@ -547,7 +547,7 @@ if __name__ == "__main__":
     parser.add_argument('--uni_thresh', type=float, default=0.1, help='threshold for uniform sampling')
     parser.add_argument('--res', type=float, default=0.01, help='cube resolution')
     parser.add_argument('--anglenums', type=int, default=200, help='angle resolution')
-    parser.add_argument('--max_epoch', type=int, default=2, help='angle resolution')
+    parser.add_argument('--max_epoch', type=int, default=10, help='angle resolution')
     parser.add_argument('--initnums', type=int, default=8096, help='initial sampled uni point numbers')
     parser.add_argument('--num_ratio', type=int, default=2, help='point numbers expansion each round')
     parser.add_argument('--stdratio', type=int, default=4, help='')
@@ -569,7 +569,7 @@ if __name__ == "__main__":
     parser.add_argument('--encoder', type=str, default='vgg_16',
                         help='encoder model: vgg_16, resnet_v1_50, resnet_v1_101, resnet_v2_50, resnet_v2_101')
     parser.add_argument('--wd', type=float, default=1e-6, help='Initial learning rate [default: 0.001]')
-    parser.add_argument('--decoderskip', action='store_true')
+    parser.add_argument('--decoder', type=str, default='norm')
     parser.add_argument('--lossw', nargs='+', action='store', default=[0.0, 1.0, 0.0, 0.0, 1.0, 0.0],
                         help="xyz, locnorm, locsqrnorm, dist, dirct, drct_abs")
     parser.add_argument('--distlimit', nargs='+', action='store', type=str, default=[1.0, 0.9, 0.9, 0.8, 0.8, 0.7, 0.7, 0.6, 0.6, 0.5, 0.5, 0.4, 0.4, 0.3, 0.3, 0.2, 0.2, 0.18, 0.18, 0.16, 0.16, 0.14, 0.14, 0.12, 0.12, 0.1, 0.1, 0.08, 0.08, 0.06, 0.06, 0.05, 0.05, 0.04, 0.04, 0.03, 0.03, 0.02, 0.02, 0.01, 0.01, -0.01])
