@@ -500,7 +500,7 @@ if __name__ == "__main__":
     # nohup python -u inference_batch.py --gpu 0 --img_feat_onestream --category chair  --restore_model ../train/checkpoint/onestream_small_grid/chair_vgg_16_010000 --restore_surfmodel ../train/checkpoint/onestream_small_drct_surf_nonmani/chair_vgg_16_110000 --outdir  inf_new --unionly --unitype uni --start_round 0 --distr ball --set test --view_num 8 --skipexist &> global_direct_chair_surf_evenweight_uni.log &
 
 
-    # nohup python -u inference_batch.py --gpu 1 --img_feat_onestream --category chair  --restore_model ../train/checkpoint/onestream_small_grid/chair_vgg_16_010000 --restore_surfmodel ../train/checkpoint/onestream_small_drct_surf_nonmani/chair_vgg_16_110000 --outdir  inf_new_train --unionly --unitype uni --XYZ --start_round -1 --distr ball --set train --view_num 4 &> train_chair_surf_evenweight_uni.log &
+    # nohup python -u inference_batch.py --gpu 1 --img_feat_onestream --category chair  --restore_model ../train/checkpoint/onestream_small_grid/chair_vgg_16_010000 --restore_surfmodel ../train/checkpoint/onestream_small_drct_surf_nonmani/chair_vgg_16_110000 --outdir  inf_new_train --unionly --unitype uni --start_round 0 --distr ball --set train --view_num 4 --skipexist &> train_chair_surf_evenweight_uni.log &
 
 
 

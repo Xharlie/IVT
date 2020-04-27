@@ -187,25 +187,22 @@ nohup python -u train_ivt.py --gpu 0 --img_feat_onestream --manifold  --encoder 
 
 
                 POOR
-            --- vgg_16 onestream_small surf 010000
+                --- vgg_16 onestream_small surf 010000
 
-            nohup python -u train_ivt.py --gpu 3 --img_feat_onestream --manifold  --encoder vgg_16  --log_dir checkpoint/onestream_small_surf/chair_vgg_16_010000 --category chair --uni_num 0 --sphere_num 0 --num_pnts 2048 --batch_size 28 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ --wd 1e-6 &> onestream_small_surf_chair_vgg_010000.log &
-
-
-
-            Poor --- vgg_16 onestream_small realmodel surf 010000
-
-            nohup python -u train_ivt.py --gpu 1 --img_feat_onestream --encoder vgg_16 --restore_model checkpoint/onestream_small_surf_nonmani/chair_vgg_16_010000 --log_dir checkpoint/onestream_small_surf_nonmani/chair_vgg_16_010000 --category chair --uni_num 0 --sphere_num 0 --num_pnts 2048 --batch_size 28 --learning_rate 0.000043 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ --wd 1e-5 &> onestream_small_surf_nonmani_chair_vgg_010000.log &
+                nohup python -u train_ivt.py --gpu 3 --img_feat_onestream --manifold  --encoder vgg_16  --log_dir checkpoint/onestream_small_surf/chair_vgg_16_010000 --category chair --uni_num 0 --sphere_num 0 --num_pnts 2048 --batch_size 28 --learning_rate 0.0001 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ --wd 1e-6 &> onestream_small_surf_chair_vgg_010000.log &
 
 
---- vgg_16 onestream_small realmodel surf 110000
 
-nohup python -u train_ivt.py --gpu 2 --img_feat_onestream --encoder vgg_16  --log_dir checkpoint/onestream_small_surf_nonmani/chair_vgg_16_110000 --category chair --uni_num 0 --sphere_num 0 --num_pnts 2048 --batch_size 28 --learning_rate 0.000043 --weight_type non --lossw 1.0 1.0 0.0 0.0 0.0 0.0 --XYZ --wd 1e-5 &> onestream_small_surf_nonmani_chair_vgg_110000.log &
+                Poor --- vgg_16 onestream_small realmodel surf 010000
 
-            poor
-            --- vgg_16 onestream_small drct realmodel surf 010000
+                nohup python -u train_ivt.py --gpu 1 --img_feat_onestream --encoder vgg_16 --restore_model checkpoint/onestream_small_surf_nonmani/chair_vgg_16_010000 --log_dir checkpoint/onestream_small_surf_nonmani/chair_vgg_16_010000 --category chair --uni_num 0 --sphere_num 0 --num_pnts 2048 --batch_size 28 --learning_rate 0.000043 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0 --XYZ --wd 1e-5 &> onestream_small_surf_nonmani_chair_vgg_010000.log &
 
-            nohup python -u train_ivt.py --gpu 3 --img_feat_onestream --encoder vgg_16 --restore_model checkpoint/onestream_small_drct_surf_nonmani/chair_vgg_16_010000/model.ckpt --log_dir checkpoint/onestream_small_drct_surf_nonmani/chair_vgg_16_010000 --category chair --uni_num 0 --sphere_num 0 --num_pnts 2048 --batch_size 28 --learning_rate 0.000081 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0  --wd 1e-5 &> onestream_small_drct_surf_nonmani_chair_vgg_010000.log &
+
+
+                poor
+                --- vgg_16 onestream_small drct realmodel surf 010000
+
+                nohup python -u train_ivt.py --gpu 3 --img_feat_onestream --encoder vgg_16 --restore_model checkpoint/onestream_small_drct_surf_nonmani/chair_vgg_16_010000/model.ckpt --log_dir checkpoint/onestream_small_drct_surf_nonmani/chair_vgg_16_010000 --category chair --uni_num 0 --sphere_num 0 --num_pnts 2048 --batch_size 28 --learning_rate 0.000081 --weight_type non --lossw 0.0 1.0 0.0 0.0 0.0 0.0  --wd 1e-5 &> onestream_small_drct_surf_nonmani_chair_vgg_010000.log &
 
 
 
@@ -223,18 +220,18 @@ nohup python -u train_ivt.py --gpu 2 --img_feat_onestream --encoder vgg_16 --res
 
 
 
+                POOR
+                --- vgg_16 onestream_small drct realmodel surf 0010000
 
---- vgg_16 onestream_small drct realmodel surf 0010000
-
-nohup python -u train_ivt.py --gpu 0 --img_feat_onestream --encoder vgg_16  --restore_model checkpoint/onestream_small_drct_surf_nonmani/chair_vgg_16_00100000 --log_dir checkpoint/onestream_small_drct_surf_nonmani/chair_vgg_16_00100000 --category chair --uni_num 0 --sphere_num 0 --num_pnts 2048 --batch_size 28 --learning_rate 0.000081 --weight_type non --lossw 0.0 0.0 100.0 0.0 0.0 0.0  --wd 2e-5 &> onestream_small_drct_surf_nonmani_chair_vgg_00100000.log &
-
-
+                nohup python -u train_ivt.py --gpu 0 --img_feat_onestream --encoder vgg_16  --restore_model checkpoint/onestream_small_drct_surf_nonmani/chair_vgg_16_00100000 --log_dir checkpoint/onestream_small_drct_surf_nonmani/chair_vgg_16_00100000 --category chair --uni_num 0 --sphere_num 0 --num_pnts 2048 --batch_size 28 --learning_rate 0.000081 --weight_type non --lossw 0.0 0.0 100.0 0.0 0.0 0.0  --wd 2e-5 &> onestream_small_drct_surf_nonmani_chair_vgg_00100000.log &
 
 
 
---- vgg_16 onestream_small drct realmodel surf 220000 edge_weight 0.1
 
-nohup python -u train_ivt.py --gpu 3 --img_feat_onestream --encoder vgg_16 --restore_model checkpoint/onestream_small_drct_surf_nonmani/chair_vgg_16_220000_ew01 --log_dir checkpoint/onestream_small_drct_surf_nonmani/chair_vgg_16_220000_ew01 --category chair --uni_num 0 --sphere_num 0 --num_pnts 2048 --batch_size 28 --learning_rate 0.0001 --weight_type non --lossw 2.0 2.0 0.0 0.0 0.0 0.0  --wd 3e-5 --edgeweight 0.1 &> onestream_small_drct_surf_nonmani_chair_vgg_220000_ew01.log &
+                poor
+                --- vgg_16 onestream_small drct realmodel surf 220000 edge_weight 0.1
+
+                nohup python -u train_ivt.py --gpu 3 --img_feat_onestream --encoder vgg_16 --restore_model checkpoint/onestream_small_drct_surf_nonmani/chair_vgg_16_220000_ew01 --log_dir checkpoint/onestream_small_drct_surf_nonmani/chair_vgg_16_220000_ew01 --category chair --uni_num 0 --sphere_num 0 --num_pnts 2048 --batch_size 28 --learning_rate 0.0001 --weight_type non --lossw 2.0 2.0 0.0 0.0 0.0 0.0  --wd 3e-5 --edgeweight 0.1 &> onestream_small_drct_surf_nonmani_chair_vgg_220000_ew01.log &
 
 
 
@@ -271,8 +268,15 @@ nohup python -u train_ivt.py --gpu 1 --manifold --img_feat_onestream --encoder v
 
 
 
+--- vgg_16 onestream_small drct realmodel grid 220000
+
+nohup python -u train_ivt.py --gpu 0 --img_feat_onestream --encoder vgg_16  --log_dir checkpoint/onestream_small_drct_grid_nonmani/chair_vgg_16_220000 --category chair --uni_num 2048 --sphere_num 0 --num_pnts 2048 --batch_size 28 --learning_rate 0.000089 --weight_type non --lossw 2.0 2.0 0.0 0.0 0.0 0.0  --wd 3e-5 &> onestream_small_drct_grid_nonmani_chair_vgg_220000.log &
 
 
+
+--- vgg_16 onestream_small drct realmodel sphere 220000
+
+nohup python -u train_ivt.py --gpu 3 --img_feat_onestream --encoder vgg_16  --log_dir checkpoint/onestream_small_drct_sphere_nonmani/chair_vgg_16_220000 --category chair --uni_num 0 --sphere_num 2048 --num_pnts 2048 --batch_size 28 --learning_rate 0.000089 --weight_type non --lossw 2.0 2.0 0.0 0.0 0.0 0.0  --wd 3e-5 &> onestream_small_drct_sphere_nonmani_chair_vgg_220000.log &
 
 
 

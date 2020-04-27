@@ -39,6 +39,7 @@ parser.add_argument('--sdf_res', type=int, default=64, help='sdf grid')
 parser.add_argument('--binary', action='store_true')
 
 parser.add_argument('--gpu', type=str, default='0', help='GPU to use [default: GPU 0]')
+parser.add_argument('--set', type=str, default='test')
 parser.add_argument('--batch_size', type=int, default=24, help='Batch Size during training [default: 32]')
 parser.add_argument('--log_dir', default='checkpoint/exp_200', help='Log dir [default: log]')
 parser.add_argument('--test_lst_dir', default=lst_dir, help='test mesh data list')
@@ -52,10 +53,12 @@ parser.add_argument('--cam_est', action='store_true')
 parser.add_argument('--cal_dir', type=str, default="", help="target obj directory that needs to be tested")
 parser.add_argument('--unitype', type=str, default="ball", help="target obj directory that needs to be tested")
 parser.add_argument('--round', type=int, default=0, help="target obj directory that needs to be tested")
+parser.add_argument('--thresholds', nargs='+', action='store', default=[0.01, 0.02, 0.05], help="lower bound, upperbound")
 
 FLAGS = parser.parse_args()
 print('pid: %s'%(str(os.getpid())))
 print(FLAGS)
+FLAGS.thresholds = [float(i) for i in FLAGS.thresholds]
 
 EPOCH_CNT = 0
 BATCH_SIZE = FLAGS.batch_size
@@ -143,7 +146,7 @@ def cd_emd_all(cats, pred_dir, gt_dir, test_lst_dir):
     for cat_nm, cat_id in cats.items():
         pred_dir_cat = os.path.join(pred_dir, cat_id)
         gt_dir_cat = os.path.join(gt_dir, cat_id)
-        test_lst_f = os.path.join(test_lst_dir, cat_id+"_test.lst")
+        test_lst_f = os.path.join(test_lst_dir, cat_id+"_{}.lst".format(FLAGS.set))
         cd_emd_cat(cat_id, cat_nm, pred_dir_cat, gt_dir_cat, test_lst_f)
     print("done!")
 
@@ -210,6 +213,7 @@ def cd_emd_cat(cat_id, cat_nm, pred_dir_cat, gt_dir, test_lst_f):
     sum_fcf_loss = 0.
     sum_bcf_loss = 0.
     sum_em_loss = 0.
+    sum_f_score = np.zeros((len(FLAGS.thresholds)))
     with tf.Graph().as_default():
         with tf.device('/gpu:0'):
             config = tf.ConfigProto()
@@ -218,7 +222,7 @@ def cd_emd_cat(cat_id, cat_nm, pred_dir_cat, gt_dir, test_lst_f):
             config.log_device_placement = False
             sess = tf.Session(config=config)
             sampled_pc = tf.placeholder(tf.float32, shape=(FLAGS.batch_size+1, FLAGS.num_sample_points, 3))
-            avg_cf_loss, min_cf_loss, arg_min_cf, avg_em_loss, min_em_loss, arg_min_em, avg_fcf_loss, avg_bcf_loss = get_points_loss(sampled_pc)
+            avg_cf_loss, min_cf_loss, arg_min_cf, avg_em_loss, min_em_loss, arg_min_em, avg_fcf_loss, avg_bcf_loss, avg_f_scores = get_points_loss(sampled_pc)
             count = 0
             with open(test_lst_f, "r") as f:
                 test_objs = f.readlines()
@@ -239,45 +243,46 @@ def cd_emd_cat(cat_id, cat_nm, pred_dir_cat, gt_dir, test_lst_f):
                         if surfpnts.shape[0] > 0:
                             choice = np.random.randint(surfpnts.shape[0], size=FLAGS.num_sample_points)
                             verts_batch[i+1, ...] = surfpnts[choice, ...]
-                    if FLAGS.batch_size == FLAGS.view_num:
-                        feed_dict = {sampled_pc: verts_batch}
-                        avg_cf_loss_val, min_cf_loss_val, arg_min_cf_val, avg_em_loss_val, min_em_loss_val, arg_min_em_val, avg_fcf_loss_val,avg_bcf_loss_val = sess.run([avg_cf_loss, min_cf_loss, arg_min_cf, avg_em_loss, min_em_loss, arg_min_em, avg_fcf_loss, avg_bcf_loss], feed_dict=feed_dict)
-                    else:
-                        sum_avg_cf_loss_val = 0.
-                        min_cf_loss_val = 9999.
-                        arg_min_cf_val = 0
-                        sum_avg_em_loss_val = 0.
-                        min_em_loss_val = 9999.
-                        arg_min_em_val = 0
-                        sum_avg_fcf_loss_val = 0
-                        sum_avg_bcf_loss_val = 0
-                        for b in range(FLAGS.view_num//FLAGS.batch_size):
-                            verts_batch_b = np.stack([verts_batch[0, ...], verts_batch[b, ...]])
-                            feed_dict = {sampled_pc: verts_batch_b}
-                            avg_cf_loss_val, _, _, avg_em_loss_val, _, _, avg_fcf_loss_val, avg_bcf_loss_val = sess.run([avg_cf_loss, min_cf_loss, arg_min_cf, avg_em_loss, min_em_loss, arg_min_em, avg_fcf_loss, avg_bcf_loss], feed_dict=feed_dict)
-                            sum_avg_cf_loss_val +=avg_cf_loss_val
-                            sum_avg_em_loss_val +=avg_em_loss_val
-                            sum_avg_fcf_loss_val +=avg_fcf_loss_val
-                            sum_avg_bcf_loss_val +=avg_bcf_loss_val
-                            if min_cf_loss_val > avg_cf_loss_val:
-                                min_cf_loss_val = avg_cf_loss_val
-                                arg_min_cf_val = b
-                            if min_em_loss_val > avg_em_loss_val:
-                                min_em_loss_val = avg_em_loss_val
-                                arg_min_em_val = b
-                        avg_cf_loss_val = sum_avg_cf_loss_val / (FLAGS.view_num//FLAGS.batch_size)
-                        avg_em_loss_val = sum_avg_em_loss_val / (FLAGS.view_num//FLAGS.batch_size)
-                        avg_fcf_loss_val = sum_avg_fcf_loss_val / (FLAGS.view_num//FLAGS.batch_size)
-                        avg_bcf_loss_val = sum_avg_bcf_loss_val / (FLAGS.view_num//FLAGS.batch_size)
+                    assert FLAGS.batch_size == FLAGS.view_num, "FLAGS.batch_size {} != FLAGS.view_num {}".format(FLAGS.batch_size, FLAGS.view_num)
+                    feed_dict = {sampled_pc: verts_batch}
+                    avg_cf_loss_val, min_cf_loss_val, arg_min_cf_val, avg_em_loss_val, min_em_loss_val, arg_min_em_val, avg_fcf_loss_val,avg_bcf_loss_val, avg_f_scores_val = sess.run([avg_cf_loss, min_cf_loss, arg_min_cf, avg_em_loss, min_em_loss, arg_min_em, avg_fcf_loss, avg_bcf_loss, avg_f_scores], feed_dict=feed_dict)
+                    # else:
+                    #     sum_avg_cf_loss_val = 0.
+                    #     min_cf_loss_val = 9999.
+                    #     arg_min_cf_val = 0
+                    #     sum_avg_em_loss_val = 0.
+                    #     min_em_loss_val = 9999.
+                    #     arg_min_em_val = 0
+                    #     sum_avg_fcf_loss_val = 0
+                    #     sum_avg_bcf_loss_val = 0
+                    #     for b in range(FLAGS.view_num//FLAGS.batch_size):
+                    #         verts_batch_b = np.stack([verts_batch[0, ...], verts_batch[b, ...]])
+                    #         feed_dict = {sampled_pc: verts_batch_b}
+                    #         avg_cf_loss_val, _, _, avg_em_loss_val, _, _, avg_fcf_loss_val, avg_bcf_loss_val = sess.run([avg_cf_loss, min_cf_loss, arg_min_cf, avg_em_loss, min_em_loss, arg_min_em, avg_fcf_loss, avg_bcf_loss], feed_dict=feed_dict)
+                    #         sum_avg_cf_loss_val +=avg_cf_loss_val
+                    #         sum_avg_em_loss_val +=avg_em_loss_val
+                    #         sum_avg_fcf_loss_val +=avg_fcf_loss_val
+                    #         sum_avg_bcf_loss_val +=avg_bcf_loss_val
+                    #         if min_cf_loss_val > avg_cf_loss_val:
+                    #             min_cf_loss_val = avg_cf_loss_val
+                    #             arg_min_cf_val = b
+                    #         if min_em_loss_val > avg_em_loss_val:
+                    #             min_em_loss_val = avg_em_loss_val
+                    #             arg_min_em_val = b
+                    #     avg_cf_loss_val = sum_avg_cf_loss_val / (FLAGS.view_num//FLAGS.batch_size)
+                    #     avg_em_loss_val = sum_avg_em_loss_val / (FLAGS.view_num//FLAGS.batch_size)
+                    #     avg_fcf_loss_val = sum_avg_fcf_loss_val / (FLAGS.view_num//FLAGS.batch_size)
+                    #     avg_bcf_loss_val = sum_avg_bcf_loss_val / (FLAGS.view_num//FLAGS.batch_size)
                     sum_cf_loss += avg_cf_loss_val
                     sum_em_loss += avg_em_loss_val
                     sum_fcf_loss += avg_fcf_loss_val
                     sum_bcf_loss += avg_bcf_loss_val
-                    print(str(count) +  " ",src_path, "avg cf:{}, min_cf:{}, arg_cf view:{}, avg emd:{}, min_emd:{}, arg_em view:{}".
+                    sum_f_score += avg_f_scores_val
+                    print(str(count) +  " ",src_path, "avg cf:{}, min_cf:{}, arg_cf view:{}, avg emd:{}, min_emd:{}, arg_em view:{}, avg_f_scores:{}".
                           format(str(avg_cf_loss_val), str(min_cf_loss_val), str(arg_min_cf_val),
-                                 str(avg_em_loss_val), str(min_em_loss_val), str(arg_min_em_val)))
-            print("cat_nm:{}, cat_id:{}, avg_cf:{},  avg_fcf:{},  avg_dcf:{}, avg_emd:{}".
-                  format(cat_nm, cat_id, sum_cf_loss/len(test_objs),sum_fcf_loss/len(test_objs), sum_bcf_loss/len(test_objs), sum_em_loss/len(test_objs)))
+                                 str(avg_em_loss_val), str(min_em_loss_val), str(arg_min_em_val), avg_f_scores_val))
+            print("cat_nm:{}, cat_id:{}, avg_cf:{},  avg_fcf:{},  avg_dcf:{}, avg_emd:{}, avg_f_scores:{}".
+                  format(cat_nm, cat_id, sum_cf_loss/len(test_objs),sum_fcf_loss/len(test_objs), sum_bcf_loss/len(test_objs), sum_em_loss/len(test_objs), sum_f_score/len(test_objs)))
 
 def get_surfpnts(file):
     if file[-1]=="5":
@@ -295,6 +300,7 @@ def get_points_loss(sampled_pc):
     print(pred.get_shape())
 
     dists_forward, _, dists_backward, _ = tf_nndistance.nn_distance(pred, src_pc)
+
     cf_forward_views = tf.reduce_mean(dists_forward, axis=1) * 1000
     cf_backward_views = tf.reduce_mean(dists_backward, axis=1) * 1000
     cf_loss_views = cf_forward_views + cf_backward_views
@@ -313,7 +319,20 @@ def get_points_loss(sampled_pc):
     min_em_loss = tf.reduce_min(match_cost)
     arg_min_em = tf.argmin(match_cost)
 
-    return avg_cf_loss, min_cf_loss, arg_min_cf, avg_em_loss, min_em_loss, arg_min_em, avg_fcf_loss,avg_bcf_loss
+
+    dists_forward_sqrt = tf.sqrt(tf.maximum(dists_forward, 1e-8))
+    dists_backward_sqrt = tf.sqrt(tf.maximum(dists_backward, 1e-8))
+    f_scores=[]
+    length = tf.reduce_max(tf.reduce_max(src_pc[0],axis=0) - tf.reduce_min(src_pc[0],axis=0))
+    for i in range(len(FLAGS.thresholds)):
+        threshold = FLAGS.thresholds[i] * length
+        precision = tf.reduce_mean(tf.cast(tf.less_equal(dists_forward_sqrt, threshold),dtype=tf.float32), axis=1)
+        recall = tf.reduce_mean(tf.cast(tf.less_equal(dists_backward_sqrt, threshold),dtype=tf.float32), axis=1)
+        f_score = 2.0*tf.multiply(precision,recall)/tf.maximum(precision+recall, 1e-8)
+        # print("f_score.shape", f_score.get_shape().as_list())
+        f_scores.append(tf.reduce_mean(f_score))
+    f_scores = tf.convert_to_tensor(f_scores)
+    return avg_cf_loss, min_cf_loss, arg_min_cf, avg_em_loss, min_em_loss, arg_min_em, avg_fcf_loss,avg_bcf_loss,f_scores
 
 
 if __name__ == "__main__":
@@ -354,6 +373,9 @@ if __name__ == "__main__":
     #            "/ssd1/datasets/ShapeNet/march_cube_objs_v1/", "/ssd1/datasets/ShapeNet/filelists/",
     #            num_points=FLAGS.num_points, maxnverts=1000000, maxntris=1000000, num_view=4)
 
+# nohup python -u test_cd_emd.py --gpu 3 --batch_size 8 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/inf_new --unitype uni --round 1 --view_num 8 --num_sample_points 10000 &> ballr1_10000.log &
+
+
 # nohup python -u test_cd_emd.py --gpu 3 --batch_size 8 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/inf_new --unitype uni --round 4 --view_num 8 &> ballr4_2048.log &
 
 # nohup python -u test_cd_emd.py --gpu 3 --batch_size 8 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/inf_new --unitype uni --round 0 --view_num 8 &> ballr0_2048.log &
@@ -364,10 +386,15 @@ if __name__ == "__main__":
 
 # nohup python -u test_cd_emd.py --gpu 3 --batch_size 8 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/inf_new --unitype uni --round 3 --view_num 8 &> ballr3_2048.log &
 
-    # lst_dir, cats, all_cats, raw_dirs = create_file_lst.get_all_info(version=2)
-    # cd_emd_all(cats,
-    #            "checkpoint/all/binary/test_objs/65_0.0_sep",
-    #            "/hdd_extra1/datasets/ShapeNet/march_cube_objs/", "/ssd1/datasets/ShapeNet/filelists/",
-    #            num_points=FLAGS.num_points, maxnverts=1000000, maxntris=1000000, num_view=24)
 
-    # nohup python -u test_allpts.py --gpu 3 --batch_size 24 --binary  --test_lst_dir /ssd1/datasets/ShapeNet/filelists/ --num_points 2048 --category all &> cd_emd_all_all_binary.log &
+
+#
+# nohup python -u test_cd_emd.py --gpu 3 --batch_size 4 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/inf_new_train --unitype uni --round 4 --view_num 4 --set train &> trainballr4_2048.log &
+#
+# nohup python -u test_cd_emd.py --gpu 3 --batch_size 4 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/inf_new_train --unitype uni --round 0 --view_num 4 --set train &> trainballr0_2048.log &
+#
+# nohup python -u test_cd_emd.py --gpu 3 --batch_size 4 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/inf_new_train --unitype uni --round 1 --view_num 4 --set train &> trainballr1_2048.log &
+#
+# nohup python -u test_cd_emd.py --gpu 3 --batch_size 4 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/inf_new_train --unitype uni --round 2 --view_num 4 --set train &> trainballr2_2048.log &
+#
+# nohup python -u test_cd_emd.py --gpu 3 --batch_size 4 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/inf_new_train --unitype uni --round 3 --view_num 4 --set train &> trainballr3_2048.log &

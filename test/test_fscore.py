@@ -328,3 +328,4 @@ if __name__ == "__main__":
 # nohup python -u test/test_cd_emd.py --gpu 3 --img_feat_twostream --num_points 2048 --category chair --cal_dir /home/xharlie/dev/ProgressivePointSetGeneration/shapenet/sdf/checkpoint/ablation/DISNChair/test_objs/65_0.0 &> log/f_DISN_chair_pnt_2.5.log &
 # nohup python -u test/test_cd_emd.py --gpu 2 --cam_est --img_feat_twostream --num_points 2048 --category chair --cal_dir /home/xharlie/dev/ProgressivePointSetGeneration/shapenet/sdf/checkpoint/ablation/DISNChair/test_objs/camest_65_0.0 &> log/f_DISNcamest_chair_pnt_2.5.log &
 # #
+
