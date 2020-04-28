@@ -131,6 +131,7 @@ def test(raw_dirs, info, cats_limit):
     sys.stdout.flush()
     print("Done!")
 
+
 def cal_size(nums):
     num_in_gpu = min(nums, MAX_NUM)
     batch_size = MAX_NUM // num_in_gpu
@@ -187,6 +188,7 @@ def test_uni_epoch(grid, TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE):
 def test_near_epoch(TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE, stdratio, stdlwb, stdupb, weightform, round):
     with tf.Graph().as_default():
         with tf.device('/gpu:0'):
+            FLAGS.XYZ = False if round >= FLAGS.changeround else True
             input_pls = model.placeholder_inputs(scope='inputs_pl', FLAGS=FLAGS, num_pnts=num_in_gpu)
             is_training_pl = tf.compat.v1.placeholder(tf.bool, shape=())
             print(is_training_pl)
@@ -211,7 +213,7 @@ def test_near_epoch(TEST_DATASET, nums, num_in_gpu, SPLIT_SIZE, stdratio, stdlwb
             ###########################################
             ops = {'input_pls': input_pls, 'is_training_pl': is_training_pl, 'loss': loss, 'step': batch, 'saver': saver, 'end_points': end_points}
             sys.stdout.flush()
-            sess = load_model_strict(sess, ops["saver"], FLAGS.restore_surfmodel)
+            sess = load_model_strict(sess, ops["saver"], FLAGS.restore_surfmodel) if round >= FLAGS.changeround else load_model_strict(sess, ops["saver"], FLAGS.restore_model)
             print('**** Near INFERENCE  ****')
             sys.stdout.flush()
 
@@ -504,6 +506,9 @@ if __name__ == "__main__":
 
 
 
+    # nohup python -u inference_batch.py --gpu 1 --img_feat_onestream --category chair  --restore_model ../train/checkpoint/onestream_small_grid/chair_vgg_16_010000 --restore_surfmodel ../train/checkpoint/onestream_small_drct_surf_nonmani/chair_vgg_16_110000 --outdir  inf_new --unionly --unitype ball --start_round -1 --changeround 2 --set test --view_num 8 --skipexist --stdupb 0.3 0.3 0.2 0.1 0.05 --stdlwb 0.01 0.01 0.01 0.01 0.01 --XYZ &> test_ball.log &
+
+
     # nohup python -u inference.py --gt --outdir  gt_noerrBall --unionly --stdupb 0.3 0.3 0.2 0.1 0.05 --stdlwb 0.01 0.01 0.01 0.01 0.01 &> gt_uni.log &
 
     #   nohup python -u inference.py --gt --outdir  gt_shirt1 --unionly --norminter --stdupb 0.3 0.3 0.2 0.1 0.05 --stdlwb 0.01 0.0 0.0 0.0 0.0 &> shirt.log &
@@ -577,6 +582,7 @@ if __name__ == "__main__":
     parser.add_argument('--edgeweight', type=float, default=1.0)
     parser.add_argument('--set', type=str, default="test")
     parser.add_argument('--view_num', type=int, default=24)
+    parser.add_argument('--changeround', type=int, default=0)
     FLAGS = parser.parse_args()
     FLAGS.stdupb = [float(i) for i in FLAGS.stdupb]
     FLAGS.stdlwb = [float(i) for i in FLAGS.stdlwb]

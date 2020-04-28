@@ -18,6 +18,8 @@ import models.tf_ops.approxmatch.tf_approxmatch as tf_approxmatch
 import models.tf_ops.nn_distance.tf_nndistance as tf_nndistance
 import create_file_lst
 slim = tf.contrib.slim
+import trimesh
+import time
 
 parser = argparse.ArgumentParser()
 lst_dir, cats, all_cats, raw_dirs = create_file_lst.get_all_info()
@@ -50,15 +52,18 @@ parser.add_argument('--img_feat_twostream', action='store_true')
 parser.add_argument('--category', default="all", help='Which single class to train on [default: None]')
 parser.add_argument('--view_num', type=int, default=24, help="how many views do you want to create for each obj")
 parser.add_argument('--cam_est', action='store_true')
+parser.add_argument('--revert', action='store_true')
 parser.add_argument('--cal_dir', type=str, default="", help="target obj directory that needs to be tested")
 parser.add_argument('--unitype', type=str, default="ball", help="target obj directory that needs to be tested")
 parser.add_argument('--round', type=int, default=0, help="target obj directory that needs to be tested")
-parser.add_argument('--thresholds', nargs='+', action='store', default=[0.01, 0.02, 0.05], help="lower bound, upperbound")
+parser.add_argument('--fthresholds', nargs='+', action='store', default=[0.01, 0.02, 0.05], help="lower bound, upperbound")
+parser.add_argument('--ioudims', nargs='+', action='store', default=[64,110], help="lower bound, upperbound")
 
 FLAGS = parser.parse_args()
 print('pid: %s'%(str(os.getpid())))
 print(FLAGS)
-FLAGS.thresholds = [float(i) for i in FLAGS.thresholds]
+FLAGS.fthresholds = [float(i) for i in FLAGS.fthresholds]
+FLAGS.ioudims = [int(i) for i in FLAGS.ioudims]
 
 EPOCH_CNT = 0
 BATCH_SIZE = FLAGS.batch_size
@@ -118,7 +123,7 @@ def build_file_dict(pred_dir_cat):
         obj_dir_path = os.path.join(pred_dir_cat, obj_id) #
         for view_id in os.listdir(obj_dir_path):
             obj_view_dir_path = os.path.join(obj_dir_path, view_id, FLAGS.unitype)
-            full_path = os.path.join(obj_view_dir_path, "surf_{}.h5".format(FLAGS.round))
+            full_path = os.path.join(obj_view_dir_path, "surf_{}.h5".format(FLAGS.round) if FLAGS.round >=0 else "{}.h5".format(FLAGS.unitype))
             if obj_id in file_dict.keys():
                 file_dict[obj_id].append(full_path)
             else:
@@ -142,12 +147,12 @@ class NoStdStreams(object):
         sys.stderr = self.old_stderr
         self.devnull.close()
 
-def cd_emd_all(cats, pred_dir, gt_dir, test_lst_dir):
+def cd_emd_all(cats, pred_dir, gt_dir, test_lst_dir, param_dir):
     for cat_nm, cat_id in cats.items():
         pred_dir_cat = os.path.join(pred_dir, cat_id)
         gt_dir_cat = os.path.join(gt_dir, cat_id)
         test_lst_f = os.path.join(test_lst_dir, cat_id+"_{}.lst".format(FLAGS.set))
-        cd_emd_cat(cat_id, cat_nm, pred_dir_cat, gt_dir_cat, test_lst_f)
+        cd_emd_cat(cat_id, cat_nm, pred_dir_cat, gt_dir_cat, test_lst_f, param_dir)
     print("done!")
 
 def save_all_cat_gt_pnt(cats, gt_dir, test_lst_dir):
@@ -207,13 +212,14 @@ def sample_save_pred_pnt(cat_id, cat_nm, pred_dir, test_lst_f):
 
 
 
-def cd_emd_cat(cat_id, cat_nm, pred_dir_cat, gt_dir, test_lst_f):
+def cd_emd_cat(cat_id, cat_nm, pred_dir_cat, gt_dir, test_lst_f, param_dir):
     pred_dict = build_file_dict(pred_dir_cat)
     sum_cf_loss = 0.
     sum_fcf_loss = 0.
     sum_bcf_loss = 0.
     sum_em_loss = 0.
-    sum_f_score = np.zeros((len(FLAGS.thresholds)))
+    sum_f_score = np.zeros((len(FLAGS.fthresholds)))
+    sum_ious = np.zeros((len(FLAGS.ioudims)))
     with tf.Graph().as_default():
         with tf.device('/gpu:0'):
             config = tf.ConfigProto()
@@ -232,18 +238,22 @@ def cd_emd_cat(cat_id, cat_nm, pred_dir_cat, gt_dir, test_lst_f):
                     src_path = os.path.join(gt_dir, obj_id, "pc_norm.obj")
                     pred_path_lst = pred_dict[obj_id]
                     verts_batch = np.zeros((FLAGS.view_num+1, FLAGS.num_sample_points, 3), dtype=np.float32)
-                    mesh1 = pymesh.load_mesh(src_path)
-                    if mesh1.vertices.shape[0] > 0:
-                        choice = np.random.randint(mesh1.vertices.shape[0], size=FLAGS.num_sample_points)
-                        verts_batch[0, ...] = mesh1.vertices[choice,...]
+                    verts_batch[0, ...] = sample_mesh2pnts(src_path)
                     pred_path_lst = random.sample(pred_path_lst, FLAGS.view_num)
+                    surfpnts_lst=[]
                     for i in range(len(pred_path_lst)):
                         pred_mesh_fl = pred_path_lst[i]
                         surfpnts = get_surfpnts(pred_mesh_fl)
+                        surfpnts_lst.append(surfpnts)
                         if surfpnts.shape[0] > 0:
                             choice = np.random.randint(surfpnts.shape[0], size=FLAGS.num_sample_points)
                             verts_batch[i+1, ...] = surfpnts[choice, ...]
                     assert FLAGS.batch_size == FLAGS.view_num, "FLAGS.batch_size {} != FLAGS.view_num {}".format(FLAGS.batch_size, FLAGS.view_num)
+                    avg_ious = iou_pymesh_pnt(src_path, surfpnts_lst)
+                    if FLAGS.revert:
+                        param_path = os.path.join(param_dir, cat_id, obj_id, "pc_norm.txt")
+                        times = np.loadtxt(param_path)[-1]
+                        verts_batch = verts_batch * times * 0.57
                     feed_dict = {sampled_pc: verts_batch}
                     avg_cf_loss_val, min_cf_loss_val, arg_min_cf_val, avg_em_loss_val, min_em_loss_val, arg_min_em_val, avg_fcf_loss_val,avg_bcf_loss_val, avg_f_scores_val = sess.run([avg_cf_loss, min_cf_loss, arg_min_cf, avg_em_loss, min_em_loss, arg_min_em, avg_fcf_loss, avg_bcf_loss, avg_f_scores], feed_dict=feed_dict)
                     # else:
@@ -278,11 +288,37 @@ def cd_emd_cat(cat_id, cat_nm, pred_dir_cat, gt_dir, test_lst_f):
                     sum_fcf_loss += avg_fcf_loss_val
                     sum_bcf_loss += avg_bcf_loss_val
                     sum_f_score += avg_f_scores_val
-                    print(str(count) +  " ",src_path, "avg cf:{}, min_cf:{}, arg_cf view:{}, avg emd:{}, min_emd:{}, arg_em view:{}, avg_f_scores:{}".
+                    sum_ious += avg_ious
+                    print(str(count) +  " ",src_path, "avg cf:{}, min_cf:{}, arg_cf view:{}, avg emd:{}, min_emd:{}, arg_em view:{}, avg_f_scores:{}, avg_ious:{} ".
                           format(str(avg_cf_loss_val), str(min_cf_loss_val), str(arg_min_cf_val),
-                                 str(avg_em_loss_val), str(min_em_loss_val), str(arg_min_em_val), avg_f_scores_val))
-            print("cat_nm:{}, cat_id:{}, avg_cf:{},  avg_fcf:{},  avg_dcf:{}, avg_emd:{}, avg_f_scores:{}".
-                  format(cat_nm, cat_id, sum_cf_loss/len(test_objs),sum_fcf_loss/len(test_objs), sum_bcf_loss/len(test_objs), sum_em_loss/len(test_objs), sum_f_score/len(test_objs)))
+                                 str(avg_em_loss_val), str(min_em_loss_val), str(arg_min_em_val), avg_f_scores_val,avg_ious))
+            print("cat_nm:{}, cat_id:{}, avg_cf:{},  avg_fcf:{},  avg_dcf:{}, avg_emd:{}, avg_f_scores:{}, avg_ious:{}".
+                  format(cat_nm, cat_id, sum_cf_loss/len(test_objs),sum_fcf_loss/len(test_objs), sum_bcf_loss/len(test_objs), sum_em_loss/len(test_objs), sum_f_score/len(test_objs), sum_ious/len(test_objs)))
+
+def sample_mesh2pnts(model_file):
+    total = max(FLAGS.num_sample_points * 5, 16384)
+    # print("trimesh_load:", model_file)
+    mesh_list = trimesh.load_mesh(model_file, process=False)
+    if not isinstance(mesh_list, list):
+        mesh_list = [mesh_list]
+    area_sum = 0
+    area_lst = []
+    for idx, mesh in enumerate(mesh_list):
+        area = np.sum(mesh.area_faces)
+        area_lst.append(area)
+        area_sum += area
+    area_lst = np.asarray(area_lst)
+    amount_lst = (area_lst * total / area_sum).astype(np.int32)
+    points_all = np.zeros((0, 3), dtype=np.float32)
+    for i in range(amount_lst.shape[0]):
+        mesh = mesh_list[i]
+        # print("start sample surface of ", mesh.faces.shape[0])
+        points, index = trimesh.sample.sample_surface(mesh, amount_lst[i])
+        points_all = np.concatenate([points_all, points], axis=0)
+
+    choice = np.random.randint(points_all.shape[0], size=FLAGS.num_sample_points)
+    return points_all[choice, ...]
+
 
 def get_surfpnts(file):
     if file[-1]=="5":
@@ -323,9 +359,9 @@ def get_points_loss(sampled_pc):
     dists_forward_sqrt = tf.sqrt(tf.maximum(dists_forward, 1e-8))
     dists_backward_sqrt = tf.sqrt(tf.maximum(dists_backward, 1e-8))
     f_scores=[]
-    length = tf.reduce_max(tf.reduce_max(src_pc[0],axis=0) - tf.reduce_min(src_pc[0],axis=0))
-    for i in range(len(FLAGS.thresholds)):
-        threshold = FLAGS.thresholds[i] * length
+    length = 1 if FLAGS.revert else tf.reduce_max(tf.reduce_max(src_pc[0],axis=0) - tf.reduce_min(src_pc[0],axis=0))
+    for i in range(len(FLAGS.fthresholds)):
+        threshold = FLAGS.fthresholds[i] * length
         precision = tf.reduce_mean(tf.cast(tf.less_equal(dists_forward_sqrt, threshold),dtype=tf.float32), axis=1)
         recall = tf.reduce_mean(tf.cast(tf.less_equal(dists_backward_sqrt, threshold),dtype=tf.float32), axis=1)
         f_score = 2.0*tf.multiply(precision,recall)/tf.maximum(precision+recall, 1e-8)
@@ -333,6 +369,69 @@ def get_points_loss(sampled_pc):
         f_scores.append(tf.reduce_mean(f_score))
     f_scores = tf.convert_to_tensor(f_scores)
     return avg_cf_loss, min_cf_loss, arg_min_cf, avg_em_loss, min_em_loss, arg_min_em, avg_fcf_loss,avg_bcf_loss,f_scores
+
+def iou_pymesh_pnt(mesh_src, surfpnts_lst):
+    try:
+        mesh1 = pymesh.load_mesh(mesh_src)
+        iou_lst = []
+        for i in range(len(FLAGS.ioudims)):
+            # tic = time.time()
+            dim = FLAGS.ioudims[i]
+            grid1 = pymesh.VoxelGrid(2./dim)
+            grid1.insert_mesh(mesh1)
+            grid1.create_grid()
+            # print("grid:",time.time()-tic)
+            # top = np.max(grid1.mesh.vertices, axis=0)
+            # bottom = np.min(grid1.mesh.vertices, axis=0)
+            # diff = top - bottom
+            # length = np.max(diff)
+            # print("top {}, bottom {}, diff {}".format(top, bottom, diff))
+
+            ind1 = ((grid1.mesh.vertices + 1.1) / 2.4 * dim).astype(np.int)
+            v1 = np.zeros([dim, dim, dim])
+            v1[ind1[:,0], ind1[:,1], ind1[:,2]] = 1
+            iousum = 0
+            for j in range(len(surfpnts_lst)):
+                pred_pnts = surfpnts_lst[j]
+                ind2 = ((pred_pnts + 1.1) / 2.4 * dim).astype(np.int)
+                v2 = np.zeros([dim, dim, dim])
+                v2[ind2[:,0], ind2[:,1], ind2[:,2]] = 1
+                intersection = np.sum(np.logical_and(v1, v2))
+                union = np.sum(np.logical_or(v1, v2))
+                iousum += float(intersection) / union
+            iou_lst.append(iousum/len(surfpnts_lst))
+            # print("fill:",time.time() - tic)
+        return np.array(iou_lst)
+    except:
+        print("error mesh {} / {}".format(mesh_src, mesh_pred))
+
+
+def iou_pymesh(mesh_src, mesh_pred, dim=FLAGS.ioudims):
+    try:
+        mesh1 = pymesh.load_mesh(mesh_src)
+        grid1 = pymesh.VoxelGrid(2./dim)
+        grid1.insert_mesh(mesh1)
+        grid1.create_grid()
+
+        ind1 = ((grid1.mesh.vertices + 1.1) / 2.4 * dim).astype(np.int)
+        v1 = np.zeros([dim, dim, dim])
+        v1[ind1[:,0], ind1[:,1], ind1[:,2]] = 1
+
+
+        mesh2 = pymesh.load_mesh(mesh_pred)
+        grid2 = pymesh.VoxelGrid(2./dim)
+        grid2.insert_mesh(mesh2)
+        grid2.create_grid()
+
+        ind2 = ((grid2.mesh.vertices + 1.1) / 2.4 * dim).astype(np.int)
+        v2 = np.zeros([dim, dim, dim])
+        v2[ind2[:,0], ind2[:,1], ind2[:,2]] = 1
+
+        intersection = np.sum(np.logical_and(v1, v2))
+        union = np.sum(np.logical_or(v1, v2))
+        return [float(intersection) / union, mesh_pred]
+    except:
+        print("error mesh {} / {}".format(mesh_src, mesh_pred))
 
 
 if __name__ == "__main__":
@@ -363,7 +462,7 @@ if __name__ == "__main__":
     else:
         cats={FLAGS.category: cats_all[FLAGS.category]}
 
-    cd_emd_all(cats, FLAGS.cal_dir, raw_dirs["norm_mesh_dir"], FLAGS.test_lst_dir)
+    cd_emd_all(cats, FLAGS.cal_dir, raw_dirs["real_norm_mesh_dir"], FLAGS.test_lst_dir, raw_dirs["real_norm_mesh_dir"])
 
     # 1. test cd_emd for all categories / some of the categories:
 
@@ -380,21 +479,21 @@ if __name__ == "__main__":
 
 # nohup python -u test_cd_emd.py --gpu 3 --batch_size 8 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/inf_new --unitype uni --round 0 --view_num 8 &> ballr0_2048.log &
 
+# nohup python -u test_cd_emd.py --gpu 3 --batch_size 8 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/inf_new --unitype uni --round -1 --view_num 8 &> ballr-1_2048.log &
+
 # nohup python -u test_cd_emd.py --gpu 3 --batch_size 8 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/inf_new --unitype uni --round 1 --view_num 8 &> ballr1_2048.log &
 
 # nohup python -u test_cd_emd.py --gpu 3 --batch_size 8 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/inf_new --unitype uni --round 2 --view_num 8 &> ballr2_2048.log &
 
 # nohup python -u test_cd_emd.py --gpu 3 --batch_size 8 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/inf_new --unitype uni --round 3 --view_num 8 &> ballr3_2048.log &
 
+# nohup python -u test_cd_emd.py --gpu 3 --batch_size 8 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/inf_new --unitype uni --round 1 --view_num 8 --revert &> ballr1_2048_revert.log &
+
+# nohup python -u test_cd_emd.py --gpu 3 --batch_size 8 --img_feat_twostream  --num_points 2466 --category chair --cal_dir ../inference/inf_new --unitype uni --round 1 --view_num 8 --revert &> ballr1_2466_revert.log &
+
+# nohup python -u test_cd_emd.py --gpu 3 --batch_size 8 --img_feat_twostream  --num_points 2466 --category chair --cal_dir ../inference/inf_new --unitype uni --round 2 --view_num 8 --revert &> ballr2_2466.log &
 
 
-#
-# nohup python -u test_cd_emd.py --gpu 3 --batch_size 4 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/inf_new_train --unitype uni --round 4 --view_num 4 --set train &> trainballr4_2048.log &
-#
-# nohup python -u test_cd_emd.py --gpu 3 --batch_size 4 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/inf_new_train --unitype uni --round 0 --view_num 4 --set train &> trainballr0_2048.log &
-#
-# nohup python -u test_cd_emd.py --gpu 3 --batch_size 4 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/inf_new_train --unitype uni --round 1 --view_num 4 --set train &> trainballr1_2048.log &
-#
-# nohup python -u test_cd_emd.py --gpu 3 --batch_size 4 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/inf_new_train --unitype uni --round 2 --view_num 4 --set train &> trainballr2_2048.log &
-#
-# nohup python -u test_cd_emd.py --gpu 3 --batch_size 4 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/inf_new_train --unitype uni --round 3 --view_num 4 --set train &> trainballr3_2048.log &
+
+
+# nohup python -u test_cd_emd.py --gpu 3 --batch_size 4 --img_feat_twostream  --num_points 2048 --category chair --cal_dir ../inference/inf_new_train --unitype uni --round -1 --view_num 4 --set train &> train_ballr-1_2048.log &
